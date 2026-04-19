@@ -1,0 +1,36 @@
+name: Regular CI testing for ParaStell
+
+on:
+  # allows us to run workflows manually
+  workflow_dispatch:
+  pull_request:
+    paths-ignore:
+      - 'Dockerfile'
+      - '.github/workflows/docker_publish.yml'
+      - 'environment.yml'
+
+jobs:
+  test-dependency-img:
+    runs-on: ubuntu-latest
+    container: ghcr.io/svalinn/parastell-ci
+    
+    name: Perform CI Tests
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Populate environment and run tests
+        run: |
+          . /opt/etc/bashrc
+          pip install --no-deps .
+          /opt/Coreform-Cubit-2025.8/bin/rlm_activate --login ${EMAIL_SECRET} ${PASSWORD_SECRET}
+          cd tests
+          pytest -v .
+        env:
+          EMAIL_SECRET: ${{ secrets.LICENSE_EMAIL }}
+          PASSWORD_SECRET: ${{ secrets.LICENSE_PASSWORD }}
+      - name: Free Cubit license seat
+        # By default, steps only run if previous steps succeed - ensure we free up Cubit license seat
+        if: always()
+        run: /opt/Coreform-Cubit-2025.8/bin/rlm_activate --logout
