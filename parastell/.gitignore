@@ -160,3 +160,14 @@ dmypy.json
 
 # Viva la vim!
 *.sw*
+
+## after alphaparatell
+# make run-* で examples/ に生成される中間ファイルを除外 (上位の !nwl_geom.h5m などを打ち消す)
+/examples/*.h5m
+/examples/*.h5
+/examples/*.step
+/examples/*.stp
+/examples/*.vtk
+/examples/*.png
+/examples/model.xml
+/examples/alphastell_full/
