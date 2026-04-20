@@ -22,6 +22,7 @@
 //! - `generate` : generate サブコマンド本体
 //! - `validate` : validate サブコマンド本体
 
+mod cut;
 mod generate;
 mod validate;
 mod vmec;
@@ -56,6 +57,18 @@ enum Command {
 		#[arg(long, default_value_t = 0.0)]
 		thickness: f64,
 	},
+	/// 入力 STEP を Z 軸まわりのウェッジで切って片側/一部分だけ残した STEP を出力する。
+	/// BREP_WITH_VOIDS の内部可視化や、nfp=4 の 1 周期分を切り出すのに使える。
+	Cut {
+		/// 切りたい STEP のパス
+		input: PathBuf,
+		/// 出力 STEP のパス
+		output: PathBuf,
+		/// Z 軸まわりの N 等分ウェッジ。1 = no-op、2 = 半分 (単一 halfspace)、
+		/// 4 = 1/4 周期 (nfp=4 の 1 field period)、6 = 1/6 等。
+		#[arg(long, default_value_t = 2)]
+		div: u32,
+	},
 	/// 2 つの STEP ファイルを体積と Union 体積で照合する。
 	Validate {
 		/// 比較対象 A (例: out/plasma.step)
@@ -84,6 +97,11 @@ fn main() -> Result<()> {
 			scale,
 			thickness,
 		} => generate::run(&input, &output, s, scale, thickness),
+		Command::Cut {
+			input,
+			output,
+			div,
+		} => cut::run(&input, &output, div),
 		Command::Validate {
 			a,
 			b,
