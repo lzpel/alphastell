@@ -17,4 +17,4 @@ generate:
 	$(RUN) generate --input $(VMEC_IN) --output $(RUST_OUT)
 
 validate:
-	$(RUN) validate $(RUST_OUT) $(PARA_OUT)
+	$(RUN) validate --union $(RUST_OUT) $(PARA_OUT)
