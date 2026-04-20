@@ -134,20 +134,30 @@ invessel_components = [
     "vacuum_vessel",
 ]
 
-# 2 系統のメッシュ H5M を出力
-stellarator.export_invessel_build_mesh_gmsh(
-    invessel_components,
-    filename="invessel_mesh_gmsh",
-    min_mesh_size=5.0,
-    max_mesh_size=20.0,
-    algorithm=1,
-    export_dir=export_dir,
-)
+# 2 系統のメッシュ H5M を出力。
+# MOAB は surface point cloud から直接テトラを張るので robust。先に実行する。
 stellarator.export_invessel_build_mesh_moab(
     invessel_components,
     filename="invessel_mesh_moab",
     export_dir=export_dir,
 )
+
+# Gmsh は CadQuery の spline surface をトライアングル化→テトラ化するが、
+# 複雑な spline 面で "PLC Error: A segment and a facet intersect" を起こしがち
+# (並走する面が近接すると Piecewise Linear Complex が退化する)。
+# example の下流処理 (磁石 / source / DAGMC) を落とさないよう best-effort にする。
+try:
+    stellarator.export_invessel_build_mesh_gmsh(
+        invessel_components,
+        filename="invessel_mesh_gmsh",
+        min_mesh_size=5.0,
+        max_mesh_size=20.0,
+        algorithm=1,
+        export_dir=export_dir,
+    )
+except Exception as e:
+    print(f"[warn] Gmsh in-vessel mesh failed ({type(e).__name__}): {e}")
+    print("[warn] continuing without Gmsh in-vessel mesh")
 
 # --------------------------------------------------------------------
 # Magnets (filaments + casing)
@@ -173,14 +183,17 @@ stellarator.export_magnets_step(
 )
 
 for volumes_to_mesh in ("inner", "outer", "both"):
-    stellarator.export_magnet_mesh_gmsh(
-        filename=f"magnet_mesh_{volumes_to_mesh}",
-        min_mesh_size=5.0,
-        max_mesh_size=20.0,
-        algorithm=1,
-        volumes_to_mesh=volumes_to_mesh,
-        export_dir=export_dir,
-    )
+    try:
+        stellarator.export_magnet_mesh_gmsh(
+            filename=f"magnet_mesh_{volumes_to_mesh}",
+            min_mesh_size=5.0,
+            max_mesh_size=20.0,
+            algorithm=1,
+            volumes_to_mesh=volumes_to_mesh,
+            export_dir=export_dir,
+        )
+    except Exception as e:
+        print(f"[warn] Gmsh magnet mesh ({volumes_to_mesh}) failed ({type(e).__name__}): {e}")
 
 # --------------------------------------------------------------------
 # Source mesh with custom plasma conditions / reaction rate
@@ -211,13 +224,17 @@ stellarator.construct_source_mesh(
 stellarator.export_source_mesh(filename="source_mesh", export_dir=export_dir)
 
 # --------------------------------------------------------------------
-# DAGMC export via cad_to_dagmc
+# DAGMC export via cad_to_dagmc (内部で Gmsh が動く)
 # --------------------------------------------------------------------
 stellarator.build_cad_to_dagmc_model()
-stellarator.export_cad_to_dagmc(
-    filename="dagmc",
-    export_dir=export_dir,
-    min_mesh_size=10.0,
-    max_mesh_size=40.0,
-    algorithm=1,
-)
+try:
+    stellarator.export_cad_to_dagmc(
+        filename="dagmc",
+        export_dir=export_dir,
+        min_mesh_size=10.0,
+        max_mesh_size=40.0,
+        algorithm=1,
+    )
+except Exception as e:
+    print(f"[warn] cad_to_dagmc DAGMC export failed ({type(e).__name__}): {e}")
+    print("[warn] STEP / MOAB mesh / source mesh は既に出力済み")
