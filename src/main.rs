@@ -51,6 +51,10 @@ enum Command {
 		/// 単位スケール。VMEC は m なので 100 を掛けると cm になり parastell 既定と揃う。
 		#[arg(long, default_value_t = 100.0)]
 		scale: f64,
+		/// 殻の厚み。0 なら単一 solid (chamber / plasma)、>0 なら法線方向に
+		/// オフセットして殻 (first_wall など) を生成。単位は scale と同じ (= cm)。
+		#[arg(long, default_value_t = 0.0)]
+		thickness: f64,
 	},
 	/// 2 つの STEP ファイルを体積と Union 体積で照合する。
 	Validate {
@@ -78,7 +82,8 @@ fn main() -> Result<()> {
 			output,
 			s,
 			scale,
-		} => generate::run(&input, &output, s, scale),
+			thickness,
+		} => generate::run(&input, &output, s, scale, thickness),
 		Command::Validate {
 			a,
 			b,
