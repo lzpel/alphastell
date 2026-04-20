@@ -3,6 +3,7 @@ HDF5_DIR   ?= $(NETCDF_DIR)
 export NETCDF_DIR HDF5_DIR
 
 VMEC_IN  := parastell/examples/wout_vmec.nc
+COILS_IN := parastell/examples/coils.example
 PARA_DIR := parastell/examples/alphastell_full
 OUT_DIR  := out
 
@@ -16,10 +17,15 @@ FW_REF      := $(PARA_DIR)/first_wall.step
 WALL_S      := 1.08
 FW_THICK    := 5.0
 
+# magnet (coils.example → rectangular-cross-section sweep、mm 単位)
+MAG_OUT := $(OUT_DIR)/magnet_set.step
+MAG_REF := $(PARA_DIR)/magnet_set.step
+
 # LD_LIBRARY_PATH は recipe 内で親 env を継承してから prepend する
 RUN := LD_LIBRARY_PATH=$(NETCDF_DIR)/lib:$$LD_LIBRARY_PATH cargo run --release --
 
-.PHONY: run generate validate first-wall first-wall-generate first-wall-validate
+.PHONY: run generate validate first-wall first-wall-generate first-wall-validate first-wall-cut \
+        magnet magnet-generate magnet-validate
 
 run: generate validate
 
@@ -48,3 +54,16 @@ first-wall-cut: first-wall-generate
 	$(RUN) cut $(FW_OUT) $(OUT_DIR)/first_wall_div2.step --div 2
 	$(RUN) cut $(FW_OUT) $(OUT_DIR)/first_wall_div3.step --div 3
 	$(RUN) cut $(FW_OUT) $(OUT_DIR)/first_wall_div4.step --div 4
+
+# magnet: coils.example から 40 本のフィラメントを読んで長方形断面 sweep で
+# magnet_set.step を生成する。単位は mm (parastell の cm 出力と単位系が違うので
+# validate の数値一致は不可、ファイル読み書きと volume > 0 のみ確認)。
+magnet: magnet-generate magnet-validate
+
+magnet-generate:
+	$(RUN) magnet --input $(COILS_IN) --output $(MAG_OUT)
+
+magnet-validate:
+	# Rust (mm) vs parastell (cm) で単位違い。ratio は 10^3 オーダで大きくずれる。
+	# tolerance / max-ratio を緩めて「読めて正の体積」を最低ラインとして確認する。
+	$(RUN) validate --tol 0.5 --max-ratio 100 $(MAG_OUT) $(MAG_REF)
