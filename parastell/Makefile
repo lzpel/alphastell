@@ -2,6 +2,11 @@ CONDA     ?= $(HOME)/miniforge3/bin/conda
 CONDA_ENV ?= parastell_env
 
 define INFO
+run-alphastell-fullcad-to-dagmc  <-  alphastell_fullcad_to_dagmc_example.py
+  desc: cad_to_dagmc バックエンドで現行の全ジオメトリ機能を使い切るフルデモ (split_chamber / 2D thickness / casing / custom source)
+  pipe: vmec(wout_vmec.nc)+coils.example+custom_plasma-[cadquery+casing]-step-[cad_to_dagmc]-dagmc(h5m)
+  out : alphastell_full/{plasma,chamber,first_wall,breeder,back_wall,shield,vacuum_vessel,magnet_set}.step alphastell_full/{invessel_mesh_gmsh,invessel_mesh_moab,magnet_mesh_inner,magnet_mesh_outer,magnet_mesh_both,source_mesh,dagmc}.h5m
+
 run-custom-first-wall-profile  <-  custom_first_wall_profile_example.py
   desc: Kisslinger 形式リブ座標からカスタム第一壁プロファイルを生成
   pipe: vmec(wout_vmec.nc)+kisslinger(FW profile)-[cadquery]-step-[cad_to_dagmc]-dagmc(h5m) / coils.example-[cadquery]-step-[cad_to_dagmc]-h5m
