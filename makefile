@@ -38,3 +38,13 @@ first-wall-validate:
 	# first_wall は s=1.08 外挿 + 法線定義差 (parastell=2D poloidal / cadrum=3D surface) で
 	# 約 3% 程度のズレが仕様上出るため tolerance を 5% に緩める
 	$(RUN) validate --tol 0.05 $(FW_OUT) $(FW_REF)
+
+# first_wall を Z 軸まわりのウェッジで切り出して保存。
+# 注意: 現時点で first_wall は BREP_WITH_VOIDS 形式 (Solid::shell 由来) なので cut 後の
+# 体積が壊れる既知バグあり (void が boolean_intersect で誤動作)。plasma のような
+# MANIFOLD_SOLID_BREP では cut 正常動作することは確認済み。generate を boolean_subtract
+# ベースに切り替える PR を別途予定。
+first-wall-cut: first-wall-generate
+	$(RUN) cut $(FW_OUT) $(OUT_DIR)/first_wall_div2.step --div 2
+	$(RUN) cut $(FW_OUT) $(OUT_DIR)/first_wall_div3.step --div 3
+	$(RUN) cut $(FW_OUT) $(OUT_DIR)/first_wall_div4.step --div 4
