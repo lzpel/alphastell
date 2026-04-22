@@ -23,6 +23,7 @@
 //! - `validate` : validate サブコマンド本体
 
 mod coils;
+mod compound;
 mod cut;
 mod magnet;
 mod plasma;
@@ -123,6 +124,17 @@ enum Command {
 		#[arg(long, default_value_t = 1.0)]
 		scale: f64,
 	},
+	/// 複数の STEP ファイルを 1 つにまとめ、各ファイルに均等な HSV 色相で
+	/// 識別しやすい色を割り当てて出力する。
+	/// 例: `compound -i a.step -i b.step -i c.step -o out.step`
+	Compound {
+		/// 入力 STEP のパス (複数回指定可)
+		#[arg(short = 'i', long = "input")]
+		inputs: Vec<PathBuf>,
+		/// 出力 STEP のパス
+		#[arg(short = 'o', long)]
+		output: PathBuf,
+	},
 	/// 2 つの STEP ファイルを体積と Union 体積で照合する。
 	Validate {
 		/// 比較対象 A (例: out/plasma.step)
@@ -178,6 +190,7 @@ fn main() -> Result<()> {
 			output,
 			scale,
 		} => plasma::run(&input, &output, scale),
+		Command::Compound { inputs, output } => compound::run(&inputs, &output),
 		Command::Validate {
 			a,
 			b,
