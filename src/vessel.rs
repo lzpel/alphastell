@@ -1,4 +1,4 @@
-//! `generate` サブコマンド。VMEC LCFS の外側に parastell 互換の 6 層 in-vessel
+//! `vessel` サブコマンド。VMEC LCFS の外側に parastell 互換の 6 層 in-vessel
 //! 構造を `VmecData::mesh()` ベースで構築し、個別の STEP ファイルとして書き出す。
 //!
 //! # 層構造 (内側 → 外側)
@@ -66,7 +66,7 @@ const LAYERS: [(&str, &str); 6] = [
 	("vacuum_vessel", "blue"),
 ];
 
-/// generate サブコマンドのエントリポイント。
+/// vessel サブコマンドのエントリポイント。
 ///
 /// # 引数
 /// - `wall_s`: 基準磁束面 (parastell 既定 1.08)。
