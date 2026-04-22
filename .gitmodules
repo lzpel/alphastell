@@ -1,0 +1,3 @@
+[submodule "parastell"]
+	path = parastell
+	url = https://github.com/lzpel/parastell
