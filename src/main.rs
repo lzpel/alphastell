@@ -203,21 +203,22 @@ fn main() -> Result<()> {
 		} => {
 			let mut extras: Vec<(String, Vec<cadrum::Solid>)> = Vec::new();
 			if let Some(coil_path) = input_magnet {
-				// showcase 流れと整合させるため、vessel の cut --union で除去する
-				// +X 中心のウェッジ (magnet 取り分は ±τ/4 = ±90°) を build_sector にも
-				// 渡し、その扇形 **外側** (-X 半) のコイルだけを残す。
+				// showcase の最大開口 (magnet 層) は ±τ/6 = ±60° = ウェッジ幅 τ/3。
+				// build_sector にその半スパンを渡し、扇形 **外側** (残り 2τ/3 分) の
+				// コイルだけを残す。
 				// magnet は m、vessel は既定 --scale 100 (cm) なので、単位合わせに
-				// `Solid::scale(origin, 100)` を全コイルに適用する。cadrum STEP は
-				// MILLI.METRE 宣言なので viewer では両者とも 1/10 に見えるが、
-				// 相対寸法は正しい。色は compound::run 側で HSV 自動振り。
+				// `Solid::scale(origin, 100)` を全コイルに適用する。build_sector 内で
+				// コイルごとに rainbow 着色済み、compound::run は extras を preserve。
 				use cadrum::DVec3;
-				let solids = magnet::build_sector(&coil_path, 0.4, 0.5, 0.25)?;
+				let remove_half_span_tau = 1.0f64 / 6.0;
+				let solids =
+					magnet::build_sector(&coil_path, 0.4, 0.5, remove_half_span_tau)?;
 				let scaled: Vec<cadrum::Solid> = solids
 					.into_iter()
 					.map(|s| s.scale(DVec3::ZERO, 100.0))
 					.collect();
 				extras.push((
-					format!("{} (-X half, ×100)", coil_path.display()),
+					format!("{} (outside ±1/6 τ, ×100)", coil_path.display()),
 					scaled,
 				));
 			}
