@@ -25,18 +25,30 @@
 //! shell API (`cadrum::Solid::shell`) は使わない。代わりに法線方向オフセットを
 //! `mesh()` の `NormalKind::Planar` (parastell 互換、constant-φ 断面内法線) に
 //! 委ねる。
+//!
+//! # 既知の問題
+//!
+//! cadrum (OCCT) の `Solid::bspline(grid, periodic=true)` は周期 U seam で
+//! C¹ を保証せず、chamber などの surface に mm 級の dent を残す
+//! (詳細・再現コード・OCCT 内部の診断は lzpel/cadrum#120)。実用上許容して
+//! 前進する方針 — 解像度 M=128, N=48 で可視性は小さくなる。
+//! `examples/08_bspline_with_waves.rs` は cadrum 側で修正が入った際の回帰検証に利用可能。
 
 use cadrum::{DVec3, Solid};
+use std::f64::consts::TAU;
 use std::fs::File;
+use std::io::Write;
 use std::path::Path;
 
 use crate::Result;
 use crate::vmec::{NormalKind, VmecData};
 
 /// トーラス方向 (φ 軸) のリブ本数。nfp=4 の倍数にして周期対称性と揃える。
-const M_TORO: usize = 240;
-/// 断面方向 (θ 軸) のリブ 1 本あたりの点数。parastell の num_rib_pts=61 に近い 2 のべき。
-const N_POLO: usize = 64;
+/// M=128 は parastell 準拠 (M=240) よりやや低解像度だが、cadrum#120 の seam dent が
+/// 可視性を下げつつ boolean_subtract の所要時間も実用レベルに収まるバランス値。
+const M_TORO: usize = 128;
+/// 断面方向 (θ 軸) のリブ 1 本あたりの点数。
+const N_POLO: usize = 48;
 
 // 層の厚み [m] (VMEC ネイティブ単位)
 const THICK_FW_M: f64 = 0.05;
@@ -96,6 +108,12 @@ pub fn run(input: &Path, output_dir: &Path, wall_s: f64, scale: f64) -> Result<(
 	for (i, &o) in offsets_m.iter().enumerate() {
 		println!("  [{}] offset = {:.3} m", i, o);
 		let mesh = vmec.mesh(N_POLO, M_TORO, wall_s, o, NormalKind::Planar);
+		// 診断用: chamber (offset=0, i=0) の生点群を CSV にダンプして
+		// phi=0/2π seam を visual にチェックできるようにする (生 VMEC 単位 = m)
+		if i == 0 {
+			let csv_path = output_dir.join("chamber_points.csv");
+			write_mesh_csv(&mesh, 1.0, &csv_path)?;
+		}
 		let grid = to_const_grid(&mesh, scale);
 		let solid = Solid::bspline(grid, true)
 			.map_err(|e| format!("bspline #{}: {:?}", i, e))?;
@@ -141,5 +159,38 @@ fn write_step(solids: &[Solid], output: &Path) -> Result<()> {
 		.map_err(|e| format!("create {}: {}", output.display(), e))?;
 	cadrum::write_step(solids.iter(), &mut f)
 		.map_err(|e| format!("write_step failed: {:?}", e))?;
+	Ok(())
+}
+
+/// `mesh()` の出力 (`[phi_idx][theta_idx]`) を CSV にダンプする。
+///
+/// 列: `phi_idx, theta_idx, phi_rad, theta_rad, x, y, z`
+/// 順序: phi=0 から phi=(M-1)·2π/M、各 phi で theta=0 から theta=(N-1)·2π/N。
+/// 座標は `scale` を適用した STEP と同じ単位 (既定 100 → cm)。
+/// phi=0/2π seam を可視化するときは、phi_idx=0 の行群と phi_idx=M-1 の行群を
+/// 比較すれば連続性が見える。
+fn write_mesh_csv(mesh: &[Vec<[f64; 3]>], scale: f64, output: &Path) -> Result<()> {
+	println!("  Writing CSV (chamber points): {}", output.display());
+	let mut f = File::create(output)
+		.map_err(|e| format!("create {}: {}", output.display(), e))?;
+	writeln!(f, "phi_idx,theta_idx,phi_rad,theta_rad,x,y,z")
+		.map_err(|e| format!("write csv header: {}", e))?;
+	let m = mesh.len();
+	let n = mesh.first().map(|r| r.len()).unwrap_or(0);
+	for i in 0..m {
+		let phi = TAU * (i as f64) / (m as f64);
+		for j in 0..n {
+			let theta = TAU * (j as f64) / (n as f64);
+			let p = &mesh[i][j];
+			writeln!(
+				f,
+				"{i},{j},{phi:.10},{theta:.10},{:.10},{:.10},{:.10}",
+				p[0] * scale,
+				p[1] * scale,
+				p[2] * scale,
+			)
+			.map_err(|e| format!("write csv row: {}", e))?;
+		}
+	}
 	Ok(())
 }
