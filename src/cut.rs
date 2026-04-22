@@ -14,11 +14,12 @@
 //!   - h2: 法線 (sin(2π/div), -cos(2π/div), 0) で φ ≤ 2π/div を残す
 //!   - 合成: φ ∈ [0, 2π/div] のウェッジ
 
-use anyhow::{Context, Result};
 use cadrum::{Compound, DVec3, Solid};
 use std::f64::consts::TAU;
 use std::fs::File;
 use std::path::Path;
+
+use crate::Result;
 
 /// cut サブコマンドのエントリポイント。
 ///
@@ -29,14 +30,14 @@ use std::path::Path;
 pub fn run(input: &Path, output: &Path, div: u32) -> Result<()> {
 	println!("Loading STEP: {}", input.display());
 	let mut f = File::open(input)
-		.with_context(|| format!("open {}", input.display()))?;
+		.map_err(|e| format!("open {}: {}", input.display(), e))?;
 	let step1: Vec<Solid> = cadrum::read_step(&mut f)
-		.map_err(|e| anyhow::anyhow!("read_step {}: {:?}", input.display(), e))?;
+		.map_err(|e| format!("read_step {}: {:?}", input.display(), e))?;
 	println!("  loaded {} solid(s)", step1.len());
 
 	let step2 = match div {
 		0 => {
-			anyhow::bail!("div must be >= 1");
+			return Err("div must be >= 1".into());
 		}
 		1 => {
 			println!("div = 1: no cut");
@@ -63,16 +64,16 @@ pub fn run(input: &Path, output: &Path, div: u32) -> Result<()> {
 					n,
 					TAU / n as f64
 				);
-				h1.intersect([&h2]).map_err(|e| anyhow::anyhow!("boolean_intersect 2 failed: {:?}", e))?[0].clone()
+				h1.intersect([&h2]).map_err(|e| format!("boolean_intersect 2 failed: {:?}", e))?[0].clone()
 			};
 			step1
 				.intersect([&h])
-				.map_err(|e| anyhow::anyhow!("boolean_intersect 1 failed: {:?}", e))?
+				.map_err(|e| format!("boolean_intersect 1 failed: {:?}", e))?
 		}
 	};
 
 	if step2.is_empty() {
-		anyhow::bail!("intersect #1 returned empty");
+		return Err("intersect #1 returned empty".into());
 	}
 	println!("  got {} solid(s) after cut", step2.len());
 	println!("  volume input vs output: {} -> {}", step1.volume(), step2.volume());
@@ -81,16 +82,16 @@ pub fn run(input: &Path, output: &Path, div: u32) -> Result<()> {
 	if let Some(parent) = output.parent() {
 		if !parent.as_os_str().is_empty() {
 			std::fs::create_dir_all(parent)
-				.with_context(|| format!("create_dir_all {}", parent.display()))?;
+				.map_err(|e| format!("create_dir_all {}: {}", parent.display(), e))?;
 		}
 	}
 
 	println!("Writing STEP: {}", output.display());
 	let colored: Vec<Solid> = step2.into_iter().map(|s| s.color("cyan")).collect();
 	let mut out_f = File::create(output)
-		.with_context(|| format!("create {}", output.display()))?;
+		.map_err(|e| format!("create {}: {}", output.display(), e))?;
 	cadrum::write_step(colored.iter(), &mut out_f)
-		.map_err(|e| anyhow::anyhow!("write_step failed: {:?}", e))?;
+		.map_err(|e| format!("write_step failed: {:?}", e))?;
 	println!("Done.");
 	Ok(())
 }

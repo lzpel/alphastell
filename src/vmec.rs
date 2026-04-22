@@ -51,7 +51,7 @@
 //! main.rs はこの 3 つを呼ぶだけで、全周の点群を作って B-spline サーフェスに
 //! 流し込めます。
 
-use anyhow::{Context, Result};
+use crate::Result;
 use netcdf3::FileReader;
 use std::path::Path;
 
@@ -105,16 +105,16 @@ impl VmecData {
 		// netCDF-3 (Classic / 64-bit offset) ファイルを pure-Rust で読む。
 		// VMEC の wout は `CDF\x02` (64-bit offset) なので HDF5 は不要。
 		//
-		// netcdf3 の ReadError は内部に Rc を持つので !Send。anyhow の with_context は
-		// Send + Sync + 'static を要求するため、ここでは map_err で文字列化する。
+		// netcdf3 の ReadError は内部に Rc を持つので !Send。エラーメッセージを
+		// 文字列化してから Box<dyn Error> に載せる。
 		let mut file = FileReader::open(path)
-			.map_err(|e| anyhow::anyhow!("open {}: {:?}", path.display(), e))?;
+			.map_err(|e| format!("open {}: {:?}", path.display(), e))?;
 
 		// rmnc の shape を DataSet から取る (ns × mnmax)
 		let shape: Vec<usize> = file
 			.data_set()
 			.get_var("rmnc")
-			.context("missing rmnc")?
+			.ok_or("missing rmnc")?
 			.get_dims()
 			.iter()
 			.map(|d| d.size())
@@ -125,9 +125,9 @@ impl VmecData {
 		// 値を実際に読む。read_var は DataVector を返すので f64 スライスを取り出す。
 		let read_f64 = |f: &mut FileReader, name: &str| -> Result<Vec<f64>> {
 			f.read_var(name)
-				.map_err(|e| anyhow::anyhow!("read {}: {:?}", name, e))?
+				.map_err(|e| format!("read {}: {:?}", name, e))?
 				.get_f64_into()
-				.map_err(|_| anyhow::anyhow!("{} is not f64", name))
+				.map_err(|_| format!("{} is not f64", name).into())
 		};
 		let rmnc_flat = read_f64(&mut file, "rmnc")?;
 		let zmns_flat = read_f64(&mut file, "zmns")?;
