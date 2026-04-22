@@ -81,10 +81,10 @@ enum Command {
 		#[arg(short = 'o', long)]
 		output: PathBuf,
 		/// 扇形の開始角 (τ 単位)。例: "0", "-1/6", "1/3"。既定 0。
-		#[arg(short = 's', long, default_value = "0", value_parser = cut::parse_tau_fraction)]
+		#[arg(short = 's', long, default_value = "0", value_parser = cut::parse_tau_fraction, allow_hyphen_values = true)]
 		start: f64,
 		/// 扇形の終了角 (τ 単位)。例: "1/3", "1/6", "1/2", "1" (= 1 周・no-op)。
-		#[arg(short = 'e', long, value_parser = cut::parse_tau_fraction)]
+		#[arg(short = 'e', long, value_parser = cut::parse_tau_fraction, allow_hyphen_values = true)]
 		end: f64,
 		/// 扇形の内側を残す (solid ∩ wedge)。`--union` と排他。
 		#[arg(short = 'c', long)]
@@ -127,10 +127,16 @@ enum Command {
 	/// 複数の STEP ファイルを 1 つにまとめ、各ファイルに均等な HSV 色相で
 	/// 識別しやすい色を割り当てて出力する。
 	/// 例: `compound -i a.step -i b.step -i c.step -o out.step`
+	/// `--input-magnet` で coils.example を直接渡すと、±τ/4 (= ±90°) の
+	/// toroidal セクタに入るコイルだけを in-memory で sweep して 1 source として
+	/// 合成する (STEP round-trip を経由しない)。
 	Compound {
 		/// 入力 STEP のパス (複数回指定可)
 		#[arg(short = 'i', long = "input")]
 		inputs: Vec<PathBuf>,
+		/// coils.example を直接読み込んで ±τ/4 セクタに絞って合成する (任意)。
+		#[arg(short = 'm', long = "input-magnet")]
+		input_magnet: Option<PathBuf>,
 		/// 出力 STEP のパス
 		#[arg(short = 'o', long)]
 		output: PathBuf,
@@ -190,7 +196,33 @@ fn main() -> Result<()> {
 			output,
 			scale,
 		} => plasma::run(&input, &output, scale),
-		Command::Compound { inputs, output } => compound::run(&inputs, &output),
+		Command::Compound {
+			inputs,
+			input_magnet,
+			output,
+		} => {
+			let mut extras: Vec<(String, Vec<cadrum::Solid>)> = Vec::new();
+			if let Some(coil_path) = input_magnet {
+				// showcase 流れと整合させるため、vessel の cut --union で除去する
+				// +X 中心のウェッジ (magnet 取り分は ±τ/4 = ±90°) を build_sector にも
+				// 渡し、その扇形 **外側** (-X 半) のコイルだけを残す。
+				// magnet は m、vessel は既定 --scale 100 (cm) なので、単位合わせに
+				// `Solid::scale(origin, 100)` を全コイルに適用する。cadrum STEP は
+				// MILLI.METRE 宣言なので viewer では両者とも 1/10 に見えるが、
+				// 相対寸法は正しい。色は compound::run 側で HSV 自動振り。
+				use cadrum::DVec3;
+				let solids = magnet::build_sector(&coil_path, 0.4, 0.5, 0.25)?;
+				let scaled: Vec<cadrum::Solid> = solids
+					.into_iter()
+					.map(|s| s.scale(DVec3::ZERO, 100.0))
+					.collect();
+				extras.push((
+					format!("{} (-X half, ×100)", coil_path.display()),
+					scaled,
+				));
+			}
+			compound::run(&inputs, extras, &output)
+		}
 		Command::Validate {
 			a,
 			b,
