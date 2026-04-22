@@ -3,54 +3,89 @@ COILS_IN := parastell/examples/coils.example
 PARA_DIR := parastell/examples/alphastell_full
 OUT_DIR  := out
 
-# plasma (chamber, s=1.0, thickness=0)
-PLASMA_OUT  := $(OUT_DIR)/plasma.step
-PLASMA_REF  := $(PARA_DIR)/plasma.step
+# Rust の generate が一括出力する 6 層 (内側 → 外側)。
+# chamber は parastell の plasma.step と概念的に対応 (ファイル名のみ別)。
+LAYERS := chamber first_wall breeder back_wall shield vacuum_vessel
 
-# first_wall (s=wall_s=1.08, thickness=5 cm)
-FW_OUT      := $(OUT_DIR)/first_wall.step
-FW_REF      := $(PARA_DIR)/first_wall.step
-WALL_S      := 1.08
-FW_THICK    := 5.0
-
-# magnet (coils.example → rectangular-cross-section sweep、mm 単位)
+# magnet (コイル、mm 単位の別サブシステム)
 MAG_OUT := $(OUT_DIR)/magnet_set.step
 MAG_REF := $(PARA_DIR)/magnet_set.step
 
-.PHONY: run generate validate first-wall first-wall-generate first-wall-validate first-wall-cut \
-        magnet magnet-generate magnet-validate
+.PHONY: run generate \
+        validate $(addprefix validate-,$(LAYERS)) \
+        cut cut-first-wall \
+        magnet magnet-generate magnet-validate \
+        view plasma
 
 run: generate validate
 
+# ============================================================
+# generate — 6 層 in-vessel build を一括生成
+#   出力: $(OUT_DIR)/{chamber,first_wall,breeder,back_wall,shield,vacuum_vessel}.step
+#   wall_s=1.08 を基準に mesh() + boolean_subtract で構築 (Solid::shell は使わない)。
+# ============================================================
 generate:
-	cargo run --release -- generate --input $(VMEC_IN) --output $(PLASMA_OUT)
+	cargo run --release -- generate --input $(VMEC_IN) --output $(OUT_DIR)/
 
-validate:
-	cargo run --release -- validate --union $(PLASMA_OUT) $(PLASMA_REF)
+# ============================================================
+# validate — 各層を parastell 参照と体積比較
+#   Rust chamber.step ↔ parastell plasma.step (最内領域は命名違いだが同じ体積)。
+#   他 5 層はファイル名が一致。
+#   tol=0.05 は s=1.08 外挿 + Planar 2D 法線近似に由来する数 % 程度のズレを許容。
+# ============================================================
+validate: $(addprefix validate-,$(LAYERS))
 
-first-wall: first-wall-generate first-wall-validate
+validate-chamber:
+	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/chamber.step $(PARA_DIR)/plasma.step
 
-first-wall-generate:
-	cargo run --release -- generate --input $(VMEC_IN) --output $(FW_OUT) --s $(WALL_S) --thickness $(FW_THICK)
+validate-first_wall:
+	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/first_wall.step $(PARA_DIR)/first_wall.step
 
-first-wall-validate:
-	# first_wall は s=1.08 外挿 + 法線定義差 (parastell=2D poloidal / cadrum=3D surface) で
-	# 約 3% 程度のズレが仕様上出るため tolerance を 5% に緩める
-	cargo run --release -- validate --tol 0.05 $(FW_OUT) $(FW_REF)
+validate-breeder:
+	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/breeder.step $(PARA_DIR)/breeder.step
 
-# first_wall を Z 軸まわりのウェッジで切り出して保存。
-# 注意: 現時点で first_wall は BREP_WITH_VOIDS 形式 (Solid::shell 由来) なので cut 後の
-# 体積が壊れる既知バグあり (void が boolean_intersect で誤動作)。plasma のような
-# MANIFOLD_SOLID_BREP では cut 正常動作することは確認済み。generate を boolean_subtract
-# ベースに切り替える PR を別途予定。
-first-wall-cut: first-wall-generate
-	cargo run --release -- cut $(FW_OUT) $(OUT_DIR)/first_wall_div2.step --div 2
-	cargo run --release -- cut $(FW_OUT) $(OUT_DIR)/first_wall_div3.step --div 3
-	cargo run --release -- cut $(FW_OUT) $(OUT_DIR)/first_wall_div4.step --div 4
+validate-back_wall:
+	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/back_wall.step $(PARA_DIR)/back_wall.step
 
-# magnet: coils.example から 40 本のフィラメントを読んで長方形断面 sweep で
-# magnet_set.step を生成する。単位は mm (parastell の cm 出力と単位系が違うので
-# validate の数値一致は不可、ファイル読み書きと volume > 0 のみ確認)。
+validate-shield:
+	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/shield.step $(PARA_DIR)/shield.step
+
+validate-vacuum_vessel:
+	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/vacuum_vessel.step $(PARA_DIR)/vacuum_vessel.step
+
+# ============================================================
+# cut — first_wall を Z 軸ウェッジで切る
+#   新 generate は boolean_subtract 由来の MANIFOLD 閉 solid なので、旧 Solid::shell
+#   時代の BREP_WITH_VOIDS cut 体積破壊問題は解消。div=2 (単一 half-space) は正常動作。
+#   div>=3 は cut.rs 内の 2 枚 half-space intersect が cadrum 側で empty を返す既存の
+#   問題があり現状使用不可 (generate 改修とは独立、cadrum 依存で別途調査要)。
+# ============================================================
+cut: cut-first-wall
+
+cut-first-wall: generate
+	cargo run --release -- cut $(OUT_DIR)/first_wall.step $(OUT_DIR)/first_wall_div2.step --div 2
+
+# ============================================================
+# view — chamber_points.csv を matplotlib で 4 パネル可視化
+#   generate 実行時に生 VMEC 単位 (m, scale=1 固定) で出力した CSV を読み、
+#   3D 散布 / 上面 (X,Y) / 断面重ね (R,Z) / seam step 比較の PNG を作る。
+#   uv が PEP 723 inline スクリプト依存を自動解決するので venv 不要。
+# ============================================================
+view:
+	uv run tools/view_chamber.py --input $(OUT_DIR)/chamber_points.csv --output $(OUT_DIR)/chamber_view.png
+
+# ============================================================
+# plasma — VMEC LCFS (s=1.0) を複数 (M, N) 解像度で B-spline STEP 化
+#   index_rz 直接 (スプライン補間なし)、scale=1 (m) で生 VMEC 単位。
+#   出力: out/plasma_M{m}_N{n}.step を pair リスト分。
+#   phi=0/2π seam の Nyquist aliasing 依存性を viewer で並べて切り分ける。
+# ============================================================
+plasma:
+	cargo run --release -- plasma --input $(VMEC_IN) --output $(OUT_DIR)/
+
+# ============================================================
+# magnet — coils.example から長方形断面 sweep で magnet_set.step を生成 (mm 単位)
+# ============================================================
 magnet: magnet-generate magnet-validate
 
 magnet-generate:

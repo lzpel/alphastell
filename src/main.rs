@@ -1,19 +1,19 @@
 //! alphastell — VMEC 由来のステラレータ CAD を生成・検証する CLI。
 //!
 //! サブコマンド:
-//! - `generate` : VMEC `wout_*.nc` から任意の磁束面 s を全周 B-spline STEP として出力
+//! - `generate` : VMEC `wout_*.nc` から 6 層 in-vessel build を STEP として出力
 //! - `validate` : 2 つの STEP ファイルの体積と Union 体積を比較し、形状整合を検査
 //!
 //! 使い方:
 //! ```bash
-//! # VMEC から LCFS (s=1.0) を全周で STEP 化
+//! # VMEC から 6 層 in-vessel build を STEP 化 (chamber / first_wall / ... / vacuum_vessel)
 //! cargo run --release -- generate \
 //!     --input parastell/examples/wout_vmec.nc \
-//!     --output out/plasma.step
+//!     --output out/
 //!
 //! # Rust 出力と parastell 出力 (1 周期分) を照合
 //! cargo run --release -- validate \
-//!     out/plasma.step \
+//!     out/chamber.step \
 //!     parastell/examples/alphastell_full/plasma.step
 //! ```
 //!
@@ -26,6 +26,7 @@ mod coils;
 mod cut;
 mod generate;
 mod magnet;
+mod plasma;
 mod validate;
 mod vmec;
 
@@ -45,22 +46,21 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Command {
-	/// VMEC `wout_*.nc` から磁束面を全周 B-spline STEP として出力する。
+	/// VMEC `wout_*.nc` から 6 層の in-vessel 構造 (chamber / first_wall / breeder /
+	/// back_wall / shield / vacuum_vessel) を生成し、`output` ディレクトリに
+	/// 6 つの STEP ファイルとして書き出す。層厚は parastell 例に準拠。
 	Generate {
 		#[arg(long)]
 		input: PathBuf,
+		/// 出力先ディレクトリ (6 枚の *.step ファイルが作成される)。
 		#[arg(long)]
 		output: PathBuf,
-		/// 規格化磁束座標 s。1.0 が LCFS、1.08 等で wall_s 相当を評価可能。
-		#[arg(long, default_value_t = 1.0)]
-		s: f64,
+		/// 基準磁束面 wall_s。parastell 既定 1.08 (LCFS の外側に少し広げた面)。
+		#[arg(long, default_value_t = 1.08)]
+		wall_s: f64,
 		/// 単位スケール。VMEC は m なので 100 を掛けると cm になり parastell 既定と揃う。
 		#[arg(long, default_value_t = 100.0)]
 		scale: f64,
-		/// 殻の厚み。0 なら単一 solid (chamber / plasma)、>0 なら法線方向に
-		/// オフセットして殻 (first_wall など) を生成。単位は scale と同じ (= cm)。
-		#[arg(long, default_value_t = 0.0)]
-		thickness: f64,
 	},
 	/// 入力 STEP を Z 軸まわりのウェッジで切って片側/一部分だけ残した STEP を出力する。
 	/// BREP_WITH_VOIDS の内部可視化や、nfp=4 の 1 周期分を切り出すのに使える。
@@ -91,6 +91,20 @@ enum Command {
 		#[arg(long, default_value_t = 360.0)]
 		toroidal_extent: f64,
 	},
+	/// 診断: VMEC LCFS (s=1.0) を複数の (M, N) 解像度で B-spline STEP 化。
+	/// `index_rz` 直接 (スプライン補間なし) で、`output` ディレクトリに
+	/// `plasma_M<m>_N<n>.step` を一括出力する。
+	/// Nyquist aliasing が seam の原因かを resolution 依存で切り分ける用途。
+	Plasma {
+		#[arg(long)]
+		input: PathBuf,
+		/// 出力先ディレクトリ (複数の plasma_M*_N*.step が作成される)。
+		#[arg(long)]
+		output: PathBuf,
+		/// 単位スケール。既定 1.0 = m (生 VMEC 単位)。100 で cm。
+		#[arg(long, default_value_t = 1.0)]
+		scale: f64,
+	},
 	/// 2 つの STEP ファイルを体積と Union 体積で照合する。
 	Validate {
 		/// 比較対象 A (例: out/plasma.step)
@@ -115,10 +129,9 @@ fn main() -> Result<()> {
 		Command::Generate {
 			input,
 			output,
-			s,
+			wall_s,
 			scale,
-			thickness,
-		} => generate::run(&input, &output, s, scale, thickness),
+		} => generate::run(&input, &output, wall_s, scale),
 		Command::Cut {
 			input,
 			output,
@@ -131,6 +144,11 @@ fn main() -> Result<()> {
 			thickness,
 			toroidal_extent,
 		} => magnet::run(&input, &output, width, thickness, toroidal_extent),
+		Command::Plasma {
+			input,
+			output,
+			scale,
+		} => plasma::run(&input, &output, scale),
 		Command::Validate {
 			a,
 			b,
