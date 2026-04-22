@@ -12,11 +12,11 @@
 //!    e. `Solid::sweep(profile, spine, ProfileOrient::Up(DVec3::Z))` で solid 化
 //! 3. 全コイルを集めて STEP 出力
 
-use anyhow::{Context, Result};
 use cadrum::{BSplineEnd, DVec3, ProfileOrient, Solid, Wire};
 use std::fs::File;
 use std::path::Path;
 
+use crate::Result;
 use crate::coils;
 
 /// magnet サブコマンドのエントリポイント。
@@ -66,23 +66,23 @@ pub fn run(
 	println!("  {} / {} coils succeeded", solids.len(), filaments.coils.len());
 
 	if solids.is_empty() {
-		anyhow::bail!("no coil solids produced");
+		return Err("no coil solids produced".into());
 	}
 
 	// 出力ディレクトリ作成
 	if let Some(parent) = output.parent() {
 		if !parent.as_os_str().is_empty() {
 			std::fs::create_dir_all(parent)
-				.with_context(|| format!("create_dir_all {}", parent.display()))?;
+				.map_err(|e| format!("create_dir_all {}: {}", parent.display(), e))?;
 		}
 	}
 
 	println!("Writing STEP: {}", output.display());
 	let colored: Vec<Solid> = solids.into_iter().map(|s| s.color("orange")).collect();
 	let mut f = File::create(output)
-		.with_context(|| format!("create {}", output.display()))?;
+		.map_err(|e| format!("create {}: {}", output.display(), e))?;
 	cadrum::write_step(colored.iter(), &mut f)
-		.map_err(|e| anyhow::anyhow!("write_step failed: {:?}", e))?;
+		.map_err(|e| format!("write_step failed: {:?}", e))?;
 	println!("Done.");
 	Ok(())
 }
@@ -92,7 +92,7 @@ fn build_one(raw_pts: &[DVec3], width: f64, thickness: f64) -> Result<Solid> {
 	use cadrum::Edge;
 
 	if raw_pts.len() < 4 {
-		anyhow::bail!("too few points ({})", raw_pts.len());
+		return Err(format!("too few points ({})", raw_pts.len()).into());
 	}
 
 	// (a) 点列を mm に変換
@@ -110,7 +110,7 @@ fn build_one(raw_pts: &[DVec3], width: f64, thickness: f64) -> Result<Solid> {
 
 	// spine を周期 B-spline で閉ループ化
 	let spine = Edge::bspline(&spine_pts, BSplineEnd::Periodic)
-		.map_err(|e| anyhow::anyhow!("bspline failed: {:?}", e))?;
+		.map_err(|e| format!("bspline failed: {:?}", e))?;
 
 	// (c) ローカル XY 平面の長方形 profile (中心 = 原点)
 	// 点順は +X+Y → +X-Y → -X-Y → -X+Y の **時計回り** (+Z から見て)。
@@ -123,7 +123,7 @@ fn build_one(raw_pts: &[DVec3], width: f64, thickness: f64) -> Result<Solid> {
 		DVec3::new(-w / 2.0, -t / 2.0, 0.0),
 		DVec3::new(-w / 2.0, t / 2.0, 0.0),
 	])
-	.map_err(|e| anyhow::anyhow!("polygon failed: {:?}", e))?;
+	.map_err(|e| format!("polygon failed: {:?}", e))?;
 
 	// (d) spine から配置基準を取り出して profile を回転 + 平行移動
 	let tangent = spine.start_tangent();
@@ -145,7 +145,7 @@ fn build_one(raw_pts: &[DVec3], width: f64, thickness: f64) -> Result<Solid> {
 		std::iter::once(&spine),
 		ProfileOrient::Torsion,
 	)
-	.map_err(|e| anyhow::anyhow!("sweep failed: {:?}", e))?;
+	.map_err(|e| format!("sweep failed: {:?}", e))?;
 
 	Ok(coil)
 }

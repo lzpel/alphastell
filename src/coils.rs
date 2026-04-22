@@ -16,11 +16,12 @@
 //! 本 repo の `coils.example` は **40 フィラメント** (5 本のユニーク Fourier 曲線 ×
 //! nfp=4 周期 × 対称反射 2) で、ステラレータのコイル群を成す。
 
-use anyhow::{Context, Result, bail};
 use cadrum::DVec3;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
+
+use crate::Result;
 
 /// `coils.example` から読んだフィラメント集合。座標は **[m]** のまま (変換なし)。
 pub struct Filaments {
@@ -41,7 +42,7 @@ pub struct Filaments {
 /// 3. 4 列目 (current) が 0.0 のとき: その行までを 1 フィラメントとして push、次から新フィラメント
 /// 4. `end` 行で終了
 pub fn parse(path: &Path) -> Result<Filaments> {
-	let file = File::open(path).with_context(|| format!("open {}", path.display()))?;
+	let file = File::open(path).map_err(|e| format!("open {}: {}", path.display(), e))?;
 	let reader = BufReader::new(file);
 
 	let mut nfp: Option<u32> = None;
@@ -50,7 +51,7 @@ pub fn parse(path: &Path) -> Result<Filaments> {
 	let mut header_seen = 0; // periods / begin filament / mirror を数える
 
 	for (line_num, line_res) in reader.lines().enumerate() {
-		let line = line_res.with_context(|| format!("read line {}", line_num + 1))?;
+		let line = line_res.map_err(|e| format!("read line {}: {}", line_num + 1, e))?;
 		let trimmed = line.trim();
 
 		// 空行はスキップ
@@ -69,7 +70,7 @@ pub fn parse(path: &Path) -> Result<Filaments> {
 				nfp = Some(
 					rest.trim()
 						.parse::<u32>()
-						.with_context(|| format!("parse nfp at line {}", line_num + 1))?,
+						.map_err(|e| format!("parse nfp at line {}: {}", line_num + 1, e))?,
 				);
 				header_seen += 1;
 				continue;
@@ -83,24 +84,25 @@ pub fn parse(path: &Path) -> Result<Filaments> {
 		// データ行: 空白区切りの先頭 4 フィールド
 		let fields: Vec<&str> = trimmed.split_whitespace().collect();
 		if fields.len() < 4 {
-			bail!(
+			return Err(format!(
 				"line {}: expected at least 4 fields, got {}",
 				line_num + 1,
 				fields.len()
-			);
+			)
+			.into());
 		}
 		let x: f64 = fields[0]
 			.parse()
-			.with_context(|| format!("parse x at line {}", line_num + 1))?;
+			.map_err(|e| format!("parse x at line {}: {}", line_num + 1, e))?;
 		let y: f64 = fields[1]
 			.parse()
-			.with_context(|| format!("parse y at line {}", line_num + 1))?;
+			.map_err(|e| format!("parse y at line {}: {}", line_num + 1, e))?;
 		let z: f64 = fields[2]
 			.parse()
-			.with_context(|| format!("parse z at line {}", line_num + 1))?;
+			.map_err(|e| format!("parse z at line {}: {}", line_num + 1, e))?;
 		let i: f64 = fields[3]
 			.parse()
-			.with_context(|| format!("parse current at line {}", line_num + 1))?;
+			.map_err(|e| format!("parse current at line {}: {}", line_num + 1, e))?;
 
 		current.push(DVec3::new(x, y, z));
 
@@ -115,6 +117,6 @@ pub fn parse(path: &Path) -> Result<Filaments> {
 		coils.push(current);
 	}
 
-	let nfp = nfp.context("no 'periods' header found")?;
+	let nfp = nfp.ok_or("no 'periods' header found")?;
 	Ok(Filaments { nfp, coils })
 }

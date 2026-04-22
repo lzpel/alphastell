@@ -11,10 +11,11 @@
 //!    10 分以上かかるため既定では off。形状の空間的な包含まで厳密に確認したい
 //!    ときだけ opt-in する。
 
-use anyhow::{Result, bail};
 use cadrum::{Compound, Solid};
 use std::fs::File;
 use std::path::Path;
+
+use crate::Result;
 
 /// validate サブコマンドのエントリポイント。
 pub fn run(a: &Path, b: &Path, max_ratio: u32, tol: f64, union: bool) -> Result<()> {
@@ -29,7 +30,7 @@ pub fn run(a: &Path, b: &Path, max_ratio: u32, tol: f64, union: bool) -> Result<
 	println!("V_A = {:.6e}, V_B = {:.6e}", v_a, v_b);
 
 	if v_a <= 0.0 || v_b <= 0.0 {
-		bail!("non-positive volume detected: V_A={}, V_B={}", v_a, v_b);
+		return Err(format!("non-positive volume detected: V_A={}, V_B={}", v_a, v_b).into());
 	}
 
 	// --- 1. 整数倍チェック ---
@@ -51,7 +52,7 @@ pub fn run(a: &Path, b: &Path, max_ratio: u32, tol: f64, union: bool) -> Result<
 		println!("Running boolean_union (may take several minutes on large STEPs)...");
 		let (union_solids, _metadata) =
 			Solid::boolean_union(solids_a.iter(), solids_b.iter())
-				.map_err(|e| anyhow::anyhow!("boolean_union failed: {:?}", e))?;
+				.map_err(|e| format!("boolean_union failed: {:?}", e))?;
 		let v_union = union_solids.volume();
 		let rel_err_union = ((v_union - large) / large).abs();
 		let ok = rel_err_union < tol;
@@ -69,11 +70,11 @@ pub fn run(a: &Path, b: &Path, max_ratio: u32, tol: f64, union: bool) -> Result<
 	};
 
 	if !within_int || !within_union {
-		bail!(
+		return Err(format!(
 			"validation failed (integer-ratio={}, union-non-growth={})",
-			within_int,
-			within_union
-		);
+			within_int, within_union
+		)
+		.into());
 	}
 	println!("validate: PASS");
 	Ok(())
@@ -82,7 +83,7 @@ pub fn run(a: &Path, b: &Path, max_ratio: u32, tol: f64, union: bool) -> Result<
 /// 単一の STEP ファイルを cadrum の Solid Vec として読み込む。
 fn read_step_file(path: &Path) -> Result<Vec<Solid>> {
 	let mut f = File::open(path)
-		.map_err(|e| anyhow::anyhow!("open {}: {}", path.display(), e))?;
+		.map_err(|e| format!("open {}: {}", path.display(), e))?;
 	cadrum::read_step(&mut f)
-		.map_err(|e| anyhow::anyhow!("read_step {}: {:?}", path.display(), e))
+		.map_err(|e| format!("read_step {}: {:?}", path.display(), e).into())
 }
