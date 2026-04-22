@@ -626,6 +626,148 @@ mod tests {
 	use super::*;
 	use std::time::Instant;
 
+	/// phi=0 と phi=2π で (R, Z) および全偏導関数が厳密一致することを確認する。
+	///
+	/// - 値の一致 → **C⁰ 連続** (seam で飛びがない)
+	/// - ∂R/∂θ, ∂Z/∂θ, ∂R/∂φ, ∂Z/∂φ の一致 → **C¹ 微分可能**
+	///   (φ 方向の tangent vector 連続性 + θ 方向の tangent が seam 両側で一致)
+	///
+	/// 前提: xm, xn が整数 (そうでないと cos/sin 位相が 2π で一致しない)。
+	/// この 2 条件が満たされていれば B-spline 側が seam を乱す場合の原因は
+	/// 入力データではなく cadrum / OCCT の surface construction or subtract 側にある。
+	#[test]
+	fn interpolate_rz_periodic_and_differentiable_at_phi_seam() {
+		let path = Path::new("parastell/examples/wout_vmec.nc");
+		if !path.exists() {
+			eprintln!("skip: {} not found", path.display());
+			return;
+		}
+		let vmec = VmecData::load(path).expect("load vmec");
+
+		// --- 前提: xm, xn が整数であること ---
+		let xn_nonint = vmec
+			.mode_toroidal
+			.iter()
+			.enumerate()
+			.find(|&(_, &n)| (n - n.round()).abs() > 1e-10);
+		let xm_nonint = vmec
+			.mode_poloidal
+			.iter()
+			.enumerate()
+			.find(|&(_, &m)| (m - m.round()).abs() > 1e-10);
+		assert!(xn_nonint.is_none(), "xn non-integer at {:?}", xn_nonint);
+		assert!(xm_nonint.is_none(), "xm non-integer at {:?}", xm_nonint);
+
+		// --- 値と全偏導関数を (s, θ) の広い範囲で phi=0 vs phi=TAU で比較 ---
+		let tol = 1e-9;
+		let mut max_diff_r = 0.0f64;
+		let mut max_diff_z = 0.0f64;
+		let mut max_diff_dr_dtheta = 0.0f64;
+		let mut max_diff_dz_dtheta = 0.0f64;
+		let mut max_diff_dr_dphi = 0.0f64;
+		let mut max_diff_dz_dphi = 0.0f64;
+		for &s in &[0.25, 0.5, 1.0, 1.08] {
+			// θ は 64 点で sweep (mesh と同じ粒度)
+			for j in 0..64 {
+				let theta = std::f64::consts::TAU * (j as f64) / 64.0;
+				let a = vmec.interpolate_rz(s, theta, 0.0);
+				let b = vmec.interpolate_rz(s, theta, std::f64::consts::TAU);
+				let d_r = (a.r - b.r).abs();
+				let d_z = (a.z - b.z).abs();
+				let d_dr_dt = (a.dr_dtheta - b.dr_dtheta).abs();
+				let d_dz_dt = (a.dz_dtheta - b.dz_dtheta).abs();
+				let d_dr_dp = (a.dr_dphi - b.dr_dphi).abs();
+				let d_dz_dp = (a.dz_dphi - b.dz_dphi).abs();
+				assert!(d_r < tol, "s={s} θ={theta}: R mismatch {} vs {}", a.r, b.r);
+				assert!(d_z < tol, "s={s} θ={theta}: Z mismatch {} vs {}", a.z, b.z);
+				assert!(d_dr_dt < tol, "s={s} θ={theta}: ∂R/∂θ mismatch");
+				assert!(d_dz_dt < tol, "s={s} θ={theta}: ∂Z/∂θ mismatch");
+				assert!(d_dr_dp < tol, "s={s} θ={theta}: ∂R/∂φ mismatch");
+				assert!(d_dz_dp < tol, "s={s} θ={theta}: ∂Z/∂φ mismatch");
+				max_diff_r = max_diff_r.max(d_r);
+				max_diff_z = max_diff_z.max(d_z);
+				max_diff_dr_dtheta = max_diff_dr_dtheta.max(d_dr_dt);
+				max_diff_dz_dtheta = max_diff_dz_dtheta.max(d_dz_dt);
+				max_diff_dr_dphi = max_diff_dr_dphi.max(d_dr_dp);
+				max_diff_dz_dphi = max_diff_dz_dphi.max(d_dz_dp);
+			}
+		}
+		eprintln!(
+			"seam @ phi=0 vs phi=TAU (across 4×64 = 256 sample points):\n  \
+			 max|ΔR|       = {max_diff_r:.3e}\n  \
+			 max|ΔZ|       = {max_diff_z:.3e}\n  \
+			 max|Δ∂R/∂θ|   = {max_diff_dr_dtheta:.3e}\n  \
+			 max|Δ∂Z/∂θ|   = {max_diff_dz_dtheta:.3e}\n  \
+			 max|Δ∂R/∂φ|   = {max_diff_dr_dphi:.3e}\n  \
+			 max|Δ∂Z/∂φ|   = {max_diff_dz_dphi:.3e}"
+		);
+	}
+
+	/// mesh() の最終行 (i = div_phi-1) と、もし i = div_phi で計算した場合に期待される
+	/// 複製行 (= row 0) との差が、cadrum の phi-direction internal augment が成立する
+	/// だけの精度 (Precision::Confusion() ~ 1e-7) を満たすか確認する。
+	#[test]
+	fn mesh_phi_seam_matches_row0() {
+		let path = Path::new("parastell/examples/wout_vmec.nc");
+		if !path.exists() {
+			eprintln!("skip: {} not found", path.display());
+			return;
+		}
+		let vmec = VmecData::load(path).expect("load vmec");
+		let div_theta = 64;
+		let div_phi = 240;
+		let s = 1.08;
+		for (offset, kind) in [(0.0, NormalKind::Planar), (0.05, NormalKind::Planar), (0.05, NormalKind::Surface)] {
+			let grid = vmec.mesh(div_theta, div_phi, s, offset, kind);
+			// 行 0 (phi=0)
+			let row0 = &grid[0];
+			// 手計算で phi=TAU の虚構行を再構築 (mesh と同じロジックを phi=TAU で)
+			let phi = std::f64::consts::TAU;
+			let (sp, cp) = phi.sin_cos();
+			let mut virt: Vec<[f64; 3]> = Vec::with_capacity(div_theta);
+			for j in 0..div_theta {
+				let theta = std::f64::consts::TAU * (j as f64) / (div_theta as f64);
+				let rz = vmec.interpolate_rz(s, theta, phi);
+				let mut p = [rz.r, 0.0, rz.z];
+				if offset != 0.0 {
+					let (a, b) = match kind {
+						NormalKind::Planar => (
+							[rz.dr_dtheta, 0.0, rz.dz_dtheta],
+							[0.0_f64, 1.0, 0.0],
+						),
+						NormalKind::Surface => (
+							[rz.dr_dtheta, 0.0, rz.dz_dtheta],
+							[rz.dr_dphi, rz.r, rz.dz_dphi],
+						),
+					};
+					let n = [
+						b[1] * a[2] - b[2] * a[1],
+						b[2] * a[0] - b[0] * a[2],
+						b[0] * a[1] - b[1] * a[0],
+					];
+					let inv_len = 1.0 / (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
+					p[0] += offset * n[0] * inv_len;
+					p[1] += offset * n[1] * inv_len;
+					p[2] += offset * n[2] * inv_len;
+				}
+				virt.push([p[0] * cp - p[1] * sp, p[0] * sp + p[1] * cp, p[2]]);
+			}
+			// row0 と virt (phi=2π) の差を集計
+			let mut max_diff = 0.0f64;
+			for j in 0..div_theta {
+				let dx = row0[j][0] - virt[j][0];
+				let dy = row0[j][1] - virt[j][1];
+				let dz = row0[j][2] - virt[j][2];
+				max_diff = max_diff.max((dx * dx + dy * dy + dz * dz).sqrt());
+			}
+			eprintln!(
+				"offset={offset:.3} kind={:?}: max |row0 - virt(phi=TAU)| = {max_diff:.3e}",
+				kind
+			);
+			assert!(max_diff < 1e-6, "seam too large");
+		}
+	}
+
 	/// 1000 点を interpolate_rz で計算したときの実時間を測って、generate の現実的なコスト感を掴む。
 	/// `cargo test --release -- --nocapture bench_interpolate_rz_1000pts` で測定推奨。
 	#[test]
