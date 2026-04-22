@@ -44,16 +44,17 @@
 //!
 //! # このモジュールの API (全部 VmecData のメソッド)
 //!
-//! 1. [`VmecData::load`] — netCDF ファイルを開いて [`VmecData`] を作る (コンストラクタ)
-//! 2. [`VmecData::interp_coeffs_at_s`] — 目的の s における Fourier 係数を内挿で求める
-//! 3. [`VmecData::eval_rz`] — (θ, φ) を 1 つ指定して (R, Z) を計算する
+//! 1. [`VmecData::load`] — netCDF ファイルを開いて [`VmecData`] を作る
+//! 2. [`VmecData::index_rz`] — s グリッド上の離散点 `s_grid[index_s]` で (R, Z) を計算
+//! 3. [`VmecData::interpolate_rz`] — 任意の s で (R, Z) を計算 (Fourier 係数を s 方向にスプライン)
 //!
-//! main.rs はこの 3 つを呼ぶだけで、全周の点群を作って B-spline サーフェスに
-//! 流し込めます。
+//! generate / first_wall は `interpolate_rz(s, θ, φ)` を (θ, φ) 走査しながら呼べばよい。
+//! 内部ヘルパーとして `eval_rz(r_coeff, z_coeff, θ, φ)` (private) が Fourier 和だけを担当する。
 
 use crate::Result;
 use netcdf3::FileReader;
 use std::path::Path;
+use std::sync::OnceLock;
 
 // ================================================================
 // VmecData — 必要な変数だけ抽出したプラズマデータ
@@ -69,11 +70,13 @@ use std::path::Path;
 /// - `rmnc`:    R の Fourier 係数。`rmnc[i][k]` = 「s_grid[i] の磁束面における
 ///              k 番目のモードの振幅」。外側の Vec の長さは ns、内側は mnmax。
 /// - `zmns`:    Z の Fourier 係数。構造は rmnc と同じ。
-/// - `xm`:      各モードの **poloidal モード番号** (断面方向の波の周波数)。
-/// - `xn`:      各モードの **toroidal モード番号** (ドーナツ周方向の波の周波数)。
-///              `xm` と `xn` の組 `(m, n)` で一つの波を表す。
+/// - `mode_poloidal`: 各モードの **poloidal モード数 m** (断面方向の波が何周期か)。
+///                    VMEC ファイル内の名前は `xm`。
+/// - `mode_toroidal`: 各モードの **toroidal モード数 n** (周方向の波が何周期か)。
+///                    VMEC ファイル内の名前は `xn`。
+///                    `(mode_poloidal, mode_toroidal)` の組 = `(m, n)` で 1 つの波。
 ///
-/// 例: `xm=[0, 1, 0, 1, ...]`, `xn=[0, 0, 4, 4, ...]`, `mnmax=179` 個。
+/// 例: `mode_poloidal=[0, 1, 0, 1, ...]`, `mode_toroidal=[0, 0, 4, 4, ...]`, `mnmax=179` 個。
 pub struct VmecData {
 	/// 規格化磁束座標 s の配列 (長さ ns)
 	pub s_grid: Vec<f64>,
@@ -81,10 +84,14 @@ pub struct VmecData {
 	pub rmnc: Vec<Vec<f64>>,
 	/// Z の Fourier 係数 (zmns[s 軸 index][mode 番号])
 	pub zmns: Vec<Vec<f64>>,
-	/// poloidal モード番号 m (長さ mnmax)
-	pub xm: Vec<f64>,
-	/// toroidal モード番号 n (長さ mnmax)
-	pub xn: Vec<f64>,
+	/// poloidal モード数 m (長さ mnmax)。ファイル上の名前は `xm`。
+	pub mode_poloidal: Vec<f64>,
+	/// toroidal モード数 n (長さ mnmax)。ファイル上の名前は `xn`。
+	pub mode_toroidal: Vec<f64>,
+	/// `interpolate_rz` が初回に構築して以降使い回すスプライン群。(r_splines, z_splines) で
+	/// 各 Vec の長さは mnmax。[`OnceLock`] により再計算されない (計算結果は VmecData に
+	/// 紐づく遅延フィールド)。
+	splines: OnceLock<(Vec<NaturalSpline>, Vec<NaturalSpline>)>,
 }
 
 impl VmecData {
@@ -100,7 +107,8 @@ impl VmecData {
 	/// がその FFI をしてくれます。
 	///
 	/// VMEC の wout ファイルには何十もの変数が入っていますが、今回プラズマ表面を
-	/// 描くのに必要なのは `rmnc`, `zmns`, `xm`, `xn` の 4 つだけです。
+	/// 描くのに必要なのは `rmnc`, `zmns`, `xm`, `xn` の 4 つだけです
+	/// (Rust 側の名前はそれぞれ `rmnc`, `zmns`, `mode_poloidal`, `mode_toroidal`)。
 	pub fn load(path: &Path) -> Result<Self> {
 		// netCDF-3 (Classic / 64-bit offset) ファイルを pure-Rust で読む。
 		// VMEC の wout は `CDF\x02` (64-bit offset) なので HDF5 は不要。
@@ -131,8 +139,8 @@ impl VmecData {
 		};
 		let rmnc_flat = read_f64(&mut file, "rmnc")?;
 		let zmns_flat = read_f64(&mut file, "zmns")?;
-		let xm = read_f64(&mut file, "xm")?;
-		let xn = read_f64(&mut file, "xn")?;
+		let mode_poloidal = read_f64(&mut file, "xm")?;
+		let mode_toroidal = read_f64(&mut file, "xn")?;
 
 		// netCDF から来たのは 1 次元に潰れた配列 (長さ ns*mnmax)。
 		// これを `[ns][mnmax]` の入れ子 Vec に作り直す方が後段のコードで扱いやすい。
@@ -151,58 +159,24 @@ impl VmecData {
 			s_grid,
 			rmnc,
 			zmns,
-			xm,
-			xn,
+			mode_poloidal,
+			mode_toroidal,
+			splines: OnceLock::new(),
 		})
 	}
 
 	// --------------------------------------------------------------
-	// interp_coeffs_at_s — 全 Fourier mode を s 軸で内挿
+	// eval_rz — s グリッド点ちょうどで Fourier 級数の和を計算
 	// --------------------------------------------------------------
 
-	/// 目的の磁束ラベル `s` における Fourier 係数 `rmnc_at_s`, `zmns_at_s` を返す。
-	///
-	/// VMEC は係数を s=0, 1/(ns-1), ..., 1.0 の**離散的な**磁束面上にしか格納して
-	/// いない。任意の s (たとえば s=1.08) で使うには、各モード k ごとに s 軸方向に
-	/// 補間が必要。本メソッドは **mnmax 個それぞれ**について NaturalSpline を作って
-	/// 目的の s で評価する。
-	///
-	/// 返り値の長さはそれぞれ mnmax。以後 [`Self::eval_rz`] はこの係数を受けて
-	/// (θ, φ) だけで波の和を取れる (つまり s は事前に「焼き込まれる」)。
-	pub fn interp_coeffs_at_s(&self, s: f64) -> (Vec<f64>, Vec<f64>) {
-		let mnmax = self.xm.len();
-		let mut r_at_s = Vec::with_capacity(mnmax);
-		let mut z_at_s = Vec::with_capacity(mnmax);
-
-		for k in 0..mnmax {
-			// k 番目のモードの係数を s 軸方向に全点集める
-			// rmnc[i][k] を i = 0..ns で走査 → 1 列を Vec に
-			let r_col: Vec<f64> = self.rmnc.iter().map(|row| row[k]).collect();
-			let z_col: Vec<f64> = self.zmns.iter().map(|row| row[k]).collect();
-
-			// その 1 列データからスプラインを作り、目的の s で評価
-			let sr = NaturalSpline::new(&self.s_grid, &r_col);
-			let sz = NaturalSpline::new(&self.s_grid, &z_col);
-			r_at_s.push(sr.eval(s));
-			z_at_s.push(sz.eval(s));
-		}
-
-		(r_at_s, z_at_s)
-	}
-
-	// --------------------------------------------------------------
-	// eval_rz — Fourier 級数の和を計算
-	// --------------------------------------------------------------
-
-	/// 与えられた (θ, φ) における (R, Z) を Fourier 級数の和で計算する。
+	/// s グリッド上の離散点 `s_grid[index_s]` における (R, Z) を Fourier 級数の和で計算する。
 	///
 	/// ```text
-	///   R(θ, φ) = Σ_k  r_coeff[k] · cos(xm[k] · θ − xn[k] · φ)
-	///   Z(θ, φ) = Σ_k  z_coeff[k] · sin(xm[k] · θ − xn[k] · φ)
+	///   R(θ, φ) = Σ_k  rmnc[index_s][k] · cos(mode_poloidal[k] · θ − mode_toroidal[k] · φ)
+	///   Z(θ, φ) = Σ_k  zmns[index_s][k] · sin(mode_poloidal[k] · θ − mode_toroidal[k] · φ)
 	/// ```
 	///
-	/// `r_coeff` / `z_coeff` は [`Self::interp_coeffs_at_s`] の結果をそのまま渡す。
-	/// モード番号 `xm` / `xn` は `self` のフィールドから取るので引数不要。
+	/// **スプライン不要**。任意 s で評価したい場合は [`Self::spline_rz`] を使うこと。
 	///
 	/// # なぜ R は cos で Z は sin ?
 	///
@@ -256,22 +230,44 @@ impl VmecData {
 	///
 	/// `zmns` は sin 展開なので (m=0, n=0) モードは `sin(0) = 0` で寄与ゼロ。
 	/// 上下対称なプラズマなら Z のオフセットは自動的に 0 になる。
-	pub fn eval_rz(
-		&self,
-		r_coeff: &[f64],
-		z_coeff: &[f64],
-		theta: f64,
-		phi: f64,
-	) -> (f64, f64) {
+	fn eval_rz(&self, r_coeff: &[f64], z_coeff: &[f64], theta: f64, phi: f64) -> (f64, f64) {
+		let mnmax = self.mode_poloidal.len();
 		let mut r = 0.0;
 		let mut z = 0.0;
-		for k in 0..self.xm.len() {
+		for k in 0..mnmax {
 			// m·θ − n·φ は「その点でのらせん位相」
-			let angle = self.xm[k] * theta - self.xn[k] * phi;
+			let angle = self.mode_poloidal[k] * theta - self.mode_toroidal[k] * phi;
 			r += r_coeff[k] * angle.cos();
 			z += z_coeff[k] * angle.sin();
 		}
 		(r, z)
+	}
+
+	#[allow(dead_code)] // API として公開; 現在は tests からのみ使用
+	pub fn index_rz(&self, index_s: usize, theta: f64, phi: f64) -> (f64, f64) {
+		self.eval_rz(&self.rmnc[index_s], &self.zmns[index_s], theta, phi)
+	}
+
+	pub fn interpolate_rz(&self, s: f64, theta: f64, phi: f64) -> (f64, f64) {
+		// 各モードごとの s 軸方向スプラインは (s, θ, φ) に依存しないので、VmecData の
+		// ライフタイムで 1 回だけ構築してメモ化する。初回呼び出しで lazy 初期化。
+		let (r_splines, z_splines) = self.splines.get_or_init(|| {
+			let mnmax = self.mode_poloidal.len();
+			let mut r_splines = Vec::with_capacity(mnmax);
+			let mut z_splines = Vec::with_capacity(mnmax);
+			for k in 0..mnmax {
+				let r_col: Vec<f64> = self.rmnc.iter().map(|row| row[k]).collect();
+				let z_col: Vec<f64> = self.zmns.iter().map(|row| row[k]).collect();
+				r_splines.push(NaturalSpline::new(&self.s_grid, &r_col));
+				z_splines.push(NaturalSpline::new(&self.s_grid, &z_col));
+			}
+			(r_splines, z_splines)
+		});
+		// 以降は eval だけでよい (スプライン構築コストがかからない)
+		let mnmax = self.mode_poloidal.len();
+		let r_at_s: Vec<f64> = (0..mnmax).map(|k| r_splines[k].eval(s)).collect();
+		let z_at_s: Vec<f64> = (0..mnmax).map(|k| z_splines[k].eval(s)).collect();
+		self.eval_rz(&r_at_s, &z_at_s, theta, phi)
 	}
 }
 
@@ -425,5 +421,78 @@ impl NaturalSpline {
 		// y = a + b·(x-xᵢ) + c·(x-xᵢ)² + d·(x-xᵢ)³
 		let dx = x - self.xs[idx];
 		self.a[idx] + self.b[idx] * dx + self.c[idx] * dx.powi(2) + self.d[idx] * dx.powi(3)
+	}
+}
+
+// ================================================================
+// ベンチマーク用のテスト
+// ================================================================
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use std::time::Instant;
+
+	/// 1000 点を interpolate_rz で計算したときの実時間を測って、generate の現実的なコスト感を掴む。
+	/// `cargo test --release -- --nocapture bench_interpolate_rz_1000pts` で測定推奨。
+	#[test]
+	fn bench_interpolate_rz_1000pts() {
+		let path = Path::new("parastell/examples/wout_vmec.nc");
+		if !path.exists() {
+			eprintln!("skip: {} not found", path.display());
+			return;
+		}
+		let vmec = VmecData::load(path).expect("load vmec");
+
+		const N: usize = 1000;
+		let mut checksum = 0.0f64;
+		let start = Instant::now();
+		for i in 0..N {
+			let t = i as f64 / N as f64;
+			// s は LCFS 内外を織り交ぜる (0.2〜1.08)、θ・φ は非自明な数列にして
+			// コンパイラに定数最適化されないようにする。
+			let s = 0.2 + 0.88 * t;
+			let theta = 0.037 * i as f64;
+			let phi = 0.041 * i as f64;
+			let (r, z) = vmec.interpolate_rz(s, theta, phi);
+			checksum += r + z;
+		}
+		let elapsed = start.elapsed();
+		eprintln!(
+			"interpolate_rz × {}pts: {:?} ({:.2} us/pt), checksum={:.6}",
+			N,
+			elapsed,
+			elapsed.as_secs_f64() * 1e6 / N as f64,
+			checksum
+		);
+	}
+
+	/// グリッド点 `s_grid[i]` における index_rz と interpolate_rz の返値が一致することを確認する。
+	/// スプライン補間がノード上で元データを通ることを検証する健全性チェックでもある。
+	#[test]
+	fn index_rz_matches_interpolate_rz_on_grid() {
+		let path = Path::new("parastell/examples/wout_vmec.nc");
+		if !path.exists() {
+			eprintln!("skip: {} not found", path.display());
+			return;
+		}
+		let vmec = VmecData::load(path).expect("load vmec");
+		// LCFS (s=1.0) と磁気軸寄り (s=0.5) と中央 (s=0.5 付近の index) を抜き打ち確認。
+		for &i in &[0, vmec.s_grid.len() / 2, vmec.s_grid.len() - 1] {
+			let s = vmec.s_grid[i];
+			for (theta, phi) in [(0.0, 0.0), (0.37, 1.29), (1.0, 0.5)] {
+				let (r_idx, z_idx) = vmec.index_rz(i, theta, phi);
+				let (r_int, z_int) = vmec.interpolate_rz(s, theta, phi);
+				let tol = 1e-9;
+				assert!(
+					(r_idx - r_int).abs() < tol,
+					"R mismatch at i={i}, θ={theta}, φ={phi}: idx={r_idx}, int={r_int}"
+				);
+				assert!(
+					(z_idx - z_int).abs() < tol,
+					"Z mismatch at i={i}, θ={theta}, φ={phi}: idx={z_idx}, int={z_int}"
+				);
+			}
+		}
 	}
 }
