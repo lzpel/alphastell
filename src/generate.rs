@@ -35,7 +35,6 @@
 //! `examples/08_bspline_with_waves.rs` は cadrum 側で修正が入った際の回帰検証に利用可能。
 
 use cadrum::{DVec3, Solid};
-use std::f64::consts::TAU;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
@@ -108,12 +107,11 @@ pub fn run(input: &Path, output_dir: &Path, wall_s: f64, scale: f64) -> Result<(
 	for (i, &o) in offsets_m.iter().enumerate() {
 		println!("  [{}] offset = {:.3} m", i, o);
 		let mesh = vmec.mesh(N_POLO, M_TORO, wall_s, o, NormalKind::Planar);
-		// 診断用: chamber (offset=0, i=0) の生点群を CSV にダンプして
-		// phi=0/2π seam を visual にチェックできるようにする (生 VMEC 単位 = m)
-		if i == 0 {
-			let csv_path = output_dir.join("chamber_points.csv");
-			write_mesh_csv(&mesh, 1.0, &csv_path)?;
-		}
+		// 可視化用: STEP と同名の .csv に layer の外側 bounding surface mesh を
+		// 生点群 (x,y,z) で書き出す。単位は生 VMEC (m) で固定。
+		let name = LAYERS[i].0;
+		let csv_path = output_dir.join(format!("{}.csv", name));
+		write_mesh_csv(&mesh, 1.0, &csv_path)?;
 		let grid = to_const_grid(&mesh, scale);
 		let solid = Solid::bspline(grid, true)
 			.map_err(|e| format!("bspline #{}: {:?}", i, e))?;
@@ -162,29 +160,20 @@ fn write_step(solids: &[Solid], output: &Path) -> Result<()> {
 	Ok(())
 }
 
-/// `mesh()` の出力 (`[phi_idx][theta_idx]`) を CSV にダンプする。
+/// `mesh()` の出力 (`[phi_idx][theta_idx]`) を header 無し `x,y,z` CSV にダンプ。
 ///
-/// 列: `phi_idx, theta_idx, phi_rad, theta_rad, x, y, z`
-/// 順序: phi=0 から phi=(M-1)·2π/M、各 phi で theta=0 から theta=(N-1)·2π/N。
-/// 座標は `scale` を適用した STEP と同じ単位 (既定 100 → cm)。
-/// phi=0/2π seam を可視化するときは、phi_idx=0 の行群と phi_idx=M-1 の行群を
-/// 比較すれば連続性が見える。
+/// magnet サブコマンドの CSV と同形式で、`tools/view_points.py` がそのまま
+/// 3D scatter できる。走査順: phi=0 から phi=(M-1)·2π/M、各 phi で
+/// theta=0 から theta=(N-1)·2π/N。
 fn write_mesh_csv(mesh: &[Vec<[f64; 3]>], scale: f64, output: &Path) -> Result<()> {
-	println!("  Writing CSV (chamber points): {}", output.display());
+	println!("  Writing CSV: {}", output.display());
 	let mut f = File::create(output)
 		.map_err(|e| format!("create {}: {}", output.display(), e))?;
-	writeln!(f, "phi_idx,theta_idx,phi_rad,theta_rad,x,y,z")
-		.map_err(|e| format!("write csv header: {}", e))?;
-	let m = mesh.len();
-	let n = mesh.first().map(|r| r.len()).unwrap_or(0);
-	for i in 0..m {
-		let phi = TAU * (i as f64) / (m as f64);
-		for j in 0..n {
-			let theta = TAU * (j as f64) / (n as f64);
-			let p = &mesh[i][j];
+	for row in mesh {
+		for p in row {
 			writeln!(
 				f,
-				"{i},{j},{phi:.10},{theta:.10},{:.10},{:.10},{:.10}",
+				"{},{},{}",
 				p[0] * scale,
 				p[1] * scale,
 				p[2] * scale,
