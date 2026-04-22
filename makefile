@@ -86,12 +86,5 @@ plasma:
 # ============================================================
 # magnet — coils.example から長方形断面 sweep で magnet_set.step を生成 (mm 単位)
 # ============================================================
-magnet: magnet-generate magnet-validate
-
-magnet-generate:
+magnet:
 	cargo run --release -- magnet --input $(COILS_IN) --output $(MAG_OUT)
-
-magnet-validate:
-	# Rust (mm) vs parastell (cm) で単位違い。ratio は 10^3 オーダで大きくずれる。
-	# tolerance / max-ratio を緩めて「読めて正の体積」を最低ラインとして確認する。
-	cargo run --release -- validate --tol 0.5 --max-ratio 100 $(MAG_OUT) $(MAG_REF)

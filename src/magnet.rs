@@ -14,7 +14,7 @@
 
 use cadrum::{BSplineEnd, DVec3, ProfileOrient, Solid, Wire};
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::Result;
 use crate::coils;
@@ -83,6 +83,20 @@ pub fn run(
 		.map_err(|e| format!("create {}: {}", output.display(), e))?;
 	cadrum::write_step(colored.iter(), &mut f)
 		.map_err(|e| format!("write_step failed: {:?}", e))?;
+
+	// 同名 .stl も書き出す (plasma サブコマンドと同じ方針)。
+	// STL は OCCT の BRepMesh によるテッセレーション結果だけを素の三角形として
+	// 保存する形式で、viewer 非依存の見た目確認や FEM 取り込みに使える。
+	let stl_path: PathBuf = output.with_extension("stl");
+	println!("Writing STL: {}", stl_path.display());
+	let mut fstl = File::create(&stl_path)
+		.map_err(|e| format!("create {}: {}", stl_path.display(), e))?;
+	// deflection は mm 単位。コイル断面 ~400×500 mm に対し 50 mm (≈10% 相対)
+	// で視認には十分。sweep 由来の BSpline 面は BRepMesh が重いので deflection を
+	// 小さくすると実用時間で終わらない。断面を滑らかに見たい場合のみ 10 以下に下げる。
+	cadrum::mesh(&colored, 50.0)
+		.and_then(|m| m.write_stl(&mut fstl))
+		.map_err(|e| format!("write stl {}: {:?}", stl_path.display(), e))?;
 	println!("Done.");
 	Ok(())
 }
@@ -96,21 +110,25 @@ fn build_one(raw_pts: &[DVec3], width: f64, thickness: f64) -> Result<Solid> {
 	}
 
 	// (a) 点列を mm に変換
-	let mut spine_pts: Vec<DVec3> = raw_pts.iter().map(|p| *p * 1000.0).collect();
+	let spine_pts: Vec<DVec3> = raw_pts.iter().map(|p| *p * 1000.0).collect();
 
-	// (b) 閉ループ終端マーカーは最終点が始点と重複しているので落とす
-	//     (BSplineEnd::Periodic は first == last を弾く)
-	if spine_pts
-		.last()
-		.map(|p| (*p - spine_pts[0]).length() < 1e-6)
-		.unwrap_or(false)
-	{
-		spine_pts.pop();
-	}
-
-	// spine を周期 B-spline で閉ループ化
-	let spine = Edge::bspline(&spine_pts, BSplineEnd::Periodic)
+	let spine = Edge::bspline(&spine_pts, BSplineEnd::NotAKnot)
 		.map_err(|e| format!("bspline failed: {:?}", e))?;
+
+	// (b') aux spine: コイル COM を中心に spine を径方向に一様拡大したループ。
+	// 各点 P_i に対応する aux 点は COM + (P_i - COM) * AUX_SCALE で、
+	// spine → aux の方向は常に P_i - COM (= コイルループの外向き) と一致する。
+	// sweep 中、profile の tracked axis がこの方向を追うため、parastell の
+	// 「全点で COM 基準の normal/binormal を構築」と等価なフレーム制御になる。
+	// AUX_SCALE は向きの決定には無関係 (>1 であればよい); 数値安定性のため 1.1。
+	const AUX_SCALE: f64 = 1.1;
+	let com: DVec3 = spine_pts.iter().copied().sum::<DVec3>() / (spine_pts.len() as f64);
+	let aux_pts: Vec<DVec3> = spine_pts
+		.iter()
+		.map(|p| com + (*p - com) * AUX_SCALE)
+		.collect();
+	let aux_spine = Edge::bspline(&aux_pts, BSplineEnd::NotAKnot)
+		.map_err(|e| format!("aux bspline failed: {:?}", e))?;
 
 	// (c) ローカル XY 平面の長方形 profile (中心 = 原点)
 	// 点順は +X+Y → +X-Y → -X-Y → -X+Y の **時計回り** (+Z から見て)。
@@ -128,22 +146,20 @@ fn build_one(raw_pts: &[DVec3], width: f64, thickness: f64) -> Result<Solid> {
 	// (d) spine から配置基準を取り出して profile を回転 + 平行移動
 	let tangent = spine.start_tangent();
 	let origin = spine.start_point();
-	// x_hint はコイル COM から origin への外向きベクトル。
-	// start_point 自体を使うと、コイルが世界原点から遠い・かつ start 接線が動径方向に
-	// 近い配置で start_tangent と (start_point - 0) が平行になり align_z が
-	// panic することがある。COM 基準なら接線に対しほぼ直交するので堅牢。
-	let com: DVec3 = spine_pts.iter().copied().sum::<DVec3>() / (spine_pts.len() as f64);
+	// x_hint はコイル COM から origin への外向きベクトル。Auxiliary の
+	// aux_spine 方向 (= 外向き) と一致させて、sweep 開始点でフレームが
+	// 再整列しないようにしておく。
 	let outward = origin - com;
 	let profile = profile.align_z(tangent, outward).translate(origin);
 
-	// (e) sweep。Torsion (Frenet-Serret frame) で曲線の捻じれに自然追従させる。
-	// Up(+Z) や Up(外向き) だと一部のコイル (特に start 接線が Up 軸に近いもの) で
-	// OCCT の sweep が失敗する。Torsion は変曲点で定義困難な場合もあるが、
-	// 本 example のコイルはなめらかな閉曲線なので問題は出にくい。
+	// (e) sweep。Auxiliary(aux_spine) で profile の tracked axis を各点で
+	// 「コイル COM → spine 点」方向に向ける。Torsion (Frenet-Serret) が
+	// 変曲点で不安定になる問題を避け、parastell 準拠の径方向基準フレームを
+	// 全点で維持する。
 	let coil = Solid::sweep(
 		profile.iter(),
 		std::iter::once(&spine),
-		ProfileOrient::Torsion,
+		ProfileOrient::Auxiliary(&[aux_spine]),
 	)
 	.map_err(|e| format!("sweep failed: {:?}", e))?;
 
