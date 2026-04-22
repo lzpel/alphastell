@@ -65,6 +65,13 @@ enum Command {
 	/// 入力 STEP を Z 軸まわりの扇形 (sector) で切って一部分だけ残した STEP を出力する。
 	/// BREP_WITH_VOIDS の内部可視化や、nfp=4 の 1 周期分 (-s 0 -e 1/4) を切り出すのに使える。
 	/// 角度は τ (= 2π) を単位とする有理数、形式は `(+|-)?\d+(/\d+)?` のみ。
+	/// `--cut` と `--union` のどちらか一方を必須 (両方指定はエラー)。
+	#[command(group(
+		clap::ArgGroup::new("op")
+			.required(true)
+			.multiple(false)
+			.args(["cut", "union"])
+	))]
 	Cut {
 		/// 切りたい STEP のパス
 		#[arg(short = 'i', long)]
@@ -78,6 +85,12 @@ enum Command {
 		/// 扇形の終了角 (τ 単位)。例: "1/3", "1/6", "1/2", "1" (= 1 周・no-op)。
 		#[arg(short = 'e', long, value_parser = cut::parse_tau_fraction)]
 		end: f64,
+		/// 扇形の内側を残す (solid ∩ wedge)。`--union` と排他。
+		#[arg(short = 'c', long)]
+		cut: bool,
+		/// 扇形を除去する (solid - wedge、扇形の外側だけ残す)。`--cut` と排他。
+		#[arg(short = 'u', long)]
+		union: bool,
 	},
 	/// `coils.example` から 40 本のフィラメントを読み、長方形断面 sweep で
 	/// parastell 互換の magnet_set.step を出力する。座標単位は m。
@@ -142,7 +155,17 @@ fn main() -> Result<()> {
 			output,
 			start,
 			end,
-		} => cut::run(&input, &output, start, end),
+			cut,
+			union,
+		} => {
+			let mode = if cut {
+				cut::Mode::Intersect
+			} else {
+				debug_assert!(union, "clap ArgGroup guarantees exactly one of --cut / --union");
+				cut::Mode::Subtract
+			};
+			cut::run(&input, &output, start, end, mode)
+		}
 		Command::Magnet {
 			input,
 			output,
