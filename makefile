@@ -57,13 +57,14 @@ validate-vacuum_vessel:
 # cut — first_wall を Z 軸まわりの扇形で切る
 #   --start/-s, --end/-e は τ (= 2π) 単位の有理数。形式 (+|-)?\d+(/\d+)? のみ。
 #   例: -s 0 -e 1/2 で半周、-s 0 -e 1/4 で nfp=4 の 1 周期分、-s -1/6 -e 1/6 で非対称。
-#   内部は line+arc+line の閉 wire を extrude した扇柱と boolean intersect する方式で、
+#   --cut/-c (扇形内側を残す) と --union/-u (扇形を除去) は排他必須。
+#   内部は line+arc+line の閉 wire を extrude した扇柱と boolean 演算する方式で、
 #   旧 half-space 方式の div>=3 empty 問題は回避済み。
 # ============================================================
 cut: cut-first-wall
 
 cut-first-wall: generate
-	cargo run --release -- cut -i $(OUT_DIR)/first_wall.step -o $(OUT_DIR)/first_wall_half.step -s 0 -e 1/2
+	cargo run --release -- cut --cut -i $(OUT_DIR)/first_wall.step -o $(OUT_DIR)/first_wall_half.step -s 0 -e 1/2
 
 # ============================================================
 # plasma — VMEC LCFS (s=1.0) を複数 (M, N) 解像度で B-spline STEP 化

@@ -5,11 +5,14 @@
 //!   形式は正規表現 `^(+|-)?\d+(/\d+)?$` のみ。
 //!   例: `-s 0 -e 1/3` → 0°〜120°、`-s -1/6 -e 1/6` → -60°〜+60°。
 //!   `--start` 既定 0、`--end` は必須。
+//! - `--cut/-c` と `--union/-u` は排他必須。前者は扇形内側 (solid ∩ wedge) を残し、
+//!   後者は扇形外側 (solid - wedge) を残す。
 //!
 //! 実装方針:
 //! - 旧 div / half-space 2 枚 intersect は div>=3 で cadrum が empty を返す不具合があり
 //!   不安定だった。本実装では **line + arc + line** の閉 wire を XY 平面で組み、
-//!   `Solid::extrude` で扇柱 (fan prism) を作り、入力 solid と boolean intersect する。
+//!   `Solid::extrude` で扇柱 (fan prism) を作る。あとは mode に応じて入力 solid と
+//!   boolean intersect / subtract する。
 //! - 扇柱の寸法は各入力 solid の `bounding_box()` から十分大きく取る。
 
 use cadrum::{Compound, DVec3, Edge, Solid};
@@ -39,12 +42,27 @@ pub(crate) fn parse_tau_fraction(s: &str) -> std::result::Result<f64, String> {
 	Ok(TAU * (sign * num) as f64 / den as f64)
 }
 
-/// 単一 solid を Z 軸まわりの扇形 [start, end] ラジアンで切り出す。
+/// 入力 solid と扇柱 wedge の boolean 演算モード。
+#[derive(Copy, Clone, Debug)]
+pub enum Mode {
+	/// `solid ∩ wedge` — 扇形の内側だけ残す (従来の `--cut` 挙動)。
+	Intersect,
+	/// `solid - wedge` — 扇形を取り除いて外側を残す (`--union`)。
+	Subtract,
+}
+
+/// 単一 solid を Z 軸まわりの扇形 [start, end] ラジアンで切り出す / 取り除く。
 ///
 /// 扇柱は `p0=apex`, `p1=start 端`, `p2=end 端` の 3 点から `line+arc+line` の
 /// 閉 wire を組み、Z 方向に extrude したもの。弧の決定点 (arc_3pts の mid) は
 /// `(start+end)/2` を呼び出しインラインで計算する。
-fn cut_solid(solid: &Solid, start: f64, end: f64) -> std::result::Result<Solid, cadrum::Error> {
+/// `mode` に応じて wedge と intersect するか subtract するかを切り替える。
+fn cut_solid(
+	solid: &Solid,
+	start: f64,
+	end: f64,
+	mode: Mode,
+) -> std::result::Result<Solid, cadrum::Error> {
 	let [min, max] = solid.bounding_box();
 	let r = 2.0 * min.x.abs().max(max.x.abs()).hypot(min.y.abs().max(max.y.abs())) + 1.0;
 	let z_margin = (max.z - min.z).abs().max(1.0);
@@ -62,15 +80,18 @@ fn cut_solid(solid: &Solid, start: f64, end: f64) -> std::result::Result<Solid, 
 		Edge::line(p2, p0)?,
 	];
 	let wedge = Solid::extrude(wire.iter(), DVec3::new(0.0, 0.0, z_hi - z_lo))?;
-	solid
-		.intersect([&wedge])?
+	let result = match mode {
+		Mode::Intersect => solid.intersect([&wedge])?,
+		Mode::Subtract => solid.subtract([&wedge])?,
+	};
+	result
 		.into_iter()
 		.next()
 		.ok_or(cadrum::Error::BooleanOperationFailed)
 }
 
 /// cut サブコマンドのエントリポイント。`start`/`end` はラジアン済み。
-pub fn run(input: &Path, output: &Path, start: f64, end: f64) -> Result<()> {
+pub fn run(input: &Path, output: &Path, start: f64, end: f64, mode: Mode) -> Result<()> {
 	let span = end - start;
 	if !(span > 0.0) {
 		return Err(format!("end ({}) must be greater than start ({})", end, start).into());
@@ -85,23 +106,38 @@ pub fn run(input: &Path, output: &Path, start: f64, end: f64) -> Result<()> {
 
 	let full_turn = (span - TAU).abs() < 1e-12;
 	let cut_solids: Vec<Solid> = if full_turn {
-		println!("span = tau: no cut (pass-through)");
-		solids.clone()
+		// span = tau: wedge が 1 周を覆う。intersect なら入力そのまま、
+		// subtract なら全除去で結果が空になるため、明示的にエラーで止める。
+		match mode {
+			Mode::Intersect => {
+				println!("span = tau with --cut: pass-through");
+				solids.clone()
+			}
+			Mode::Subtract => {
+				return Err(
+					"span = tau with --union subtracts the entire solid; nothing to output".into(),
+				);
+			}
+		}
 	} else {
+		let op = match mode {
+			Mode::Intersect => "intersect",
+			Mode::Subtract => "subtract",
+		};
 		println!(
-			"Cutting with fan sector: [{:.6}, {:.6}] rad (span {:.6})",
-			start, end, span
+			"Fan sector [{:.6}, {:.6}] rad (span {:.6}), op = {}",
+			start, end, span, op
 		);
 		solids
 			.iter()
-			.map(|s| cut_solid(s, start, end))
+			.map(|s| cut_solid(s, start, end, mode))
 			.collect::<std::result::Result<_, _>>()?
 	};
 
 	if cut_solids.is_empty() {
-		return Err("intersect returned empty".into());
+		return Err("boolean operation returned empty".into());
 	}
-	println!("  got {} solid(s) after cut", cut_solids.len());
+	println!("  got {} solid(s) after boolean", cut_solids.len());
 	println!(
 		"  volume input vs output: {} -> {}",
 		solids.volume(),
