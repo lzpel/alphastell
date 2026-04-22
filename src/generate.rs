@@ -81,8 +81,8 @@ fn build_grid(vmec: &VmecData, s: f64, scale: f64) -> [[DVec3; N_POLO]; M_TORO] 
 			// 断面方向の角度 θ。同じく [0, 2π) 開区間
 			let theta = TAU * (j as f64) / (N_POLO as f64);
 			// VMEC は円柱座標 (R, Z, φ) で値を返すので直交座標 (x, y, z) に変換
-			let (r, z) = vmec.interpolate_rz(s, theta, phi);
-			DVec3::new(r * cosp * scale, r * sinp * scale, z * scale)
+			let rz = vmec.interpolate_rz(s, theta, phi);
+			DVec3::new(rz.r * cosp * scale, rz.r * sinp * scale, rz.z * scale)
 		})
 	})
 }
