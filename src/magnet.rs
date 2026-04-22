@@ -4,7 +4,7 @@
 //! 全体の流れ:
 //! 1. `coils::parse` でフィラメント点列 (単位 m) を取得
 //! 2. 各フィラメントに対し:
-//!    a. 点列を mm にスケール (× 1000)
+//!    a. 点列を m のまま spine 点として扱う (単位変換なし)
 //!    b. 最終点 (閉ループ終端マーカー) を落として周期 B-spline で spine を作成
 //!    c. ローカル XY 平面の長方形 profile を作成
 //!    d. `spine.start_tangent()` / `start_point()` で配置基準を取り
@@ -14,6 +14,7 @@
 
 use cadrum::{BSplineEnd, DVec3, ProfileOrient, Solid, Wire};
 use std::fs::File;
+use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 
 use crate::Result;
@@ -24,8 +25,8 @@ use crate::coils;
 /// # 引数
 /// - `input`: `coils.example` パス
 /// - `output`: `magnet_set.step` パス
-/// - `width`: 矩形断面の幅 [mm]
-/// - `thickness`: 矩形断面の厚み [mm]
+/// - `width`: 矩形断面の幅 [m]
+/// - `thickness`: 矩形断面の厚み [m]
 /// - `toroidal_extent`: [deg]。360.0 で全コイル、<360 で将来的にコイル間引き (本 PR では未実装、値だけログ出力)
 pub fn run(
 	input: &Path,
@@ -49,15 +50,19 @@ pub fn run(
 	}
 
 	println!(
-		"Building {} coil solids (width = {} mm, thickness = {} mm)...",
+		"Building {} coil solids (width = {} m, thickness = {} m)...",
 		filaments.coils.len(),
 		width,
 		thickness
 	);
 	let mut solids: Vec<Solid> = Vec::with_capacity(filaments.coils.len());
+	let mut coil_points: Vec<Vec<DVec3>> = Vec::with_capacity(filaments.coils.len());
 	for (idx, raw_pts) in filaments.coils.iter().enumerate() {
 		match build_one(raw_pts, width, thickness) {
-			Ok(s) => solids.push(s),
+			Ok((s, pts)) => {
+				solids.push(s);
+				coil_points.push(pts);
+			}
 			Err(e) => {
 				eprintln!("  [warn] coil #{} sweep failed: {}", idx, e);
 			}
@@ -84,33 +89,38 @@ pub fn run(
 	cadrum::write_step(colored.iter(), &mut f)
 		.map_err(|e| format!("write_step failed: {:?}", e))?;
 
-	// 同名 .stl も書き出す (plasma サブコマンドと同じ方針)。
-	// STL は OCCT の BRepMesh によるテッセレーション結果だけを素の三角形として
-	// 保存する形式で、viewer 非依存の見た目確認や FEM 取り込みに使える。
-	let stl_path: PathBuf = output.with_extension("stl");
-	println!("Writing STL: {}", stl_path.display());
-	let mut fstl = File::create(&stl_path)
-		.map_err(|e| format!("create {}: {}", stl_path.display(), e))?;
-	// deflection は mm 単位。コイル断面 ~400×500 mm に対し 50 mm (≈10% 相対)
-	// で視認には十分。sweep 由来の BSpline 面は BRepMesh が重いので deflection を
-	// 小さくすると実用時間で終わらない。断面を滑らかに見たい場合のみ 10 以下に下げる。
-	cadrum::mesh(&colored, 50.0)
-		.and_then(|m| m.write_stl(&mut fstl))
-		.map_err(|e| format!("write stl {}: {:?}", stl_path.display(), e))?;
+	// 可視化用 CSV: STEP と同名で拡張子だけ .csv。中身は header 無し、
+	// 1 行 = "x,y,z" (m)。コイルごとに profile 4 点 → spine n 点の順で並ぶ。
+	let csv_path = output.with_extension("csv");
+	println!("Writing CSV: {}", csv_path.display());
+	let csv_file = File::create(&csv_path)
+		.map_err(|e| format!("create {}: {}", csv_path.display(), e))?;
+	let mut csv = BufWriter::new(csv_file);
+	for pts in &coil_points {
+		for p in pts {
+			writeln!(csv, "{},{},{}", p.x, p.y, p.z)
+				.map_err(|e| format!("write csv: {}", e))?;
+		}
+	}
+	csv.flush().map_err(|e| format!("flush csv: {}", e))?;
 	println!("Done.");
 	Ok(())
 }
 
 /// 1 本のコイルを長方形断面で sweep して Solid にする。
-fn build_one(raw_pts: &[DVec3], width: f64, thickness: f64) -> Result<Solid> {
+///
+/// 戻り値の `Vec<DVec3>` は可視化用の点列 (m, ワールド座標):
+/// - 先頭 4 点: 配置後 profile の 4 コーナー (start_point() × 4 辺)
+/// - 残り n 点: spine 点列 (= raw_pts そのまま、m 単位)
+fn build_one(raw_pts: &[DVec3], width: f64, thickness: f64) -> Result<(Solid, Vec<DVec3>)> {
 	use cadrum::Edge;
 
 	if raw_pts.len() < 4 {
 		return Err(format!("too few points ({})", raw_pts.len()).into());
 	}
 
-	// (a) 点列を mm に変換
-	let spine_pts: Vec<DVec3> = raw_pts.iter().map(|p| *p * 1000.0).collect();
+	// (a) 点列は m のまま使う (coils::parse は [m] 単位で返す)
+	let spine_pts: Vec<DVec3> = raw_pts.to_vec();
 
 	let spine = Edge::bspline(&spine_pts, BSplineEnd::NotAKnot)
 		.map_err(|e| format!("bspline failed: {:?}", e))?;
@@ -152,6 +162,14 @@ fn build_one(raw_pts: &[DVec3], width: f64, thickness: f64) -> Result<Solid> {
 	let outward = origin - com;
 	let profile = profile.align_z(tangent, outward).translate(origin);
 
+	// 可視化用ダンプ: profile 4 コーナー (各辺 Edge の start_point) + spine n 点。
+	// すべてワールド座標 (m)。`start_point` は Wire trait 経由で Edge に生えている。
+	let mut dump_pts: Vec<DVec3> = Vec::with_capacity(profile.len() + spine_pts.len());
+	for e in profile.iter() {
+		dump_pts.push(e.start_point());
+	}
+	dump_pts.extend_from_slice(&spine_pts);
+
 	// (e) sweep。Auxiliary(aux_spine) で profile の tracked axis を各点で
 	// 「コイル COM → spine 点」方向に向ける。Torsion (Frenet-Serret) が
 	// 変曲点で不安定になる問題を避け、parastell 準拠の径方向基準フレームを
@@ -159,9 +177,10 @@ fn build_one(raw_pts: &[DVec3], width: f64, thickness: f64) -> Result<Solid> {
 	let coil = Solid::sweep(
 		profile.iter(),
 		std::iter::once(&spine),
-		ProfileOrient::Auxiliary(&[aux_spine]),
+		ProfileOrient::Torsion
+		//ProfileOrient::Auxiliary(&[aux_spine]),
 	)
 	.map_err(|e| format!("sweep failed: {:?}", e))?;
 
-	Ok(coil)
+	Ok((coil, dump_pts))
 }
