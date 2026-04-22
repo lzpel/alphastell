@@ -94,6 +94,15 @@ pub struct VmecData {
 	splines: OnceLock<(Vec<NaturalSpline>, Vec<NaturalSpline>)>,
 }
 
+pub struct RZ {
+	pub r: f64,
+	pub z: f64,
+	pub dr_dtheta: f64,
+	pub dr_dphi: f64,
+	pub dz_dtheta: f64,
+	pub dz_dphi: f64,
+}
+
 impl VmecData {
 	// --------------------------------------------------------------
 	// load — netCDF から VmecData を作る (コンストラクタ)
@@ -230,25 +239,38 @@ impl VmecData {
 	///
 	/// `zmns` は sin 展開なので (m=0, n=0) モードは `sin(0) = 0` で寄与ゼロ。
 	/// 上下対称なプラズマなら Z のオフセットは自動的に 0 になる。
-	fn eval_rz(&self, r_coeff: &[f64], z_coeff: &[f64], theta: f64, phi: f64) -> (f64, f64) {
+	fn eval_rz(&self, r_coeff: &[f64], z_coeff: &[f64], theta: f64, phi: f64) -> RZ {
 		let mnmax = self.mode_poloidal.len();
-		let mut r = 0.0;
-		let mut z = 0.0;
+		let mut res = RZ {
+			r: 0.0,
+			z: 0.0,
+			dr_dtheta: 0.0,
+			dr_dphi: 0.0,
+			dz_dtheta: 0.0,
+			dz_dphi: 0.0,
+		};
 		for k in 0..mnmax {
 			// m·θ − n·φ は「その点でのらせん位相」
 			let angle = self.mode_poloidal[k] * theta - self.mode_toroidal[k] * phi;
-			r += r_coeff[k] * angle.cos();
-			z += z_coeff[k] * angle.sin();
+			res.r += r_coeff[k] * angle.cos();
+			res.z += z_coeff[k] * angle.sin();
+			// ∂(cos α)/∂x = (-sin α)·(∂α/∂x), ∂(sin α)/∂x = (cos α)·(∂α/∂x)
+			let dangle_dtheta = self.mode_poloidal[k];
+			let dangle_dphi = -self.mode_toroidal[k];
+			res.dr_dtheta += r_coeff[k] * (-angle.sin()) * dangle_dtheta;
+			res.dr_dphi += r_coeff[k] * (-angle.sin()) * dangle_dphi;
+			res.dz_dtheta += z_coeff[k] * angle.cos() * dangle_dtheta;
+			res.dz_dphi += z_coeff[k] * angle.cos() * dangle_dphi;
 		}
-		(r, z)
+		res
 	}
 
 	#[allow(dead_code)] // API として公開; 現在は tests からのみ使用
-	pub fn index_rz(&self, index_s: usize, theta: f64, phi: f64) -> (f64, f64) {
+	pub fn index_rz(&self, index_s: usize, theta: f64, phi: f64) -> RZ {
 		self.eval_rz(&self.rmnc[index_s], &self.zmns[index_s], theta, phi)
 	}
 
-	pub fn interpolate_rz(&self, s: f64, theta: f64, phi: f64) -> (f64, f64) {
+	pub fn interpolate_rz(&self, s: f64, theta: f64, phi: f64) -> RZ {
 		// 各モードごとの s 軸方向スプラインは (s, θ, φ) に依存しないので、VmecData の
 		// ライフタイムで 1 回だけ構築してメモ化する。初回呼び出しで lazy 初期化。
 		let (r_splines, z_splines) = self.splines.get_or_init(|| {
@@ -454,8 +476,8 @@ mod tests {
 			let s = 0.2 + 0.88 * t;
 			let theta = 0.037 * i as f64;
 			let phi = 0.041 * i as f64;
-			let (r, z) = vmec.interpolate_rz(s, theta, phi);
-			checksum += r + z;
+			let rz = vmec.interpolate_rz(s, theta, phi);
+			checksum += rz.r + rz.z;
 		}
 		let elapsed = start.elapsed();
 		eprintln!(
@@ -481,16 +503,18 @@ mod tests {
 		for &i in &[0, vmec.s_grid.len() / 2, vmec.s_grid.len() - 1] {
 			let s = vmec.s_grid[i];
 			for (theta, phi) in [(0.0, 0.0), (0.37, 1.29), (1.0, 0.5)] {
-				let (r_idx, z_idx) = vmec.index_rz(i, theta, phi);
-				let (r_int, z_int) = vmec.interpolate_rz(s, theta, phi);
+				let idx = vmec.index_rz(i, theta, phi);
+				let int = vmec.interpolate_rz(s, theta, phi);
 				let tol = 1e-9;
 				assert!(
-					(r_idx - r_int).abs() < tol,
-					"R mismatch at i={i}, θ={theta}, φ={phi}: idx={r_idx}, int={r_int}"
+					(idx.r - int.r).abs() < tol,
+					"R mismatch at i={i}, θ={theta}, φ={phi}: idx={}, int={}",
+					idx.r, int.r
 				);
 				assert!(
-					(z_idx - z_int).abs() < tol,
-					"Z mismatch at i={i}, θ={theta}, φ={phi}: idx={z_idx}, int={z_int}"
+					(idx.z - int.z).abs() < tol,
+					"Z mismatch at i={i}, θ={theta}, φ={phi}: idx={}, int={}",
+					idx.z, int.z
 				);
 			}
 		}
