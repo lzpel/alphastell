@@ -14,7 +14,8 @@ MAG_REF := $(PARA_DIR)/magnet_set.step
 .PHONY: run generate \
         validate $(addprefix validate-,$(LAYERS)) \
         cut cut-first-wall \
-        magnet magnet-generate magnet-validate
+        magnet magnet-generate magnet-validate \
+        view plasma
 
 run: generate validate
 
@@ -63,6 +64,24 @@ cut: cut-first-wall
 
 cut-first-wall: generate
 	cargo run --release -- cut $(OUT_DIR)/first_wall.step $(OUT_DIR)/first_wall_div2.step --div 2
+
+# ============================================================
+# view — chamber_points.csv を matplotlib で 4 パネル可視化
+#   generate 実行時に生 VMEC 単位 (m, scale=1 固定) で出力した CSV を読み、
+#   3D 散布 / 上面 (X,Y) / 断面重ね (R,Z) / seam step 比較の PNG を作る。
+#   uv が PEP 723 inline スクリプト依存を自動解決するので venv 不要。
+# ============================================================
+view:
+	uv run tools/view_chamber.py --input $(OUT_DIR)/chamber_points.csv --output $(OUT_DIR)/chamber_view.png
+
+# ============================================================
+# plasma — VMEC LCFS (s=1.0) を複数 (M, N) 解像度で B-spline STEP 化
+#   index_rz 直接 (スプライン補間なし)、scale=1 (m) で生 VMEC 単位。
+#   出力: out/plasma_M{m}_N{n}.step を pair リスト分。
+#   phi=0/2π seam の Nyquist aliasing 依存性を viewer で並べて切り分ける。
+# ============================================================
+plasma:
+	cargo run --release -- plasma --input $(VMEC_IN) --output $(OUT_DIR)/
 
 # ============================================================
 # magnet — coils.example から長方形断面 sweep で magnet_set.step を生成 (mm 単位)
