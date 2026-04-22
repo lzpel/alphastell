@@ -1,97 +1,156 @@
-//! `cut` サブコマンドの実装。入力 STEP を Z 軸まわりのウェッジで切り取って片側だけ残す。
+//! `cut` サブコマンドの実装。入力 STEP を Z 軸まわりの扇形 (sector) で切り取る。
 //!
-//! 用途:
-//! - BREP_WITH_VOIDS 形式の中空 shell solid (`first_wall.step` 等) を Fusion 360
-//!   など一部 CAD で可視化できない問題に対し、実際に切って内部を見えるようにする
-//! - nfp=4 のステラレータで **1 周期 (div=4)** を取り出して parastell 出力 (1 周期分)
-//!   との**単位長比較**にも使える
+//! API:
+//! - `--start/-s` / `--end/-e` は **τ (= 2π) を単位とする有理数**。
+//!   形式は正規表現 `^(+|-)?\d+(/\d+)?$` のみ。
+//!   例: `-s 0 -e 1/3` → 0°〜120°、`-s -1/6 -e 1/6` → -60°〜+60°。
+//!   `--start` 既定 0、`--end` は必須。
 //!
-//! 実装:
-//! - `div = 1`: 切らずにそのまま出力
-//! - `div = 2`: 1 枚の half space (法線 +Y、原点通過) と intersect
-//! - `div ≥ 3`: 2 枚の half space を連続 intersect して `2π/div` 角度のウェッジを作る
-//!   - h1: 法線 +Y で φ ∈ [0, π] を残す
-//!   - h2: 法線 (sin(2π/div), -cos(2π/div), 0) で φ ≤ 2π/div を残す
-//!   - 合成: φ ∈ [0, 2π/div] のウェッジ
+//! 実装方針:
+//! - 旧 div / half-space 2 枚 intersect は div>=3 で cadrum が empty を返す不具合があり
+//!   不安定だった。本実装では **line + arc + line** の閉 wire を XY 平面で組み、
+//!   `Solid::extrude` で扇柱 (fan prism) を作り、入力 solid と boolean intersect する。
+//! - 扇柱の寸法は各入力 solid の `bounding_box()` から十分大きく取る。
 
-use cadrum::{Compound, DVec3, Solid};
+use cadrum::{Compound, DVec3, Edge, Solid};
+use regex::Regex;
 use std::f64::consts::TAU;
 use std::fs::File;
 use std::path::Path;
+use std::sync::OnceLock;
 
 use crate::Result;
 
-/// cut サブコマンドのエントリポイント。
-///
-/// # 引数
-/// - `input`: 切りたい STEP のパス
-/// - `output`: 出力 STEP のパス
-/// - `div`: Z 軸まわりの N 等分ウェッジ (N=2 なら半分、N=4 なら 1/4、N=1 は no-op)
-pub fn run(input: &Path, output: &Path, div: u32) -> Result<()> {
-	println!("Loading STEP: {}", input.display());
-	let mut f = File::open(input)
-		.map_err(|e| format!("open {}: {}", input.display(), e))?;
-	let step1: Vec<Solid> = cadrum::read_step(&mut f)
-		.map_err(|e| format!("read_step {}: {:?}", input.display(), e))?;
-	println!("  loaded {} solid(s)", step1.len());
+/// `(+|-)?\d+(/\d+)?` 形式の τ-fraction をラジアンに。
+pub(crate) fn parse_tau_fraction(s: &str) -> std::result::Result<f64, String> {
+	const RE_STR: &str = r"^(?P<sign>[+-]?)(?P<num>\d+)(?:/(?P<den>\d+))?$";
+	static RE: OnceLock<Regex> = OnceLock::new();
+	let re = RE.get_or_init(|| Regex::new(RE_STR).unwrap());
+	let caps = re.captures(s).ok_or_else(|| format!("angle must match {}: {s:?}", RE_STR))?;
+	let sign: i64 = if &caps["sign"] == "-" { -1 } else { 1 };
+	let num: i64 = caps["num"].parse().ok().ok_or_else(|| format!("numerator out of range: {}", &caps["num"]))?;
+	let den: i64 = match caps.name("den") {
+		Some(m) => m.as_str().parse().ok().ok_or_else(|| format!("denominator out of range: {}", m.as_str()))?,
+		None => 1,
+	};
+	if den == 0 {
+		return Err("denominator must be non-zero".into());
+	}
+	Ok(TAU * (sign * num) as f64 / den as f64)
+}
 
-	let step2 = match div {
-		0 => {
-			return Err("div must be >= 1".into());
-		}
-		1 => {
-			println!("div = 1: no cut");
-			step1.clone()
-		}
-		n => {
-			// ウェッジ幅 w = 2π/n を作りたい。h1 (+Y 法線) の 180° 幅から h2 で削り、
-			// h1 の境界 (φ=0) と h2 の境界 (φ=2π/n) で挟まれた領域を残す。
-			// h2 の内向き法線は +Y を (π − 2π/n) だけ CCW 回転した方向にとる。
-			// → 結果: 合成ウェッジ幅 = π − (π − 2π/n) = 2π/n ✓
-			// (素朴に TAU/n だけ回すと幅は π − TAU/n になり、n=4 でだけ偶然 2π/4 = π/2 と一致する)
-			
-			let h1 = Solid::half_space(DVec3::ZERO, DVec3::Y);
-			println!("Intersect solids with half-space #1 (normal = +Y)...");
-			let h=if n == 2 {
-				h1
-			} else {
-				let alpha = std::f64::consts::PI - TAU / n as f64; // = π(n-2)/n
-				let h2 = Solid::half_space(DVec3::ZERO, DVec3::Y).rotate_z(alpha);
-				println!(
-					"Intersect with half-space #2 (rotated by π - 2π/{} = {:.4} rad around Z, wedge width = 2π/{} = {:.4} rad)...",
-					n,
-					alpha,
-					n,
-					TAU / n as f64
-				);
-				h1.intersect([&h2]).map_err(|e| format!("boolean_intersect 2 failed: {:?}", e))?[0].clone()
-			};
-			step1
-				.intersect([&h])
-				.map_err(|e| format!("boolean_intersect 1 failed: {:?}", e))?
-		}
+/// 単一 solid を Z 軸まわりの扇形 [start, end] ラジアンで切り出す。
+///
+/// 扇柱は `p0=apex`, `p1=start 端`, `p2=end 端` の 3 点から `line+arc+line` の
+/// 閉 wire を組み、Z 方向に extrude したもの。弧の決定点 (arc_3pts の mid) は
+/// `(start+end)/2` を呼び出しインラインで計算する。
+fn cut_solid(solid: &Solid, start: f64, end: f64) -> std::result::Result<Solid, cadrum::Error> {
+	let [min, max] = solid.bounding_box();
+	let r = 2.0 * min.x.abs().max(max.x.abs()).hypot(min.y.abs().max(max.y.abs())) + 1.0;
+	let z_margin = (max.z - min.z).abs().max(1.0);
+	let z_lo = min.z - z_margin;
+	let z_hi = max.z + z_margin;
+
+	let p0 = DVec3::new(0.0, 0.0, z_lo);
+	let p1 = DVec3::new(r * start.cos(), r * start.sin(), z_lo);
+	let p2 = DVec3::new(r * end.cos(), r * end.sin(), z_lo);
+
+	let mid = 0.5 * (start + end);
+	let wire = [
+		Edge::line(p0, p1)?,
+		Edge::arc_3pts(p1, DVec3::new(r * mid.cos(), r * mid.sin(), z_lo), p2)?,
+		Edge::line(p2, p0)?,
+	];
+	let wedge = Solid::extrude(wire.iter(), DVec3::new(0.0, 0.0, z_hi - z_lo))?;
+	solid
+		.intersect([&wedge])?
+		.into_iter()
+		.next()
+		.ok_or(cadrum::Error::BooleanOperationFailed)
+}
+
+/// cut サブコマンドのエントリポイント。`start`/`end` はラジアン済み。
+pub fn run(input: &Path, output: &Path, start: f64, end: f64) -> Result<()> {
+	let span = end - start;
+	if !(span > 0.0) {
+		return Err(format!("end ({}) must be greater than start ({})", end, start).into());
+	}
+	if span > TAU + 1e-12 {
+		return Err(format!("end - start must be <= tau; got {} rad", span).into());
+	}
+
+	println!("Loading STEP: {}", input.display());
+	let solids: Vec<Solid> = cadrum::read_step(&mut File::open(input)?)?;
+	println!("  loaded {} solid(s)", solids.len());
+
+	let full_turn = (span - TAU).abs() < 1e-12;
+	let cut_solids: Vec<Solid> = if full_turn {
+		println!("span = tau: no cut (pass-through)");
+		solids.clone()
+	} else {
+		println!(
+			"Cutting with fan sector: [{:.6}, {:.6}] rad (span {:.6})",
+			start, end, span
+		);
+		solids
+			.iter()
+			.map(|s| cut_solid(s, start, end))
+			.collect::<std::result::Result<_, _>>()?
 	};
 
-	if step2.is_empty() {
-		return Err("intersect #1 returned empty".into());
+	if cut_solids.is_empty() {
+		return Err("intersect returned empty".into());
 	}
-	println!("  got {} solid(s) after cut", step2.len());
-	println!("  volume input vs output: {} -> {}", step1.volume(), step2.volume());
-
+	println!("  got {} solid(s) after cut", cut_solids.len());
+	println!(
+		"  volume input vs output: {} -> {}",
+		solids.volume(),
+		cut_solids.volume()
+	);
 
 	if let Some(parent) = output.parent() {
 		if !parent.as_os_str().is_empty() {
-			std::fs::create_dir_all(parent)
-				.map_err(|e| format!("create_dir_all {}: {}", parent.display(), e))?;
+			std::fs::create_dir_all(parent)?;
 		}
 	}
 
 	println!("Writing STEP: {}", output.display());
-	let colored: Vec<Solid> = step2.into_iter().map(|s| s.color("cyan")).collect();
-	let mut out_f = File::create(output)
-		.map_err(|e| format!("create {}: {}", output.display(), e))?;
-	cadrum::write_step(colored.iter(), &mut out_f)
-		.map_err(|e| format!("write_step failed: {:?}", e))?;
+	cadrum::write_step(cut_solids.iter(), &mut File::create(output)?)?;
 	println!("Done.");
 	Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+	use super::parse_tau_fraction;
+	use std::f64::consts::TAU;
+
+	fn approx(a: f64, b: f64) {
+		assert!((a - b).abs() < 1e-12, "{} vs {}", a, b);
+	}
+
+	#[test]
+	fn parses_integer_and_fraction() {
+		approx(parse_tau_fraction("0").unwrap(), 0.0);
+		approx(parse_tau_fraction("1").unwrap(), TAU);
+		approx(parse_tau_fraction("1/3").unwrap(), TAU / 3.0);
+		approx(parse_tau_fraction("-1/6").unwrap(), -TAU / 6.0);
+		approx(parse_tau_fraction("+2/4").unwrap(), TAU / 2.0);
+		approx(parse_tau_fraction("+0").unwrap(), 0.0);
+		approx(parse_tau_fraction("-0/7").unwrap(), 0.0);
+	}
+
+	#[test]
+	fn rejects_bad_inputs() {
+		for bad in [
+			"", "1.5", "1/", "/2", "1/2/3", "+", "-", " 1 ", "1 /2", "a", "1/-2",
+		] {
+			assert!(parse_tau_fraction(bad).is_err(), "expected error for {:?}", bad);
+		}
+	}
+
+	#[test]
+	fn rejects_zero_denominator() {
+		assert!(parse_tau_fraction("1/0").is_err());
+	}
 }
