@@ -3,7 +3,7 @@ COILS_IN := parastell/examples/coils.example
 PARA_DIR := parastell/examples/alphastell_full
 OUT_DIR  := out
 
-# Rust の generate が一括出力する 6 層 (内側 → 外側)。
+# Rust の vessel が一括出力する 6 層 (内側 → 外側)。
 # chamber は parastell の plasma.step と概念的に対応 (ファイル名のみ別)。
 LAYERS := chamber first_wall breeder back_wall shield vacuum_vessel
 
@@ -11,21 +11,21 @@ LAYERS := chamber first_wall breeder back_wall shield vacuum_vessel
 MAG_OUT := $(OUT_DIR)/magnet_set.step
 MAG_REF := $(PARA_DIR)/magnet_set.step
 
-.PHONY: run generate \
+.PHONY: run vessel \
         validate $(addprefix validate-,$(LAYERS)) \
         cut cut-first-wall \
         magnet magnet-generate magnet-validate \
         points points-save plasma
 
-run: generate validate
+run: vessel validate
 
 # ============================================================
-# generate — 6 層 in-vessel build を一括生成
+# vessel — 6 層 in-vessel build を一括生成
 #   出力: $(OUT_DIR)/{chamber,first_wall,breeder,back_wall,shield,vacuum_vessel}.step
 #   wall_s=1.08 を基準に mesh() + boolean_subtract で構築 (Solid::shell は使わない)。
 # ============================================================
-generate:
-	cargo run --release -- generate --input $(VMEC_IN) --output $(OUT_DIR)/
+vessel:
+	cargo run --release -- vessel --input $(VMEC_IN) --output $(OUT_DIR)/
 
 # ============================================================
 # validate — 各層を parastell 参照と体積比較
@@ -63,7 +63,7 @@ validate-vacuum_vessel:
 # ============================================================
 cut: cut-first-wall
 
-cut-first-wall: generate
+cut-first-wall: vessel
 	cargo run --release -- cut --cut -i $(OUT_DIR)/first_wall.step -o $(OUT_DIR)/first_wall_half.step -s 0 -e 1/2
 
 # ============================================================
@@ -78,7 +78,7 @@ plasma:
 # ============================================================
 # points — $(OUT_DIR) 下の *.csv をすべて matplotlib 3D 散布で重ね表示
 #   header 有無は自動判定、末尾 3 列を (x, y, z) として扱う。
-#   generate (*.csv) / magnet (magnet_set.csv) ともに m 単位で同スケール、
+#   vessel (*.csv) / magnet (magnet_set.csv) ともに m 単位で同スケール、
 #   重ねて viewing してもそのまま整合する。
 #   環境変数 VIEW="azim,elev,roll" / OUTPUT=path で起動時の視点 / 保存先を指定可能。
 # ============================================================

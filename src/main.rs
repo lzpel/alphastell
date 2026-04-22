@@ -1,13 +1,13 @@
 //! alphastell — VMEC 由来のステラレータ CAD を生成・検証する CLI。
 //!
 //! サブコマンド:
-//! - `generate` : VMEC `wout_*.nc` から 6 層 in-vessel build を STEP として出力
+//! - `vessel`   : VMEC `wout_*.nc` から 6 層 in-vessel build を STEP として出力
 //! - `validate` : 2 つの STEP ファイルの体積と Union 体積を比較し、形状整合を検査
 //!
 //! 使い方:
 //! ```bash
 //! # VMEC から 6 層 in-vessel build を STEP 化 (chamber / first_wall / ... / vacuum_vessel)
-//! cargo run --release -- generate \
+//! cargo run --release -- vessel \
 //!     --input parastell/examples/wout_vmec.nc \
 //!     --output out/
 //!
@@ -19,15 +19,15 @@
 //!
 //! モジュール構成:
 //! - `vmec`     : VMEC ファイル読み込みと (θ, φ) での (R, Z) 評価
-//! - `generate` : generate サブコマンド本体
+//! - `vessel`   : vessel サブコマンド本体
 //! - `validate` : validate サブコマンド本体
 
 mod coils;
 mod cut;
-mod generate;
 mod magnet;
 mod plasma;
 mod validate;
+mod vessel;
 mod vmec;
 
 use clap::{Parser, Subcommand};
@@ -49,7 +49,7 @@ enum Command {
 	/// VMEC `wout_*.nc` から 6 層の in-vessel 構造 (chamber / first_wall / breeder /
 	/// back_wall / shield / vacuum_vessel) を生成し、`output` ディレクトリに
 	/// 6 つの STEP ファイルとして書き出す。層厚は parastell 例に準拠。
-	Generate {
+	Vessel {
 		#[arg(long)]
 		input: PathBuf,
 		/// 出力先ディレクトリ (6 枚の *.step ファイルが作成される)。
@@ -144,12 +144,12 @@ enum Command {
 fn main() -> Result<()> {
 	let cli = Cli::parse();
 	match cli.command {
-		Command::Generate {
+		Command::Vessel {
 			input,
 			output,
 			wall_s,
 			scale,
-		} => generate::run(&input, &output, wall_s, scale),
+		} => vessel::run(&input, &output, wall_s, scale),
 		Command::Cut {
 			input,
 			output,

@@ -48,7 +48,7 @@
 //! 2. [`VmecData::index_rz`] — s グリッド上の離散点 `s_grid[index_s]` で (R, Z) を計算
 //! 3. [`VmecData::interpolate_rz`] — 任意の s で (R, Z) を計算 (Fourier 係数を s 方向にスプライン)
 //!
-//! generate / first_wall は `interpolate_rz(s, θ, φ)` を (θ, φ) 走査しながら呼べばよい。
+//! vessel / first_wall は `interpolate_rz(s, θ, φ)` を (θ, φ) 走査しながら呼べばよい。
 //! 内部ヘルパーとして `eval_rz(r_coeff, z_coeff, θ, φ)` (private) が Fourier 和だけを担当する。
 
 use crate::Result;
@@ -768,7 +768,7 @@ mod tests {
 		}
 	}
 
-	/// 1000 点を interpolate_rz で計算したときの実時間を測って、generate の現実的なコスト感を掴む。
+	/// 1000 点を interpolate_rz で計算したときの実時間を測って、vessel の現実的なコスト感を掴む。
 	/// `cargo test --release -- --nocapture bench_interpolate_rz_1000pts` で測定推奨。
 	#[test]
 	fn bench_interpolate_rz_1000pts() {
