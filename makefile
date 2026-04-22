@@ -54,16 +54,16 @@ validate-vacuum_vessel:
 	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/vacuum_vessel.step $(PARA_DIR)/vacuum_vessel.step
 
 # ============================================================
-# cut — first_wall を Z 軸ウェッジで切る
-#   新 generate は boolean_subtract 由来の MANIFOLD 閉 solid なので、旧 Solid::shell
-#   時代の BREP_WITH_VOIDS cut 体積破壊問題は解消。div=2 (単一 half-space) は正常動作。
-#   div>=3 は cut.rs 内の 2 枚 half-space intersect が cadrum 側で empty を返す既存の
-#   問題があり現状使用不可 (generate 改修とは独立、cadrum 依存で別途調査要)。
+# cut — first_wall を Z 軸まわりの扇形で切る
+#   --start/-s, --end/-e は τ (= 2π) 単位の有理数。形式 (+|-)?\d+(/\d+)? のみ。
+#   例: -s 0 -e 1/2 で半周、-s 0 -e 1/4 で nfp=4 の 1 周期分、-s -1/6 -e 1/6 で非対称。
+#   内部は line+arc+line の閉 wire を extrude した扇柱と boolean intersect する方式で、
+#   旧 half-space 方式の div>=3 empty 問題は回避済み。
 # ============================================================
 cut: cut-first-wall
 
 cut-first-wall: generate
-	cargo run --release -- cut $(OUT_DIR)/first_wall.step $(OUT_DIR)/first_wall_div2.step --div 2
+	cargo run --release -- cut -i $(OUT_DIR)/first_wall.step -o $(OUT_DIR)/first_wall_half.step -s 0 -e 1/2
 
 # ============================================================
 # view — chamber_points.csv を matplotlib で 4 パネル可視化
