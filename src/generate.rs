@@ -35,20 +35,16 @@ pub fn run(input: &Path, output: &Path, s: f64, scale: f64, thickness: f64) -> R
 	println!(
 		"  ns = {}, mnmax = {}, s_max in grid = {}",
 		vmec.s_grid.len(),
-		vmec.xm.len(),
+		vmec.mode_poloidal.len(),
 		vmec.s_grid.last().unwrap()
 	);
 
-	// 2. 目的の s での Fourier 係数を内挿で求める
-	println!("Interpolating Fourier coefficients at s = {}", s);
-	let (r_at_s, z_at_s) = vmec.interp_coeffs_at_s(s);
-
-	// 3. (φ, θ) グリッドを走査して 3D 点群を作る
+	// 2. (φ, θ) グリッドを走査して 3D 点群を作る (s は spline_rz 内で補間)
 	println!(
-		"Building {} x {} grid over full torus (scale = {})...",
-		M_TORO, N_POLO, scale
+		"Building {} x {} grid over full torus at s = {} (scale = {})...",
+		M_TORO, N_POLO, s, scale
 	);
-	let grid = build_grid(&vmec, &r_at_s, &z_at_s, scale);
+	let grid = build_grid(&vmec, s, scale);
 
 	// 4. 閉 solid を構築
 	println!("Constructing B-spline solid via cadrum...");
@@ -74,13 +70,9 @@ pub fn run(input: &Path, output: &Path, s: f64, scale: f64, thickness: f64) -> R
 	write_step(std::slice::from_ref(&final_solid), output)
 }
 
-/// VMEC の Fourier 係数と (θ, φ) グリッドを走査して 3D 点群を構築する。
-fn build_grid(
-	vmec: &VmecData,
-	r_at_s: &[f64],
-	z_at_s: &[f64],
-	scale: f64,
-) -> [[DVec3; N_POLO]; M_TORO] {
+/// (θ, φ) グリッドを走査して、指定 s における 3D 点群を構築する。
+/// 各点で `spline_rz` を呼び、s 軸方向の補間を毎回やり直す (座標先方式)。
+fn build_grid(vmec: &VmecData, s: f64, scale: f64) -> [[DVec3; N_POLO]; M_TORO] {
 	std::array::from_fn(|i| {
 		// トーラス周方向の角度 φ。全周 [0, 2π) を M_TORO 等分 (endpoint を含めず開区間)
 		let phi = TAU * (i as f64) / (M_TORO as f64);
@@ -89,7 +81,7 @@ fn build_grid(
 			// 断面方向の角度 θ。同じく [0, 2π) 開区間
 			let theta = TAU * (j as f64) / (N_POLO as f64);
 			// VMEC は円柱座標 (R, Z, φ) で値を返すので直交座標 (x, y, z) に変換
-			let (r, z) = vmec.eval_rz(r_at_s, z_at_s, theta, phi);
+			let (r, z) = vmec.interpolate_rz(s, theta, phi);
 			DVec3::new(r * cosp * scale, r * sinp * scale, z * scale)
 		})
 	})
