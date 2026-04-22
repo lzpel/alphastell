@@ -12,7 +12,7 @@
 //!    e. `Solid::sweep(profile, spine, ProfileOrient::Up(DVec3::Z))` で solid 化
 //! 3. 全コイルを集めて STEP 出力
 
-use cadrum::{BSplineEnd, DVec3, ProfileOrient, Solid, Wire};
+use cadrum::{BSplineEnd, Color, DVec3, ProfileOrient, Solid, Wire};
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
@@ -127,6 +127,10 @@ pub fn build_sector(
 	let filaments = coils::parse(input)?;
 	let remove_rad = std::f64::consts::TAU * remove_half_span_tau;
 	let remove_all = remove_half_span_tau >= 0.5;
+	// 各コイルに通し番号 (0..N) ベースで rainbow 色を付ける。N はフィルタ前の
+	// 総コイル数なので、フィルタリングしてもコイルごとの色対応は固定。
+	let n_total = filaments.coils.len();
+	let color = |i: usize| Color::from_hsv(i as f32 / n_total as f32, 1.0, 1.0);
 	let mut solids: Vec<Solid> = Vec::new();
 	let mut kept = 0usize;
 	for (idx, raw_pts) in filaments.coils.iter().enumerate() {
@@ -139,17 +143,15 @@ pub fn build_sector(
 		}
 		match build_one(raw_pts, width, thickness) {
 			Ok((s, _pts)) => {
-				solids.push(s);
+				solids.push(s.color(color(idx)));
 				kept += 1;
 			}
 			Err(e) => eprintln!("  [warn] coil #{} sweep failed: {}", idx, e),
 		}
 	}
 	println!(
-		"  magnet::build_sector: {} / {} coils outside |phi| <= {}*tau",
-		kept,
-		filaments.coils.len(),
-		remove_half_span_tau,
+		"  magnet::build_sector: {} / {} coils outside |phi| <= {}*tau (rainbow by coil idx)",
+		kept, n_total, remove_half_span_tau,
 	);
 	Ok(solids)
 }
