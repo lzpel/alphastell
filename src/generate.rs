@@ -8,11 +8,11 @@
 //! 5. `thickness > 0` なら `Solid::shell` で外向きオフセットして殻にする (first_wall 用)
 //! 6. STEP ファイルに書き出し
 
-use anyhow::{Context, Result};
 use cadrum::{DVec3, Solid};
 use std::f64::consts::TAU;
 use std::path::Path;
 
+use crate::Result;
 use crate::vmec::VmecData;
 
 /// トーラス方向 (φ 軸) のリブ本数。nfp=4 の倍数にしておくと周期対称性と整合する。
@@ -53,7 +53,7 @@ pub fn run(input: &Path, output: &Path, s: f64, scale: f64, thickness: f64) -> R
 	// 4. 閉 solid を構築
 	println!("Constructing B-spline solid via cadrum...");
 	let inner_solid = Solid::bspline(grid, true)
-		.map_err(|e| anyhow::anyhow!("cadrum bspline failed: {:?}", e))?;
+		.map_err(|e| format!("cadrum bspline failed: {:?}", e))?;
 
 	// 5. thickness > 0 なら殻化
 	let final_solid = if thickness > 0.0 {
@@ -62,7 +62,7 @@ pub fn run(input: &Path, output: &Path, s: f64, scale: f64, thickness: f64) -> R
 		// (cadrum ドキュメント参照: BRepOffsetAPI_MakeOffsetShape にフォールバック)
 		let shell = inner_solid
 			.shell(thickness, std::iter::empty())
-			.map_err(|e| anyhow::anyhow!("Solid::shell failed: {:?}", e))?;
+			.map_err(|e| format!("Solid::shell failed: {:?}", e))?;
 		let v = shell.volume();
 		println!("  shell volume = {:.6e}", v);
 		shell
@@ -100,15 +100,15 @@ fn write_step(solids: &[Solid], output: &Path) -> Result<()> {
 	if let Some(parent) = output.parent() {
 		if !parent.as_os_str().is_empty() {
 			std::fs::create_dir_all(parent)
-				.with_context(|| format!("create_dir_all {}", parent.display()))?;
+				.map_err(|e| format!("create_dir_all {}: {}", parent.display(), e))?;
 		}
 	}
 	println!("Writing STEP: {}", output.display());
 	let mut f = std::fs::File::create(output)
-		.with_context(|| format!("create {}", output.display()))?;
+		.map_err(|e| format!("create {}: {}", output.display(), e))?;
 	let colored: Vec<Solid> = solids.iter().map(|s| s.clone().color("cyan")).collect();
 	cadrum::write_step(colored.iter(), &mut f)
-		.map_err(|e| anyhow::anyhow!("write_step failed: {:?}", e))?;
+		.map_err(|e| format!("write_step failed: {:?}", e))?;
 	println!("Done.");
 	Ok(())
 }
