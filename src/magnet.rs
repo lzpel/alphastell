@@ -107,6 +107,53 @@ pub fn run(
 	Ok(())
 }
 
+/// `coils.example` を読み、`cut --union` 相当のセクタ除去を適用してから sweep した
+/// コイル群を `Vec<Solid>` で返す。compound サブコマンドが round-trip せず直接
+/// in-memory で利用するため用意した薄いラッパ。
+///
+/// `remove_half_span_tau` は **除去する扇形** の「±半幅」 (τ = 2π 単位)。
+/// 例: `0.25` で ±τ/4 = ±90° = +X 半球を除去 → 残るのは -X 半球のコイル。
+/// `0.0` で除去なし (全コイル)、`0.5` 以上なら全除去 (空 Vec)。
+/// コイルの角度は spine 点列の重心 (COM) を `atan2(y, x)` で判定する。
+///
+/// `width` / `thickness` / 点座標はすべて **m** で構築する。呼び出し側で他単位と
+/// 合わせる必要があれば `Solid::scale(DVec3::ZERO, factor)` を返り値に適用する。
+pub fn build_sector(
+	input: &Path,
+	width: f64,
+	thickness: f64,
+	remove_half_span_tau: f64,
+) -> Result<Vec<Solid>> {
+	let filaments = coils::parse(input)?;
+	let remove_rad = std::f64::consts::TAU * remove_half_span_tau;
+	let remove_all = remove_half_span_tau >= 0.5;
+	let mut solids: Vec<Solid> = Vec::new();
+	let mut kept = 0usize;
+	for (idx, raw_pts) in filaments.coils.iter().enumerate() {
+		if remove_all {
+			continue;
+		}
+		let com: DVec3 = raw_pts.iter().copied().sum::<DVec3>() / (raw_pts.len() as f64);
+		if com.y.atan2(com.x).abs() <= remove_rad {
+			continue; // 除去ウェッジ内のコイルはスキップ
+		}
+		match build_one(raw_pts, width, thickness) {
+			Ok((s, _pts)) => {
+				solids.push(s);
+				kept += 1;
+			}
+			Err(e) => eprintln!("  [warn] coil #{} sweep failed: {}", idx, e),
+		}
+	}
+	println!(
+		"  magnet::build_sector: {} / {} coils outside |phi| <= {}*tau",
+		kept,
+		filaments.coils.len(),
+		remove_half_span_tau,
+	);
+	Ok(solids)
+}
+
 /// 1 本のコイルを長方形断面で sweep して Solid にする。
 ///
 /// 戻り値の `Vec<DVec3>` は可視化用の点列 (m, ワールド座標):
