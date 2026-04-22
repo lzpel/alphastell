@@ -52,6 +52,7 @@
 //! 流し込めます。
 
 use anyhow::{Context, Result};
+use netcdf3::FileReader;
 use std::path::Path;
 
 // ================================================================
@@ -101,29 +102,37 @@ impl VmecData {
 	/// VMEC の wout ファイルには何十もの変数が入っていますが、今回プラズマ表面を
 	/// 描くのに必要なのは `rmnc`, `zmns`, `xm`, `xn` の 4 つだけです。
 	pub fn load(path: &Path) -> Result<Self> {
-		// netCDF ファイルを読み取り専用で開く
-		let file = netcdf::open(path).with_context(|| format!("open {}", path.display()))?;
+		// netCDF-3 (Classic / 64-bit offset) ファイルを pure-Rust で読む。
+		// VMEC の wout は `CDF\x02` (64-bit offset) なので HDF5 は不要。
+		//
+		// netcdf3 の ReadError は内部に Rc を持つので !Send。anyhow の with_context は
+		// Send + Sync + 'static を要求するため、ここでは map_err で文字列化する。
+		let mut file = FileReader::open(path)
+			.map_err(|e| anyhow::anyhow!("open {}: {:?}", path.display(), e))?;
 
-		// 各変数の netCDF ハンドルを取得 (まだ値は読んでいない)
-		let rmnc_var = file.variable("rmnc").context("missing rmnc")?;
-		let zmns_var = file.variable("zmns").context("missing zmns")?;
-		let xm_var = file.variable("xm").context("missing xm")?;
-		let xn_var = file.variable("xn").context("missing xn")?;
-
-		// rmnc は 2 次元配列 (ns × mnmax)。次元数と各次元の長さを取る
-		let shape = rmnc_var
-			.dimensions()
+		// rmnc の shape を DataSet から取る (ns × mnmax)
+		let shape: Vec<usize> = file
+			.data_set()
+			.get_var("rmnc")
+			.context("missing rmnc")?
+			.get_dims()
 			.iter()
-			.map(|d| d.len())
-			.collect::<Vec<_>>();
+			.map(|d| d.size())
+			.collect();
 		let ns = shape[0]; // 放射方向 (s 軸) のグリッド点数
 		let mnmax = shape[1]; // Fourier mode の個数
 
-		// 値を実際に読む。`get_values::<T, _>(..)` で全要素を 1 次元 Vec として取得
-		let rmnc_flat = rmnc_var.get_values::<f64, _>(..)?;
-		let zmns_flat = zmns_var.get_values::<f64, _>(..)?;
-		let xm = xm_var.get_values::<f64, _>(..)?;
-		let xn = xn_var.get_values::<f64, _>(..)?;
+		// 値を実際に読む。read_var は DataVector を返すので f64 スライスを取り出す。
+		let read_f64 = |f: &mut FileReader, name: &str| -> Result<Vec<f64>> {
+			f.read_var(name)
+				.map_err(|e| anyhow::anyhow!("read {}: {:?}", name, e))?
+				.get_f64_into()
+				.map_err(|_| anyhow::anyhow!("{} is not f64", name))
+		};
+		let rmnc_flat = read_f64(&mut file, "rmnc")?;
+		let zmns_flat = read_f64(&mut file, "zmns")?;
+		let xm = read_f64(&mut file, "xm")?;
+		let xn = read_f64(&mut file, "xn")?;
 
 		// netCDF から来たのは 1 次元に潰れた配列 (長さ ns*mnmax)。
 		// これを `[ns][mnmax]` の入れ子 Vec に作り直す方が後段のコードで扱いやすい。
