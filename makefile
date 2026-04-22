@@ -7,7 +7,7 @@ OUT_DIR  := out
 # chamber は parastell の plasma.step と概念的に対応 (ファイル名のみ別)。
 LAYERS := chamber first_wall breeder back_wall shield vacuum_vessel
 
-# magnet (コイル、mm 単位の別サブシステム)
+# magnet (コイル)
 MAG_OUT := $(OUT_DIR)/magnet_set.step
 MAG_REF := $(PARA_DIR)/magnet_set.step
 
@@ -15,7 +15,7 @@ MAG_REF := $(PARA_DIR)/magnet_set.step
         validate $(addprefix validate-,$(LAYERS)) \
         cut cut-first-wall \
         magnet magnet-generate magnet-validate \
-        view plasma
+        points points-save plasma
 
 run: generate validate
 
@@ -66,15 +66,6 @@ cut-first-wall: generate
 	cargo run --release -- cut -i $(OUT_DIR)/first_wall.step -o $(OUT_DIR)/first_wall_half.step -s 0 -e 1/2
 
 # ============================================================
-# view — chamber_points.csv を matplotlib で 4 パネル可視化
-#   generate 実行時に生 VMEC 単位 (m, scale=1 固定) で出力した CSV を読み、
-#   3D 散布 / 上面 (X,Y) / 断面重ね (R,Z) / seam step 比較の PNG を作る。
-#   uv が PEP 723 inline スクリプト依存を自動解決するので venv 不要。
-# ============================================================
-view:
-	uv run tools/view_chamber.py --input $(OUT_DIR)/chamber_points.csv --output $(OUT_DIR)/chamber_view.png
-
-# ============================================================
 # plasma — VMEC LCFS (s=1.0) を複数 (M, N) 解像度で B-spline STEP 化
 #   index_rz 直接 (スプライン補間なし)、scale=1 (m) で生 VMEC 単位。
 #   出力: out/plasma_M{m}_N{n}.step を pair リスト分。
@@ -84,7 +75,21 @@ plasma:
 	cargo run --release -- plasma --input $(VMEC_IN) --output $(OUT_DIR)/
 
 # ============================================================
-# magnet — coils.example から長方形断面 sweep で magnet_set.step を生成 (mm 単位)
+# points — $(OUT_DIR) 下の *.csv をすべて matplotlib 3D 散布で重ね表示
+#   header 有無は自動判定、末尾 3 列を (x, y, z) として扱う。
+#   generate (*.csv) / magnet (magnet_set.csv) ともに m 単位で同スケール、
+#   重ねて viewing してもそのまま整合する。
+#   環境変数 VIEW="azim,elev,roll" / OUTPUT=path で起動時の視点 / 保存先を指定可能。
+# ============================================================
+points:
+	uv run tools/view_points.py ./$(OUT_DIR)
+
+# points-save — ヘッドレスで $(OUT_DIR)/points.png に保存 (make points を OUTPUT 付きで再帰呼び出し)
+points-save:
+	OUTPUT=$(OUT_DIR)/points.png $(MAKE) points
+
+# ============================================================
+# magnet — coils.example から長方形断面 sweep で magnet_set.step を生成 (m 単位)
 # ============================================================
 magnet:
 	cargo run --release -- magnet --input $(COILS_IN) --output $(MAG_OUT)

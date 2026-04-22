@@ -1,0 +1,13 @@
+[project]
+name = "alphastell-tools"
+version = "0.0.0"
+description = "Visualization helpers for the alphastell CAD pipeline."
+requires-python = ">=3.10"
+dependencies = [
+	"matplotlib",
+	"numpy",
+	"pandas",
+]
+
+[tool.uv]
+package = false
