@@ -62,17 +62,22 @@ enum Command {
 		#[arg(long, default_value_t = 100.0)]
 		scale: f64,
 	},
-	/// 入力 STEP を Z 軸まわりのウェッジで切って片側/一部分だけ残した STEP を出力する。
-	/// BREP_WITH_VOIDS の内部可視化や、nfp=4 の 1 周期分を切り出すのに使える。
+	/// 入力 STEP を Z 軸まわりの扇形 (sector) で切って一部分だけ残した STEP を出力する。
+	/// BREP_WITH_VOIDS の内部可視化や、nfp=4 の 1 周期分 (-s 0 -e 1/4) を切り出すのに使える。
+	/// 角度は τ (= 2π) を単位とする有理数、形式は `(+|-)?\d+(/\d+)?` のみ。
 	Cut {
 		/// 切りたい STEP のパス
+		#[arg(short = 'i', long)]
 		input: PathBuf,
 		/// 出力 STEP のパス
+		#[arg(short = 'o', long)]
 		output: PathBuf,
-		/// Z 軸まわりの N 等分ウェッジ。1 = no-op、2 = 半分 (単一 halfspace)、
-		/// 4 = 1/4 周期 (nfp=4 の 1 field period)、6 = 1/6 等。
-		#[arg(long, default_value_t = 2)]
-		div: u32,
+		/// 扇形の開始角 (τ 単位)。例: "0", "-1/6", "1/3"。既定 0。
+		#[arg(short = 's', long, default_value = "0", value_parser = cut::parse_tau_fraction)]
+		start: f64,
+		/// 扇形の終了角 (τ 単位)。例: "1/3", "1/6", "1/2", "1" (= 1 周・no-op)。
+		#[arg(short = 'e', long, value_parser = cut::parse_tau_fraction)]
+		end: f64,
 	},
 	/// `coils.example` から 40 本のフィラメントを読み、長方形断面 sweep で
 	/// parastell 互換の magnet_set.step を出力する。座標単位は mm。
@@ -135,8 +140,9 @@ fn main() -> Result<()> {
 		Command::Cut {
 			input,
 			output,
-			div,
-		} => cut::run(&input, &output, div),
+			start,
+			end,
+		} => cut::run(&input, &output, start, end),
 		Command::Magnet {
 			input,
 			output,
