@@ -91,7 +91,7 @@ pub struct VmecData {
 	/// `interpolate_rz` が初回に構築して以降使い回すスプライン群。(r_splines, z_splines) で
 	/// 各 Vec の長さは mnmax。[`OnceLock`] により再計算されない (計算結果は VmecData に
 	/// 紐づく遅延フィールド)。
-	splines: OnceLock<(Vec<NaturalSpline>, Vec<NaturalSpline>)>,
+	splines: OnceLock<(Vec<CubicSpline>, Vec<CubicSpline>)>,
 }
 
 impl VmecData {
@@ -258,8 +258,14 @@ impl VmecData {
 			for k in 0..mnmax {
 				let r_col: Vec<f64> = self.rmnc.iter().map(|row| row[k]).collect();
 				let z_col: Vec<f64> = self.zmns.iter().map(|row| row[k]).collect();
-				r_splines.push(NaturalSpline::new(&self.s_grid, &r_col));
-				z_splines.push(NaturalSpline::new(&self.s_grid, &z_col));
+				// デフォルトは Natural。NotAKnot (scipy 互換) も実装済みだが、現状の
+				// cadrum `Solid::shell` (3D 表面 offset) と組み合わせると s=1.08 の
+				// 外挿でアグレッシブに延びた波 (max ΔR ≈ 17cm) が shell 操作で
+				// 増幅されて first_wall 体積が parastell 比 +81% に膨らむ。Natural は
+				// 外挿が線形に近く、現 shell 実装との相性がよい。
+				// (cadrum を 2D poloidal offset に切り替える日が来たら NotAKnot 推奨)
+				r_splines.push(CubicSpline::new(&self.s_grid, &r_col, BoundaryCondition::Natural));
+				z_splines.push(CubicSpline::new(&self.s_grid, &z_col, BoundaryCondition::Natural));
 			}
 			(r_splines, z_splines)
 		});
@@ -272,10 +278,38 @@ impl VmecData {
 }
 
 // ================================================================
-// NaturalSpline — 自然 3 次スプライン (内部 helper)
+// CubicSpline — 3 次スプライン (境界条件を選べる内部 helper)
 // ================================================================
 
-/// スプライン補間のための内部構造体。**このモジュール外には公開しない** (pub なし)。
+/// 境界条件 (両端で何を固定するか) の指定。
+///
+/// ## Natural (自由端)
+///
+/// 両端で **2 階微分 = 0**。「両端で曲がりが最小」になるように繋ぐ。端点のふるまい
+/// がおだやかで外挿が暴れにくい一方、元データに対応する物理的根拠は弱い。
+///
+/// ## NotAKnot (not-a-knot / ノットなし)
+///
+/// **scipy `CubicSpline` のデフォルト**。最初の 2 区間と最後の 2 区間で **3 階微分**
+/// が連続、すなわち「最初の 2 区間を 1 本の 3 次式でつなぐ、末尾も同様」という条件。
+/// 内側にも端点にも余計な制約をかけない分、元データに素直に追従する。
+/// parastell (scipy 依存) との一致を取りたいときはこちら。
+///
+/// # 両者の違いが出る場所
+///
+/// - データ範囲内 (補間) はどちらもほぼ一致 (10⁻⁴ オーダ)
+/// - データ範囲外 (外挿) で差が出る:
+///   - Natural: 端で曲率 0 に引き込まれるので直線的に延びる
+///   - NotAKnot: 最終区間の 3 次式をそのまま延長する
+///
+/// VMEC の s=1.08 のような**外挿**を使うなら NotAKnot の方が scipy と一致する。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BoundaryCondition {
+	Natural,
+	NotAKnot,
+}
+
+/// スプライン補間のための内部構造体。**このモジュール外には公開しない**。
 ///
 /// # スプライン補間って何?
 ///
@@ -291,18 +325,14 @@ impl VmecData {
 /// 繋ぎ目での値・1 階微分・2 階微分の連続性と、両端での境界条件で方程式を立て、
 /// Thomas algorithm (三重対角連立方程式専用の高速解法) で O(n) で解く。
 ///
-/// ## "natural" とは
-///
-/// 両端で 2 階微分 = 0 という境界条件を選ぶ形。直感的には「両端で**曲がりが最小**
-/// になるように」つなぐ。物理的に根拠がある選び方ではないが、端点でのふるまいが
-/// おだやかで、範囲外 (外挿) でも暴れにくい。
+/// 境界条件は [`BoundaryCondition`] で切り替え。
 ///
 /// ## なぜこれを使うのか
 ///
 /// VMEC の Fourier 係数は s 軸上に 201 点だけ離散的に格納されている。プラズマ境界
 /// (s=1.0) の少し外 (s=1.08 など) を評価したいとき、離散データの間を補間するために
 /// スプラインが必要。
-struct NaturalSpline {
+struct CubicSpline {
 	/// x 軸上のサンプル点 (昇順)
 	xs: Vec<f64>,
 	/// 各区間の 3 次多項式係数 (y = a + b·dx + c·dx² + d·dx³)
@@ -312,15 +342,16 @@ struct NaturalSpline {
 	d: Vec<f64>,
 }
 
-impl NaturalSpline {
-	/// (xs, ys) のデータからスプラインを構築する。
+impl CubicSpline {
+	/// (xs, ys) のデータと境界条件からスプラインを構築する。
 	///
 	/// 手順:
 	/// 1. 各区間の幅 h[i] を計算
-	/// 2. 2 階微分 M[i] を解く三重対角連立方程式を立てる
+	/// 2. 2 階微分 M[i] を解く三重対角連立方程式を立てる (境界条件で第 1・最終行が変化)
 	/// 3. Thomas algorithm で前進消去 → 後退代入
-	/// 4. 解いた M[i] と h[i], y[i] から各区間の 3 次多項式係数 a, b, c, d を作る
-	fn new(xs: &[f64], ys: &[f64]) -> Self {
+	/// 4. NotAKnot の場合は M[0] と M[n-1] を境界条件式から復元
+	/// 5. 解いた M[i] と h[i], y[i] から各区間の 3 次多項式係数 a, b, c, d を作る
+	fn new(xs: &[f64], ys: &[f64], bc: BoundaryCondition) -> Self {
 		let n = xs.len();
 		assert_eq!(ys.len(), n);
 		assert!(n >= 2, "スプライン構築には最低 2 点必要");
@@ -328,45 +359,101 @@ impl NaturalSpline {
 		// h[i] = xs[i+1] - xs[i]  (各区間の幅)
 		let h: Vec<f64> = (0..n - 1).map(|i| xs[i + 1] - xs[i]).collect();
 
-		// 2 階微分 M[i] を格納する配列。自然スプラインなので両端は 0 固定。
+		// M[i] = 2 階微分 (= 2·c[i]) を全ノードで持つ配列
 		let mut m = vec![0.0; n];
 
+		// 点が 2 点だけの場合は直線、3 点の場合は NotAKnot も事実上 Natural と同じ扱い
+		// になる (BC1 と BC2 が同じ条件に縮退するため)。安全のため n<4 では Natural に
+		// フォールバック。
+		let effective_bc = if n < 4 {
+			BoundaryCondition::Natural
+		} else {
+			bc
+		};
+
 		if n >= 3 {
-			// 内部の n-2 個の M を解くための三重対角連立方程式:
-			//   h[i]   * M[i]
-			// + 2(h[i] + h[i+1]) * M[i+1]  <- これが対角
-			// + h[i+1] * M[i+2]
-			// = 6 * ((y[i+2] - y[i+1])/h[i+1] - (y[i+1] - y[i])/h[i])
-			let mut diag = vec![0.0; n - 2]; // 対角成分
-			let mut upper = vec![0.0; n - 2]; // 上三角成分
-			let mut rhs = vec![0.0; n - 2]; // 右辺
-			for i in 0..n - 2 {
-				diag[i] = 2.0 * (h[i] + h[i + 1]);
-				if i < n - 3 {
-					upper[i] = h[i + 1];
+			// 内部の n-2 個の M (= M[1], M[2], ..., M[n-2]) を解く三重対角系。
+			// 内部方程式 (i = 1..n-2, ここでは row index = i-1 = 0..n-3):
+			//   h[i-1] * M[i-1] + 2(h[i-1]+h[i]) * M[i] + h[i] * M[i+1]
+			//   = 6 * ((y[i+1]-y[i])/h[i] - (y[i]-y[i-1])/h[i-1])
+			//
+			// 境界条件で行 0 と行 n-3 の係数が書き換えられる。明示的に lower/diag/upper
+			// の 3 本の Vec を持ち、Thomas アルゴリズムはこれらを使って前進消去する。
+			let k = n - 2; // 内部方程式の本数 = 内部 M の個数
+			let mut lower = vec![0.0; k]; // 下三角 (row i の M[i-1] 相当の列)
+			let mut diag = vec![0.0; k]; // 対角
+			let mut upper = vec![0.0; k]; // 上三角
+			let mut rhs = vec![0.0; k];
+
+			// まず内部行の係数を組む (row index r = 0..k-1 ↔ 内部 M index i = r+1)
+			for r in 0..k {
+				let i = r + 1;
+				lower[r] = h[i - 1];
+				diag[r] = 2.0 * (h[i - 1] + h[i]);
+				upper[r] = h[i];
+				rhs[r] = 6.0 * ((ys[i + 1] - ys[i]) / h[i] - (ys[i] - ys[i - 1]) / h[i - 1]);
+			}
+
+			match effective_bc {
+				BoundaryCondition::Natural => {
+					// M[0] = 0 と M[n-1] = 0 を代入するので、lower[0] と upper[k-1] の
+					// 項は消える。元々 Thomas の先頭・末尾では使わない値なので実質無操作。
+					lower[0] = 0.0;
+					upper[k - 1] = 0.0;
 				}
-				rhs[i] = 6.0
-					* ((ys[i + 2] - ys[i + 1]) / h[i + 1]
-						- (ys[i + 1] - ys[i]) / h[i]);
+				BoundaryCondition::NotAKnot => {
+					// BC1: h[1]·M[0] - (h[0]+h[1])·M[1] + h[0]·M[2] = 0
+					//      ↔ M[0] = ((h[0]+h[1])·M[1] - h[0]·M[2]) / h[1]
+					// これを row 0 (M[1] の内部式) に代入すると:
+					//   diag[0] += h[0]·(h[0]+h[1])/h[1]  →  (h[0]+h[1])·(h[0]+2h[1])/h[1]
+					//   upper[0] -= h[0]²/h[1]            →  (h[1]² - h[0]²)/h[1]
+					//   lower[0] は消える (M[0] を吸収)
+					//   rhs[0] は変わらず
+					let h0 = h[0];
+					let h1 = h[1];
+					diag[0] = (h0 + h1) * (h0 + 2.0 * h1) / h1;
+					upper[0] = (h1 * h1 - h0 * h0) / h1;
+					lower[0] = 0.0;
+
+					// BC2 (末尾側、対称):
+					//   M[n-1] = ((h[n-3]+h[n-2])·M[n-2] - h[n-2]·M[n-3]) / h[n-3]
+					// これを row k-1 (M[n-2] の内部式) に代入:
+					//   lower[k-1] -= h[n-2]²/h[n-3]     →  (h[n-3]² - h[n-2]²)/h[n-3]
+					//   diag[k-1]  += h[n-2]·(h[n-3]+h[n-2])/h[n-3]
+					//                                   →  (h[n-3]+h[n-2])·(h[n-2]+2h[n-3])/h[n-3]
+					//   upper[k-1] は消える (M[n-1] を吸収)
+					let ha = h[n - 3];
+					let hb = h[n - 2];
+					lower[k - 1] = (ha * ha - hb * hb) / ha;
+					diag[k - 1] = (ha + hb) * (hb + 2.0 * ha) / ha;
+					upper[k - 1] = 0.0;
+				}
 			}
 
-			// 前進消去: 行 i を使って行 i+1 の対角左隣を 0 にする
-			for i in 1..n - 2 {
-				let w = h[i] / diag[i - 1];
-				diag[i] -= w * upper[i - 1];
-				rhs[i] -= w * rhs[i - 1];
+			// Thomas 前進消去
+			for r in 1..k {
+				let w = lower[r] / diag[r - 1];
+				diag[r] -= w * upper[r - 1];
+				rhs[r] -= w * rhs[r - 1];
 			}
 
-			// 後退代入: 末尾の行から順に M の値を決めていく
-			let mut m_inner = vec![0.0; n - 2];
-			m_inner[n - 3] = rhs[n - 3] / diag[n - 3];
-			for i in (0..n - 3).rev() {
-				m_inner[i] = (rhs[i] - upper[i] * m_inner[i + 1]) / diag[i];
+			// Thomas 後退代入
+			let mut m_inner = vec![0.0; k];
+			m_inner[k - 1] = rhs[k - 1] / diag[k - 1];
+			for r in (0..k - 1).rev() {
+				m_inner[r] = (rhs[r] - upper[r] * m_inner[r + 1]) / diag[r];
 			}
 
-			// m_inner は内部のみ (index 1..n-1)。両端の M[0] = M[n-1] = 0 は据え置き。
-			for i in 0..n - 2 {
-				m[i + 1] = m_inner[i];
+			// 内部 M を全体配列に反映 (M[1..n-1] = m_inner)
+			for r in 0..k {
+				m[r + 1] = m_inner[r];
+			}
+
+			// 境界の M[0] と M[n-1] を復元 (Natural は 0 のまま、NotAKnot は BC から逆算)
+			if effective_bc == BoundaryCondition::NotAKnot {
+				m[0] = ((h[0] + h[1]) * m[1] - h[0] * m[2]) / h[1];
+				m[n - 1] =
+					((h[n - 3] + h[n - 2]) * m[n - 2] - h[n - 2] * m[n - 3]) / h[n - 3];
 			}
 		}
 
@@ -388,7 +475,7 @@ impl NaturalSpline {
 			d.push((m[i + 1] - m[i]) / (6.0 * hi));
 		}
 
-		NaturalSpline {
+		CubicSpline {
 			xs: xs.to_vec(),
 			a,
 			b,
@@ -494,5 +581,188 @@ mod tests {
 				);
 			}
 		}
+	}
+
+	/// どの境界条件でもスプラインはグリッド点を**正確に通る** (補間性) ことを確認する。
+	#[test]
+	fn cubic_spline_passes_through_data_points() {
+		let xs = [0.0, 0.1, 0.3, 0.6, 1.0, 1.5, 2.1];
+		let ys = [0.0, 0.5, -0.2, 0.8, 0.3, -0.1, 1.2];
+		for bc in [BoundaryCondition::Natural, BoundaryCondition::NotAKnot] {
+			let sp = CubicSpline::new(&xs, &ys, bc);
+			for (i, &x) in xs.iter().enumerate() {
+				let y = sp.eval(x);
+				assert!(
+					(y - ys[i]).abs() < 1e-10,
+					"bc={bc:?} i={i}: eval({x}) = {y}, expected {}",
+					ys[i]
+				);
+			}
+		}
+	}
+
+	/// x² (純粋な 2 次関数) は not-a-knot 3 次スプラインで**厳密に再現**される
+	/// (3 次係数 d=0、M_i=2 が正解)。計算結果と比較して実装が正しいことを確認する。
+	#[test]
+	fn not_a_knot_reproduces_quadratic_exactly() {
+		let xs: Vec<f64> = (0..5).map(|i| i as f64).collect();
+		let ys: Vec<f64> = xs.iter().map(|&x| x * x).collect();
+		let sp = CubicSpline::new(&xs, &ys, BoundaryCondition::NotAKnot);
+		// 内挿点と外挿点 (x=6) の両方で y = x² を厳密に再現することを確認
+		for &x in &[0.5, 1.5, 2.5, 3.5, 4.5, 6.0, -1.0] {
+			let y = sp.eval(x);
+			let expected = x * x;
+			assert!(
+				(y - expected).abs() < 1e-9,
+				"not-a-knot should reproduce x²: eval({x}) = {y}, expected {expected}"
+			);
+		}
+	}
+
+	/// VMEC の s=1.08 外挿で natural vs not-a-knot の (R, Z) 差をサンプルして目視確認する。
+	/// 実装バグの診断用。`cargo test -- --nocapture vmec_s108_natural_vs_not_a_knot`
+	#[test]
+	fn vmec_s108_natural_vs_not_a_knot() {
+		let path = Path::new("parastell/examples/wout_vmec.nc");
+		if !path.exists() {
+			eprintln!("skip: {} not found", path.display());
+			return;
+		}
+		let vmec = VmecData::load(path).expect("load vmec");
+		let mnmax = vmec.mode_poloidal.len();
+		let s = 1.08;
+
+		// 手動で natural と not-a-knot それぞれの係数補間をやって、dominant mode (k=0)
+		// の rmnc 補間値を比較してみる。
+		let r_col: Vec<f64> = vmec.rmnc.iter().map(|row| row[0]).collect();
+		let sp_nat = CubicSpline::new(&vmec.s_grid, &r_col, BoundaryCondition::Natural);
+		let sp_nak = CubicSpline::new(&vmec.s_grid, &r_col, BoundaryCondition::NotAKnot);
+		let v_nat = sp_nat.eval(s);
+		let v_nak = sp_nak.eval(s);
+		let v_grid_last = r_col[r_col.len() - 1];
+		eprintln!(
+			"mode 0 (rmnc) at s=1.08: natural={v_nat:.6}, not-a-knot={v_nak:.6}, at s=1.0={v_grid_last:.6}"
+		);
+
+		// (θ, φ) = (0, 0) での (R, Z) を 3 通りで比較。
+		// (現在の interpolate_rz は not-a-knot を使用)
+		let (r_int, z_int) = vmec.interpolate_rz(s, 0.0, 0.0);
+		// 末端グリッド点での値 (s=1.0)
+		let (r_grid, z_grid) = vmec.index_rz(vmec.s_grid.len() - 1, 0.0, 0.0);
+		eprintln!(
+			"(θ=0, φ=0): at s=1.0 (R={r_grid:.4}, Z={z_grid:.4}), at s=1.08 not-a-knot (R={r_int:.4}, Z={z_int:.4})"
+		);
+
+		// mode 0..5 の (s=1.0, s=1.08-natural, s=1.08-notaknot) を対照表示
+		for k in 0..5.min(mnmax) {
+			let col: Vec<f64> = vmec.rmnc.iter().map(|row| row[k]).collect();
+			let a = CubicSpline::new(&vmec.s_grid, &col, BoundaryCondition::Natural);
+			let b = CubicSpline::new(&vmec.s_grid, &col, BoundaryCondition::NotAKnot);
+			eprintln!(
+				"k={k} (m={}, n={}): rmnc at s=1.0={:.4}, s=1.08 natural={:.4}, not-a-knot={:.4}",
+				vmec.mode_poloidal[k],
+				vmec.mode_toroidal[k],
+				col[col.len() - 1],
+				a.eval(s),
+				b.eval(s),
+			);
+		}
+	}
+
+	/// VMEC を s=1.08 で natural と not-a-knot それぞれ使って、(θ, φ) 全面を走査して
+	/// R, Z の最大ズレを測る。実装が妥当なら差は数 cm 以内のはず (parastell と合わない
+	/// 原因を切り分けるための診断)。
+	#[test]
+	fn vmec_s108_surface_drift() {
+		let path = Path::new("parastell/examples/wout_vmec.nc");
+		if !path.exists() {
+			eprintln!("skip: {} not found", path.display());
+			return;
+		}
+		let vmec = VmecData::load(path).expect("load vmec");
+		let mnmax = vmec.mode_poloidal.len();
+
+		// 各モードの rmnc, zmns について natural / not-a-knot 2 通りのスプラインを
+		// 事前構築する (interpolate_rz は not-a-knot 固定なので、ここでは自前で計算する)。
+		let mut r_nat = Vec::with_capacity(mnmax);
+		let mut r_nak = Vec::with_capacity(mnmax);
+		let mut z_nat = Vec::with_capacity(mnmax);
+		let mut z_nak = Vec::with_capacity(mnmax);
+		for k in 0..mnmax {
+			let rc: Vec<f64> = vmec.rmnc.iter().map(|row| row[k]).collect();
+			let zc: Vec<f64> = vmec.zmns.iter().map(|row| row[k]).collect();
+			r_nat.push(CubicSpline::new(&vmec.s_grid, &rc, BoundaryCondition::Natural));
+			r_nak.push(CubicSpline::new(&vmec.s_grid, &rc, BoundaryCondition::NotAKnot));
+			z_nat.push(CubicSpline::new(&vmec.s_grid, &zc, BoundaryCondition::Natural));
+			z_nak.push(CubicSpline::new(&vmec.s_grid, &zc, BoundaryCondition::NotAKnot));
+		}
+		let s = 1.08;
+		let r_coef_nat: Vec<f64> = r_nat.iter().map(|sp| sp.eval(s)).collect();
+		let r_coef_nak: Vec<f64> = r_nak.iter().map(|sp| sp.eval(s)).collect();
+		let z_coef_nat: Vec<f64> = z_nat.iter().map(|sp| sp.eval(s)).collect();
+		let z_coef_nak: Vec<f64> = z_nak.iter().map(|sp| sp.eval(s)).collect();
+
+		let mut max_dr = 0.0f64;
+		let mut max_dz = 0.0f64;
+		let mut sum_sq_dr = 0.0f64;
+		let mut sum_sq_dz = 0.0f64;
+		let n_theta = 64;
+		let n_phi = 60;
+		for i in 0..n_phi {
+			let phi = std::f64::consts::TAU * (i as f64) / (n_phi as f64);
+			for j in 0..n_theta {
+				let theta = std::f64::consts::TAU * (j as f64) / (n_theta as f64);
+				let (r_n, z_n) = vmec.eval_rz(&r_coef_nat, &z_coef_nat, theta, phi);
+				let (r_k, z_k) = vmec.eval_rz(&r_coef_nak, &z_coef_nak, theta, phi);
+				let dr = (r_n - r_k).abs();
+				let dz = (z_n - z_k).abs();
+				max_dr = max_dr.max(dr);
+				max_dz = max_dz.max(dz);
+				sum_sq_dr += dr * dr;
+				sum_sq_dz += dz * dz;
+			}
+		}
+		let n_pts = (n_phi * n_theta) as f64;
+		eprintln!(
+			"s=1.08 surface drift: max(|ΔR|)={max_dr:.4}, max(|ΔZ|)={max_dz:.4}, \
+			 rms(ΔR)={:.4}, rms(ΔZ)={:.4}",
+			(sum_sq_dr / n_pts).sqrt(),
+			(sum_sq_dz / n_pts).sqrt(),
+		);
+	}
+
+	/// Natural と NotAKnot で、データ範囲内ではほぼ一致し、範囲外 (外挿) で差が出る
+	/// ことを確認する。parastell との差異の起源 (境界条件) を再現する。
+	#[test]
+	fn natural_vs_not_a_knot_extrapolation_differs() {
+		// VMEC の s_grid に似せた 201 点等間隔で、非自明な関数 y = sin(3πx) + 0.2 x³ を
+		// サンプルする。scipy の CubicSpline と同様に、内挿領域ではどちらも真値に近く、
+		// 外挿領域で差が出る。
+		let n = 201;
+		let xs: Vec<f64> = (0..n).map(|i| i as f64 / (n - 1) as f64).collect();
+		let ys: Vec<f64> =
+			xs.iter().map(|x| (3.0 * std::f64::consts::PI * x).sin() + 0.2 * x.powi(3)).collect();
+		let natural = CubicSpline::new(&xs, &ys, BoundaryCondition::Natural);
+		let not_a_knot = CubicSpline::new(&xs, &ys, BoundaryCondition::NotAKnot);
+
+		// 内挿領域 (x=0.5) ではほぼ一致
+		let y_nat_mid = natural.eval(0.5);
+		let y_nak_mid = not_a_knot.eval(0.5);
+		assert!(
+			(y_nat_mid - y_nak_mid).abs() < 1e-6,
+			"natural ({y_nat_mid}) と not-a-knot ({y_nak_mid}) が内挿で大きく違う"
+		);
+
+		// 外挿領域 (x=1.08) では差が出るはず。差が「ゼロじゃない」ことを確認。
+		let y_nat_ext = natural.eval(1.08);
+		let y_nak_ext = not_a_knot.eval(1.08);
+		let diff = (y_nat_ext - y_nak_ext).abs();
+		assert!(
+			diff > 1e-3,
+			"外挿で差が出ていない: natural={y_nat_ext}, not-a-knot={y_nak_ext}, diff={diff}"
+		);
+		eprintln!(
+			"x=1.08 extrapolation: natural={y_nat_ext:.6}, not-a-knot={y_nak_ext:.6}, diff={diff:.6}"
+		);
 	}
 }
