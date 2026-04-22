@@ -29,9 +29,12 @@ mod magnet;
 mod validate;
 mod vmec;
 
-use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
+
+/// 本クレート共通の Result 型。`Box<dyn Error>` なので !Send なエラー
+/// (例: netcdf3 の ReadError) もそのまま保持できる。
+pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[derive(Parser, Debug)]
 #[command(about = "alphastell — VMEC 由来の CAD 生成と検証")]
