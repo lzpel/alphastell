@@ -2,6 +2,32 @@
 name = "alphastell"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
+authors = ["Satoshi Misumi"]
+description = "Rust CAD generator for stellarator fusion reactors: VMEC equilibria to STEP geometry for in-vessel layers and modular coils."
+readme = "README.md"
+license = "MIT"
+repository = "https://github.com/lzpel/alphastell"
+homepage = "https://github.com/lzpel/alphastell"
+documentation = "https://docs.rs/alphastell"
+keywords = ["stellarator", "fusion", "cad", "vmec", "nuclear"]
+categories = ["science", "simulation", "command-line-utilities", "mathematics"]
+exclude = [
+	"/parastell",
+	"/figure",
+	"/notes",
+	"/out",
+	"/tools",
+	"/examples",
+	"/.github",
+	"/.claude",
+	"/.venv",
+	"/pyproject.toml",
+	"/uv.lock",
+	"/makefile",
+	"main.step",
+	"main.svg",
+]
 
 [dependencies]
 cadrum = "^0.7"
