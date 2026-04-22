@@ -96,29 +96,32 @@ magnet:
 	cargo run --release -- magnet --input $(COILS_IN) --output $(MAG_OUT)
 
 # ============================================================
-# showcase — 核融合炉の内部を覗かせる cutaway STEP を生成
+# showcase — 核融合炉の内部を覗かせる cutaway STEP (+ 同名 SVG) を生成
 #   各層を --union (+X 中心の扇形を除去) で等角度に開き、内部を段階的に露出。
-#   半スパンは i * τ/24 (i=0..6) の等間隔で、chamber=0 → magnet=τ/4 = 半スパンτ/4、
-#   ウェッジ総角で chamber=0°, magnet_set=180° (τ/2) まで。
+#   半スパンは i * τ/36 (i=0..6) の等間隔で、chamber=0 → magnet=τ/6 = 半スパンτ/6、
+#   ウェッジ総角で chamber=0°, magnet_set=120° (τ/3) まで。
 #
 #     i=0  chamber       : 0                  (切らない、そのまま)
-#     i=1  first_wall    : ±1/24 (= 15°、span 30°)
-#     i=2  breeder       : ±2/24 = ±1/12 (=30°、span 60°)
-#     i=3  back_wall     : ±3/24 = ±1/8  (=45°、span 90°)
-#     i=4  shield        : ±4/24 = ±1/6  (=60°、span 120°)
-#     i=5  vacuum_vessel : ±5/24 (= 75°、span 150°)
-#     i=6  magnet (±1/4) : compound --input-magnet で in-memory -X 半の 20 コイル
+#     i=1  first_wall    : ±1/36 (= 10°、span 20°)
+#     i=2  breeder       : ±1/18 (= 20°、span 40°)
+#     i=3  back_wall     : ±1/12 (= 30°、span 60°)
+#     i=4  shield        : ±1/9  (= 40°、span 80°)
+#     i=5  vacuum_vessel : ±5/36 (= 50°、span 100°)
+#     i=6  magnet (±1/6) : compound --input-magnet で in-memory、120°ウェッジ外の
+#                          コイルだけ 40 色 rainbow (build_sector が色付け)
 #
-#   色は compound::run が HSV(i/N, 1, 1) で自動割り振り (N=7)。
+#   vessel 6 層は compound::run が hsv(i*0.2/N, 1, 1) の穏やかな gradient で着色。
+#   extras (magnet) は build_sector の rainbow をそのまま preserve。
+#   同名 out/showcase.svg も自動生成 (-X 方向投影、隠線 + shading)。
 # ============================================================
 SHOWCASE_TMP := $(OUT_DIR)/_showcase
 showcase: vessel
 	mkdir -p $(SHOWCASE_TMP)
-	cargo run --release -- cut --union -i $(OUT_DIR)/first_wall.step    -o $(SHOWCASE_TMP)/first_wall.step    -s -1/24 -e 1/24
-	cargo run --release -- cut --union -i $(OUT_DIR)/breeder.step       -o $(SHOWCASE_TMP)/breeder.step       -s -1/12 -e 1/12
-	cargo run --release -- cut --union -i $(OUT_DIR)/back_wall.step     -o $(SHOWCASE_TMP)/back_wall.step     -s -1/8  -e 1/8
-	cargo run --release -- cut --union -i $(OUT_DIR)/shield.step        -o $(SHOWCASE_TMP)/shield.step        -s -1/6  -e 1/6
-	cargo run --release -- cut --union -i $(OUT_DIR)/vacuum_vessel.step -o $(SHOWCASE_TMP)/vacuum_vessel.step -s -5/24 -e 5/24
+	cargo run --release -- cut --union -i $(OUT_DIR)/first_wall.step    -o $(SHOWCASE_TMP)/first_wall.step    -s -1/36 -e 1/36
+	cargo run --release -- cut --union -i $(OUT_DIR)/breeder.step       -o $(SHOWCASE_TMP)/breeder.step       -s -1/18 -e 1/18
+	cargo run --release -- cut --union -i $(OUT_DIR)/back_wall.step     -o $(SHOWCASE_TMP)/back_wall.step     -s -1/12 -e 1/12
+	cargo run --release -- cut --union -i $(OUT_DIR)/shield.step        -o $(SHOWCASE_TMP)/shield.step        -s -1/9  -e 1/9
+	cargo run --release -- cut --union -i $(OUT_DIR)/vacuum_vessel.step -o $(SHOWCASE_TMP)/vacuum_vessel.step -s -5/36 -e 5/36
 	cargo run --release -- compound \
 		-i $(OUT_DIR)/chamber.step \
 		-i $(SHOWCASE_TMP)/first_wall.step \
