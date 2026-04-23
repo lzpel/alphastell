@@ -26,6 +26,7 @@ mod coils;
 mod compound;
 mod cut;
 mod magnet;
+mod magnet2;
 mod plasma;
 mod validate;
 mod vessel;
@@ -110,6 +111,13 @@ enum Command {
 		#[arg(long, default_value_t = 360.0)]
 		toroidal_extent: f64,
 	},
+	/// magnet の再実装試作。現状は `coils.example` を読み込んで要約を表示するだけ。
+	Magnet2 {
+		#[arg(long)]
+		input: PathBuf,
+		#[arg(long)]
+		output: PathBuf,
+	},
 	/// 診断: VMEC LCFS (s=1.0) を複数の (M, N) 解像度で B-spline STEP 化。
 	/// `index_rz` 直接 (スプライン補間なし) で、`output` ディレクトリに
 	/// `plasma_M<m>_N<n>.step` を一括出力する。
@@ -191,6 +199,7 @@ fn main() -> Result<()> {
 			thickness,
 			toroidal_extent,
 		} => magnet::run(&input, &output, width, thickness, toroidal_extent),
+		Command::Magnet2 { input, output } => magnet2::run(&input, &output),
 		Command::Plasma {
 			input,
 			output,
