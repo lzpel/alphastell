@@ -7,8 +7,9 @@
 //!   コイル per-index rainbow)。
 //!
 //! 同時に、STEP と同名の SVG (拡張子だけ置換) も書き出す。`cadrum::mesh` で
-//! tessellate してから `Mesh::write_svg` で投影。鉛直軸 (Z) を X 軸まわり -π/2 で
-//! Y へ倒して (Y/Z swap 相当)、-Y 方向から俯瞰する構図。隠線 off、shading on。
+//! tessellate してから `Mesh::write_svg(view=-Y, up=+Z)` で投影。
+//! stellarator の鉛直軸 Z を画面の上方向に取り、-Y 方向から側面を見る構図。
+//! 隠線 off、shading on。
 
 use cadrum::{Color, DVec3, Solid};
 use std::fs::File;
@@ -116,23 +117,19 @@ pub fn run(
 	cadrum::write_step(all.iter(), &mut File::create(output)?)
 		.map_err(|e| format!("write_step {}: {:?}", output.display(), e))?;
 
-	// 同名 SVG を書き出す。X 軸まわり -π/2 で Y/Z を入れ替え (Z → +Y)、
-	// その上で -Y 方向 (新「上」方向) から俯瞰。隠線 off、shading on。
+	// 同名 SVG を書き出す。view=-Y (側面から)、up=+Z (stellarator の鉛直軸を画面上に)。
+	// 隠線 off、shading on。
 	let svg_path = output.with_extension("svg");
 	println!(
-		"Writing SVG: {} (mesh tol = {}, rotate_x(-π/2), view=-Y)",
+		"Writing SVG: {} (mesh tol = {}, view=-Y, up=+Z)",
 		svg_path.display(),
 		SVG_MESH_TOL
 	);
-	let rotated: Vec<Solid> = all
-		.into_iter()
-		.map(|s| s.rotate_x(-std::f64::consts::FRAC_PI_2))
-		.collect();
-	let mesh = cadrum::mesh(rotated.iter(), SVG_MESH_TOL)
+	let mesh = cadrum::mesh(all.iter(), SVG_MESH_TOL)
 		.map_err(|e| format!("mesh failed: {:?}", e))?;
 	let mut svg_file = File::create(&svg_path)
 		.map_err(|e| format!("create {}: {}", svg_path.display(), e))?;
-	mesh.write_svg(-DVec3::Y, false, true, &mut svg_file)
+	mesh.write_svg(DVec3::ONE, DVec3::Z, false, true, &mut svg_file)
 		.map_err(|e| format!("write_svg failed: {:?}", e))?;
 
 	println!("Done.");
