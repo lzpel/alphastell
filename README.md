@@ -22,6 +22,14 @@ One command reproduces the hero image above:
 make showcase
 ```
 
+points command for quick verification and plotting
+
+```bash
+make points
+```
+
+![img](figure/points.png)
+
 ## Relationship to parastell
 
 alphastell is a Rust reimplementation of the core in-vessel and magnet geometry generation from [parastell](https://github.com/svalinn/parastell) (Python, MIT, maintained by the [Svalinn](https://github.com/svalinn) group at UW-Madison). It borrows:
