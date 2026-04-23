@@ -180,11 +180,17 @@ fn build_one(raw_pts: &[DVec3], width: f64, thickness: f64) -> Result<(Solid, Ve
 	// sweep 中、profile の tracked axis がこの方向を追うため、parastell の
 	// 「全点で COM 基準の normal/binormal を構築」と等価なフレーム制御になる。
 	// AUX_SCALE は向きの決定には無関係 (>1 であればよい); 数値安定性のため 1.1。
-	const AUX_SCALE: f64 = 1.1;
+	const AUX_SCALE: f64 = 0.9;
 	let com: DVec3 = spine_pts.iter().copied().sum::<DVec3>() / (spine_pts.len() as f64);
 	let aux_pts: Vec<DVec3> = spine_pts
 		.iter()
-		.map(|p| com + (*p - com) * AUX_SCALE)
+		.map(|p| {
+			let (point, tangent) = spine.project(*p);
+			let aux_raw = com + (*p - com) * AUX_SCALE;
+			// aux - point を接線方向成分を除いた法線面内に射影し、(aux - point)·tangent = 0 にする。
+			let aux = aux_raw - tangent * tangent.dot(aux_raw - point);
+			point + (aux - point).normalize() * thickness
+		})
 		.collect();
 	let aux_spine = Edge::bspline(&aux_pts, BSplineEnd::NotAKnot)
 		.map_err(|e| format!("aux bspline failed: {:?}", e))?;
@@ -218,6 +224,7 @@ fn build_one(raw_pts: &[DVec3], width: f64, thickness: f64) -> Result<(Solid, Ve
 		dump_pts.push(e.start_point());
 	}
 	dump_pts.extend_from_slice(&spine_pts);
+	dump_pts.extend_from_slice(&aux_pts);
 
 	// (e) sweep。Auxiliary(aux_spine) で profile の tracked axis を各点で
 	// 「コイル COM → spine 点」方向に向ける。Torsion (Frenet-Serret) が
@@ -226,8 +233,8 @@ fn build_one(raw_pts: &[DVec3], width: f64, thickness: f64) -> Result<(Solid, Ve
 	let coil = Solid::sweep(
 		profile.iter(),
 		std::iter::once(&spine),
-		ProfileOrient::Torsion
-		//ProfileOrient::Auxiliary(&[aux_spine]),
+		//ProfileOrient::Torsion
+		ProfileOrient::Auxiliary(&[aux_spine]),
 	)
 	.map_err(|e| format!("sweep failed: {:?}", e))?;
 
