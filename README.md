@@ -43,6 +43,82 @@ Differences: the kernel is Rust + OCCT (bundled statically through `cadrum`), ou
 
 The `parastell/` directory is a vendored snapshot (not a git submodule). All credit for the underlying approach goes to the parastell authors; bugs in the Rust port are mine.
 
+## Geometry recipe
+
+### VMEC Fourier evaluation
+
+Each `wout_*.nc` stores, for every radial grid point $s_i \in \{0, 1/(n_s-1), \ldots, 1\}$, the Fourier coefficients $\hat R_k(s_i)$ and $\hat Z_k(s_i)$ together with integer mode numbers $(m_k, n_k)$. Under stellarator symmetry (`lasym = 0`) the magnetic surface is
+
+$$
+R(s, \theta, \varphi) = \sum_{k=1}^{m_{\max}} \hat R_k(s)\,\cos\bigl(m_k\theta - n_k\varphi\bigr),\qquad
+Z(s, \theta, \varphi) = \sum_{k=1}^{m_{\max}} \hat Z_k(s)\,\sin\bigl(m_k\theta - n_k\varphi\bigr).
+$$
+
+The 3D point is then $\mathbf p(s,\theta,\varphi) = \bigl(R\cos\varphi,\; R\sin\varphi,\; Z\bigr)$.
+
+### Off-grid $s$: cubic spline per coefficient
+
+For $s \notin \{s_i\}$ (in particular the `wall_s = 1.08` extrapolation point used by `vessel`), each coefficient $\hat R_k(s)$ and $\hat Z_k(s)$ is interpolated by an independent **cubic spline** along $s$. Two boundary conditions are implemented:
+
+- **Natural** ($M_0 = M_{n-1} = 0$): calm extrapolation, used by default in the current code because `cadrum`'s periodic B-spline shell is sensitive to large coefficient swings.
+- **NotAKnot** (scipy-compatible, $C^3$ across the first/last internal knot): reproduces parastell numerically, recommended once the cadrum side switches to a 2D poloidal offset.
+
+The splines are constructed once per `VmecData` (lazy, cached in `OnceLock`) — per-point evaluation is then pure polynomial work.
+
+### Analytic partial derivatives
+
+Because the representation is a closed-form Fourier series, $\partial_\theta$ and $\partial_\varphi$ are obtained termwise without any finite difference. Let $\alpha_k = m_k\theta - n_k\varphi$. Then
+
+$$
+\frac{\partial R}{\partial \theta} = -\sum_k m_k\,\hat R_k(s)\,\sin\alpha_k,\quad
+\frac{\partial R}{\partial \varphi} = +\sum_k n_k\,\hat R_k(s)\,\sin\alpha_k,
+$$
+
+$$
+\frac{\partial Z}{\partial \theta} = +\sum_k m_k\,\hat Z_k(s)\,\cos\alpha_k,\quad
+\frac{\partial Z}{\partial \varphi} = -\sum_k n_k\,\hat Z_k(s)\,\cos\alpha_k.
+$$
+
+All four partials fall out of the same loop that evaluates $R, Z$, so sampling on the $(M, N) = (128, 48)$ grid used by `vessel` costs one Fourier sweep per node.
+
+### Two thickness conventions: `Planar` vs `Surface`
+
+Each of the six in-vessel layers is defined as an **offset surface** of the reference flux surface at `wall_s = 1.08`, with cumulative offsets
+
+| Layer          | Thickness [cm] | Cumulative offset $o$ [cm] |
+| ---            | ---:           | ---:                       |
+| chamber        |  0             |   0                        |
+| first_wall     |  5             |   5                        |
+| breeder        | 50             |  55                        |
+| back_wall      |  5             |  60                        |
+| shield         | 50             | 110                        |
+| vacuum_vessel  | 10             | 120                        |
+
+Given a surface point $\mathbf p$ and a unit outward normal $\hat{\mathbf n}$, the offset point is
+
+$$
+\mathbf p_{\mathrm{offset}} = \mathbf p + o\,\hat{\mathbf n}.
+$$
+
+alphastell evaluates $\mathbf p$ in the $\varphi = 0$ cross-section frame (so $\mathbf p = (R, 0, Z)$) and then applies the $\varphi$ rotation around $\hat{\mathbf z}$ at the end. The normal $\hat{\mathbf n}$ is computed in the same frame via one of two recipes, selected by `NormalKind` in `src/vmec.rs`:
+
+**`Planar`** — parastell-compatible 2D normal inside the constant-$\varphi$ slice. Only the poloidal tangent is used; the toroidal component $\partial_\varphi \mathbf p$ is ignored.
+
+$$
+\mathbf t_\theta = (\partial_\theta R,\; 0,\; \partial_\theta Z),\quad
+\mathbf t_\varphi^{\mathrm{Planar}} = (0, 1, 0),\qquad
+\mathbf n_{\mathrm{Planar}} = \mathbf t_\varphi^{\mathrm{Planar}} \times \mathbf t_\theta = (\partial_\theta Z,\; 0,\; -\partial_\theta R).
+$$
+
+**`Surface`** — true 3D outward normal of the flux surface. The arclength term $R\,\hat{\mathbf y}$ from the rotational embedding makes $\mathbf t_\varphi$ three-dimensional:
+
+$$
+\mathbf t_\varphi^{\mathrm{Surface}} = (\partial_\varphi R,\; R,\; \partial_\varphi Z),\qquad
+\mathbf n_{\mathrm{Surface}} = \mathbf t_\varphi^{\mathrm{Surface}} \times \mathbf t_\theta.
+$$
+
+Both are then normalized, scaled by $o$, added to $\mathbf p$, and the whole point is rotated by $\varphi$ around $\hat{\mathbf z}$ to build the final 3D mesh. `Planar` is the default (matches parastell to within the shell construction error); `Surface` captures the helical tilt more faithfully and is useful when the mesh feeds into a true 3D offset operation.
+
 ## Subcommands
 
 | Subcommand | Output | Purpose |
