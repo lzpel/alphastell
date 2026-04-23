@@ -95,6 +95,12 @@ points-save:
 magnet:
 	cargo run --release -- magnet --input $(COILS_IN) --output $(MAG_OUT)
 
+magnet2:
+	cargo run --release -- magnet2 --input $(COILS_IN) --output out/magent2.csv
+
+view-magnet2: magnet2
+	uv run tools/view_coils.py
+
 # ============================================================
 # showcase — 核融合炉の内部を覗かせる cutaway STEP (+ 同名 SVG) を生成
 #   各層を --union (+X 中心の扇形を除去) で等角度に開き、内部を段階的に露出。
