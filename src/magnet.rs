@@ -15,7 +15,7 @@
 use cadrum::{BSplineEnd, Color, DVec3, ProfileOrient, Solid, Wire};
 use std::fs::File;
 use std::io::{BufWriter, Write};
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 
 use crate::Result;
 use crate::coils;

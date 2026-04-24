@@ -32,5 +32,14 @@ exclude = [
 [dependencies]
 cadrum = "^0.7.1"
 netcdf3 = "^0.6"
-clap = { version = "^4", features = ["derive"] }
+clap = { version = "^4", features = ["derive", "env"] }
 regex = "^1"
+# for server
+serde = { version = "^1", features = ["derive"] }
+serde_json = "^1"
+axum = { version = "^0", features = ["multipart"] }
+tokio = { version = "^1", features = ["rt", "rt-multi-thread", "macros", "signal", "net"] }
+http = "^1"
+
+[dev-dependencies]
+mandolin = "0.4.7"
