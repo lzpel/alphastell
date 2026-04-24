@@ -30,6 +30,9 @@ mod plasma;
 mod validate;
 mod vessel;
 mod vmec;
+#[allow(dead_code, unused_imports, unused_variables, unexpected_cfgs)]
+mod out;
+mod server;
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -157,6 +160,11 @@ enum Command {
 		#[arg(long, default_value_t = false)]
 		union: bool,
 	},
+	Server{
+        /// Port to listen on (or set PORT env var)
+        #[arg(long, env = "PORT", default_value = "8080")]
+        port: u16,
+	}
 }
 
 fn main() -> Result<()> {
@@ -231,5 +239,11 @@ fn main() -> Result<()> {
 			tol,
 			union,
 		} => validate::run(&a, &b, max_ratio, tol, union),
+		Command::Server {
+			port,
+		} => {
+			server::run(port);
+			Ok(())
+		}
 	}
 }

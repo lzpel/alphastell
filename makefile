@@ -17,7 +17,13 @@ MAG_REF := $(PARA_DIR)/magnet_set.step
         magnet magnet-generate magnet-validate \
         points points-save plasma showcase
 
+generate:
+	cargo run --example server_template
+
 run: vessel validate
+
+server:
+	cargo run -- server
 
 # ============================================================
 # vessel — 6 層 in-vessel build を一括生成
