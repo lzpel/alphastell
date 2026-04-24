@@ -2,3 +2,4 @@
 /out
 *.step
 *.svg
+out.*
