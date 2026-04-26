@@ -31,7 +31,7 @@ mod validate;
 mod vessel;
 mod vmec;
 #[allow(dead_code, unused_imports, unused_variables, unexpected_cfgs)]
-mod out;
+mod openapi;
 mod server;
 
 use clap::{Parser, Subcommand};
