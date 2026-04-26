@@ -35,11 +35,10 @@
 //! `examples/08_bspline_with_waves.rs` は cadrum 側で修正が入った際の回帰検証に利用可能。
 
 use cadrum::{DVec3, Solid};
-use std::fs::File;
-use std::io::Write;
 use std::path::Path;
 
 use crate::Result;
+use crate::artifact::Artifact;
 use crate::vmec::{NormalKind, VmecData};
 
 /// トーラス方向 (φ 軸) のリブ本数。nfp=4 の倍数にして周期対称性と揃える。
@@ -71,7 +70,10 @@ const LAYERS: [(&str, &str); 6] = [
 /// # 引数
 /// - `wall_s`: 基準磁束面 (parastell 既定 1.08)。
 /// - `scale` : VMEC の m 単位から出力単位への倍率 (100 → cm)。
-pub fn run(input: &Path, output_dir: &Path, wall_s: f64, scale: f64) -> Result<()> {
+///
+/// 戻り値は `(name, Artifact)` の 6 要素 (LAYERS 順)。`name` はそのまま
+/// `Artifact::write(out_dir, name)` の第 2 引数に渡せる。
+pub fn run(input: &Path, wall_s: f64, scale: f64) -> Result<Vec<Artifact>> {
 	println!("Loading VMEC: {}", input.display());
 	let vmec = VmecData::load(input)?;
 	println!(
@@ -80,9 +82,6 @@ pub fn run(input: &Path, output_dir: &Path, wall_s: f64, scale: f64) -> Result<(
 		vmec.mode_poloidal.len(),
 		vmec.s_grid.last().unwrap()
 	);
-
-	std::fs::create_dir_all(output_dir)
-		.map_err(|e| format!("create_dir_all {}: {}", output_dir.display(), e))?;
 
 	// wall_s 基準面からの累積 offset [m]。index 0 が chamber 外周 = FW 内周。
 	let offsets_m: [f64; 6] = [
@@ -94,7 +93,6 @@ pub fn run(input: &Path, output_dir: &Path, wall_s: f64, scale: f64) -> Result<(
 		THICK_FW_M + THICK_BREEDER_M + THICK_BACK_WALL_M + THICK_SHIELD_M + THICK_VV_M,
 	];
 
-	// 各 offset で filled solid を構築。mesh → const-size grid → bspline。
 	println!(
 		"Building {} nested filled solids (wall_s = {}, scale = {}, grid = {}×{})...",
 		offsets_m.len(),
@@ -104,21 +102,24 @@ pub fn run(input: &Path, output_dir: &Path, wall_s: f64, scale: f64) -> Result<(
 		N_POLO
 	);
 	let mut full_solids: Vec<Solid> = Vec::with_capacity(offsets_m.len());
+	let mut layer_points: Vec<Vec<DVec3>> = Vec::with_capacity(offsets_m.len());
 	for (i, &o) in offsets_m.iter().enumerate() {
 		println!("  [{}] offset = {:.3} m", i, o);
 		let mesh = vmec.mesh(N_POLO, M_TORO, wall_s, o, NormalKind::Planar);
-		let points = |i: usize, j: usize| -> DVec3 { DVec3::from(mesh[i][j]) * scale };
-		// 可視化用: STEP と同名の .csv に layer の外側 bounding surface mesh を
-		// 生点群 (x,y,z) で書き出す。単位は生 VMEC (m) で固定。
-		let name = LAYERS[i].0;
-		let csv_path = output_dir.join(format!("{}.csv", name));
-		write_mesh_csv((0..M_TORO).map(|i: usize| (0..N_POLO).map(move |j: usize| [i, j])).flatten().map(|[i, j]| points(i, j)), &csv_path)?;
-		let solid = Solid::bspline(M_TORO, N_POLO, true, points)
+		let mut pts: Vec<DVec3> = Vec::with_capacity(M_TORO * N_POLO);
+		for ii in 0..M_TORO {
+			for jj in 0..N_POLO {
+				pts.push(DVec3::from(mesh[ii][jj]) * scale);
+			}
+		}
+		let solid = Solid::bspline(M_TORO, N_POLO, true, |ii, jj| pts[ii * N_POLO + jj])
 			.map_err(|e| format!("bspline #{}: {:?}", i, e))?;
 		full_solids.push(solid);
+		layer_points.push(pts);
 	}
 
-	// 6 層を書き出し。chamber は filled、それ以外は outer.subtract([inner])。
+	// chamber は filled、それ以外は outer.subtract([inner])。
+	let mut artifacts: Vec<Artifact> = Vec::with_capacity(LAYERS.len());
 	for (i, (name, color)) in LAYERS.iter().enumerate() {
 		println!("Building layer: {}", name);
 		let solids: Vec<Solid> = if i == 0 {
@@ -131,42 +132,12 @@ pub fn run(input: &Path, output_dir: &Path, wall_s: f64, scale: f64) -> Result<(
 		if solids.is_empty() {
 			return Err(format!("layer {} produced no solid", name).into());
 		}
-		let path = output_dir.join(format!("{}.step", name));
 		let colored: Vec<Solid> = solids.into_iter().map(|s| s.color(*color)).collect();
-		write_step(&colored, &path)?;
+		artifacts.push(Artifact { 
+			name: name.to_string(), 
+			solids: colored, points: 
+			layer_points[i].clone()
+		});
 	}
-
-	println!("Done.");
-	Ok(())
-}
-
-fn write_step(solids: &[Solid], output: &Path) -> Result<()> {
-	println!("  Writing STEP: {}", output.display());
-	let mut f = File::create(output)
-		.map_err(|e| format!("create {}: {}", output.display(), e))?;
-	cadrum::write_step(solids.iter(), &mut f)
-		.map_err(|e| format!("write_step failed: {:?}", e))?;
-	Ok(())
-}
-
-/// `mesh()` の出力 (`[phi_idx][theta_idx]`) を header 無し `x,y,z` CSV にダンプ。
-///
-/// magnet サブコマンドの CSV と同形式で、`tools/view_points.py` がそのまま
-/// 3D scatter できる。走査順: phi=0 から phi=(M-1)·2π/M、各 phi で
-/// theta=0 から theta=(N-1)·2π/N。
-fn write_mesh_csv(mesh: impl Iterator<Item = DVec3>, output: &Path) -> Result<()> {
-	println!("  Writing CSV: {}", output.display());
-	let mut f = File::create(output)
-		.map_err(|e| format!("create {}: {}", output.display(), e))?;
-	for p in mesh {
-		writeln!(
-			f,
-			"{},{},{}",
-			p.x,
-			p.y,
-			p.z,
-		)
-		.map_err(|e| format!("write csv row: {}", e))?;
-	}
-	Ok(())
+	Ok(artifacts)
 }
