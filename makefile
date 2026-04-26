@@ -17,13 +17,16 @@ MAG_REF := $(PARA_DIR)/magnet_set.step
         magnet magnet-generate magnet-validate \
         points points-save plasma showcase
 
-generate:
-	cargo run --example server_template
 
 run: vessel validate
 
 server:
 	cargo run -- server
+
+# Rust の mandolin crate を使ったコード自動生成
+openapi:
+	cargo install --root out mandolin
+	out/bin/mandolin -i openapi.json -o src/openapi.rs
 
 # ============================================================
 # vessel — 6 層 in-vessel build を一括生成
