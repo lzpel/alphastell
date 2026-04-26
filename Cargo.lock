@@ -31,7 +31,6 @@ dependencies = [
  "cadrum",
  "clap",
  "http",
- "mandolin",
  "netcdf3",
  "regex",
  "serde",
@@ -168,9 +167,9 @@ checksum = "1e748733b7cbc798e1434b6ac524f0c1ff2ab456fe201501e6497c8417a4fc33"
 
 [[package]]
 name = "cadrum"
-version = "0.7.1"
+version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d1ae280bdb980d13b660bcd5e803257f80715da57248b47d104a68c21dfa4f9"
+checksum = "a51687cd1a381897a759b0d344cd169f59d92cddf4ab54552ef91662fe3b5b98"
 dependencies = [
  "cxx",
  "cxx-build",
@@ -549,8 +548,6 @@ checksum = "d466e9454f08e4a911e14806c24e16fba1b4c121d1ea474396f396069cf949d9"
 dependencies = [
  "equivalent",
  "hashbrown 0.17.0",
- "serde",
- "serde_core",
 ]
 
 [[package]]
@@ -629,21 +626,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 
 [[package]]
-name = "mandolin"
-version = "0.4.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94d06c530e9d29b351b8682f4b9f055a3fc1f2a25aee33472bc0f767f1081394"
-dependencies = [
- "clap",
- "heck",
- "minijinja",
- "openapiv3",
- "regex",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "matchit"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -656,28 +638,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 
 [[package]]
-name = "memo-map"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38d1115007560874e373613744c6fba374c17688327a71c1476d1a5954cc857b"
-
-[[package]]
 name = "mime"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
-
-[[package]]
-name = "minijinja"
-version = "2.19.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "805bfd7352166bae857ee569628b52bcd85a1cecf7810861ebceb1686b72b75d"
-dependencies = [
- "indexmap",
- "memo-map",
- "serde",
- "serde_json",
-]
 
 [[package]]
 name = "minimal-lexical"
@@ -764,17 +728,6 @@ name = "once_cell_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
-
-[[package]]
-name = "openapiv3"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c8d427828b22ae1fff2833a03d8486c2c881367f1c336349f307f321e7f4d05"
-dependencies = [
- "indexmap",
- "serde",
- "serde_json",
-]
 
 [[package]]
 name = "percent-encoding"

@@ -128,7 +128,7 @@ fn build<const M: usize, const N: usize>(
 			DVec3::new(rz.r * cp * scale, rz.r * sp * scale, rz.z * scale)
 		})
 	});
-	Solid::bspline(grid, periodic)
+	Solid::bspline(M, N, periodic, |i, j| grid[i][j])
 		.map_err(|e| format!("bspline M={M}, N={N}, periodic={periodic}: {:?}", e).into())
 }
 

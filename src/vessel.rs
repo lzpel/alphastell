@@ -113,7 +113,7 @@ pub fn run(input: &Path, output_dir: &Path, wall_s: f64, scale: f64) -> Result<(
 		let csv_path = output_dir.join(format!("{}.csv", name));
 		write_mesh_csv(&mesh, 1.0, &csv_path)?;
 		let grid = to_const_grid(&mesh, scale);
-		let solid = Solid::bspline(grid, true)
+		let solid = Solid::bspline(M_TORO, N_POLO, true, |i, j| grid[i][j])
 			.map_err(|e| format!("bspline #{}: {:?}", i, e))?;
 		full_solids.push(solid);
 	}
