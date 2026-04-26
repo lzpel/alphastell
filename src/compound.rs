@@ -120,8 +120,9 @@ pub fn run(
 	// 同名 SVG を書き出す。view=-Y (側面から)、up=+Z (stellarator の鉛直軸を画面上に)。
 	// 隠線 off、shading on。
 	let svg_path = output.with_extension("svg");
+	let stl_path = output.with_extension("stl");
 	println!(
-		"Writing SVG: {} (mesh tol = {}, view=-Y, up=+Z)",
+		"Writing SVG/STL: {} (mesh tol = {}, view=-Y, up=+Z)",
 		svg_path.display(),
 		SVG_MESH_TOL
 	);
@@ -131,6 +132,10 @@ pub fn run(
 		.map_err(|e| format!("create {}: {}", svg_path.display(), e))?;
 	mesh.write_svg(DVec3::ONE, DVec3::Z, false, true, &mut svg_file)
 		.map_err(|e| format!("write_svg failed: {:?}", e))?;
+	let mut stl_file = File::create(&stl_path)
+		.map_err(|e| format!("create {}: {}", stl_path.display(), e))?;
+	mesh.write_stl(&mut stl_file)
+		.map_err(|e| format!("write_stl failed: {:?}", e))?;
 
 	println!("Done.");
 	Ok(())
