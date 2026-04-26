@@ -50,7 +50,7 @@ vessel: $(VMEC_IN)
 # magnet — coils.example から長方形断面 sweep で magnet_set.step を生成 (m 単位)
 # ============================================================
 magnet: $(COILS_IN)
-	cargo run --release -- magnet --scale 100 --input $(COILS_IN) --output $(OUT_DIR)/magnet_set.step
+	cargo run --release -- magnet --scale 100 --input $(COILS_IN) --output $(OUT_DIR)/
 
 # ============================================================
 # validate — 各層を parastell 参照と体積比較
