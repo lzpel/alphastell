@@ -1,15 +1,15 @@
 # make install + make generateで大体良い感じのフロントエンドが書けるmakefile
 # tailwind css で material ui風のpaletteを導入
-server-generate:
+frontend-generate:
 	# 無視するファイルを.gitignoreに追加
 	sed -i -e '/##/q' .gitignore && printf "AGENTS.md\nCLAUDE.md\n*.config.*" >> .gitignore
 	# 設定ファイルを作成
 	echo "$${next_config_ts}" > ./next.config.ts
 	echo "$${agents_md}" | tee ./CLAUDE.md ./AGENTS.md > /dev/null
-server-run:
+frontend-run:
 	npm run dev
 
-server-deploy: server-generate
+frontend-deploy: frontend-generate
 	npm run build
 define agents_md
 # Frontend Rules
