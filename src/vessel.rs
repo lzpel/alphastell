@@ -35,7 +35,7 @@
 //! `examples/08_bspline_with_waves.rs` は cadrum 側で修正が入った際の回帰検証に利用可能。
 
 use cadrum::{DVec3, Solid};
-use std::path::Path;
+use std::io::{Read, Seek};
 
 use crate::Result;
 use crate::artifact::Artifact;
@@ -68,13 +68,13 @@ const LAYERS: [(&str, &str); 6] = [
 /// vessel サブコマンドのエントリポイント。
 ///
 /// # 引数
+/// - `input` : VMEC NetCDF ストリーム (`Read + Seek`)。CLI ではファイルを `File::open` で渡し、
+///             API ではアップロード bytes を `Cursor` で渡す。
 /// - `wall_s`: 基準磁束面 (parastell 既定 1.08)。
 /// - `scale` : VMEC の m 単位から出力単位への倍率 (100 → cm)。
 ///
-/// 戻り値は `(name, Artifact)` の 6 要素 (LAYERS 順)。`name` はそのまま
-/// `Artifact::write(out_dir, name)` の第 2 引数に渡せる。
-pub fn run(input: &Path, wall_s: f64, scale: f64) -> Result<Vec<Artifact>> {
-	println!("Loading VMEC: {}", input.display());
+/// 戻り値は `Artifact` 6 要素 (LAYERS 順)。`Artifact::write(out_dir, name)` で書き出せる。
+pub fn run(input: impl Read + Seek + 'static, wall_s: f64, scale: f64) -> Result<Vec<Artifact>> {
 	let vmec = VmecData::load(input)?;
 	println!(
 		"  ns = {}, mnmax = {}, s_max in grid = {}",

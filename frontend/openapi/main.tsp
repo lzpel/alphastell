@@ -7,35 +7,24 @@ using OpenAPI;
 
 /**
  * HTTP facade over the alphastell vessel/magnet subcommands. Upload a VMEC
- * NetCDF or MAKEGRID coils file and receive the generated STEP + CSV
- * artifacts as a list of base64-encoded files.
+ * NetCDF or MAKEGRID coils file and receive a tar archive containing the
+ * generated STEP + STL + CSV artifacts (one set per layer/coil group).
  */
 @service(#{ title: "alphastell API" })
 @info(#{ version: "0.1.0" })
 @server("/", "Default server")
 namespace AlphastellApi;
 
-model FileEntry {
-	/** Output filename, e.g. `chamber.step` or `magnet_set.csv`. */
-	filename: string;
-
-	/** MIME type hint for the payload (e.g. `model/step`, `text/csv`). */
-	content_type: string;
-
-	/** Base64-encoded file contents. */
-	@encode("base64")
-	data: bytes;
-}
-
 @error
 model Error {
 	message: string;
 }
 
-@doc("Generated in-vessel artifacts (6 STEP + 6 CSV).")
+@doc("Tar archive containing all generated artifacts (`<name>.{step,stl,csv}` per layer or coil group).")
 model OkResponse {
 	@statusCode statusCode: 200;
-	@body body: FileEntry[];
+	@header contentType: "application/x-tar";
+	@body body: bytes;
 }
 
 @doc("Invalid input file or parameters.")
@@ -52,15 +41,15 @@ model ServerErrorResponse {
 
 /**
  * Equivalent to the `vessel` subcommand. Accepts a VMEC `wout_*.nc` file
- * and returns 12 artifacts: 6 STEP solids (chamber, first_wall, breeder,
- * back_wall, shield, vacuum_vessel) and their corresponding CSV point
- * clouds.
+ * and returns a tar archive containing 18 entries: the 6 in-vessel layers
+ * (chamber, first_wall, breeder, back_wall, shield, vacuum_vessel) each as
+ * `<layer>.step` + `<layer>.stl` + `<layer>.csv`.
  */
 @summary("Generate in-vessel components from a VMEC NetCDF file")
-@operationId("uploadVmec")
+@operationId("vessel")
 @route("/vessel")
 @post
-op uploadVmec(
+op vessel(
 	/** Reference flux surface. Parastell default 1.08 (just outside the LCFS). */
 	@query wall_s?: float64 = 1.08,
 
@@ -72,14 +61,14 @@ op uploadVmec(
 
 /**
  * Equivalent to the `magnet` subcommand. Accepts a MAKEGRID-format coils
- * file (e.g. `coils.example`) and returns 2 artifacts: a STEP of the swept
- * rectangular-section coils and its CSV point cloud.
+ * file (e.g. `coils.example`) and returns a tar archive containing
+ * `magnet_set.step` + `magnet_set.stl` + `magnet_set.csv`.
  */
 @summary("Generate a magnet_set STEP from a MAKEGRID coils file")
-@operationId("uploadCoils")
+@operationId("magnet")
 @route("/magnet")
 @post
-op uploadCoils(
+op magnet(
 	/** Rectangular cross-section width [m]. Default 0.4 m matches parastell. */
 	@query width?: float64 = 0.4,
 
