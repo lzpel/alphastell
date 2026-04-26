@@ -100,7 +100,7 @@ pub struct MagnetRequest{
 // Response type for magnet
 #[derive(Debug)]
 pub enum MagnetResponse{
-	Status200(Vec<FileEntry>),
+	Status200(Vec<u8>),
 	Status400(Error),
 	Status500(Error),
 	Error(String),
@@ -113,7 +113,7 @@ impl Default for MagnetResponse{
 impl axum::response::IntoResponse for MagnetResponse{
 	fn into_response(self) -> axum::response::Response{
 		match self{
-			Self::Status200(v)=> axum::response::Response::builder().status(http::StatusCode::from_u16(200).unwrap()).header(http::header::CONTENT_TYPE, "application/json").body(axum::body::Body::from(serde_json::to_vec_pretty(&v).expect("error serialize response json"))).unwrap(),
+			Self::Status200(v)=> axum::response::Response::builder().status(http::StatusCode::from_u16(200).unwrap()).header(http::header::CONTENT_TYPE, "application/x-tar").body(axum::body::Body::from(v)).unwrap(),
 			Self::Status400(v)=> axum::response::Response::builder().status(http::StatusCode::from_u16(400).unwrap()).header(http::header::CONTENT_TYPE, "application/json").body(axum::body::Body::from(serde_json::to_vec_pretty(&v).expect("error serialize response json"))).unwrap(),
 			Self::Status500(v)=> axum::response::Response::builder().status(http::StatusCode::from_u16(500).unwrap()).header(http::header::CONTENT_TYPE, "application/json").body(axum::body::Body::from(serde_json::to_vec_pretty(&v).expect("error serialize response json"))).unwrap(),
 			Self::Error(msg) => axum::response::Response::builder().status(500).header(http::header::CONTENT_TYPE, "text/plain").body(axum::body::Body::from(msg)).unwrap(),
@@ -131,7 +131,7 @@ pub struct VesselRequest{
 // Response type for vessel
 #[derive(Debug)]
 pub enum VesselResponse{
-	Status200(Vec<FileEntry>),
+	Status200(Vec<u8>),
 	Status400(Error),
 	Status500(Error),
 	Error(String),
@@ -144,7 +144,7 @@ impl Default for VesselResponse{
 impl axum::response::IntoResponse for VesselResponse{
 	fn into_response(self) -> axum::response::Response{
 		match self{
-			Self::Status200(v)=> axum::response::Response::builder().status(http::StatusCode::from_u16(200).unwrap()).header(http::header::CONTENT_TYPE, "application/json").body(axum::body::Body::from(serde_json::to_vec_pretty(&v).expect("error serialize response json"))).unwrap(),
+			Self::Status200(v)=> axum::response::Response::builder().status(http::StatusCode::from_u16(200).unwrap()).header(http::header::CONTENT_TYPE, "application/x-tar").body(axum::body::Body::from(v)).unwrap(),
 			Self::Status400(v)=> axum::response::Response::builder().status(http::StatusCode::from_u16(400).unwrap()).header(http::header::CONTENT_TYPE, "application/json").body(axum::body::Body::from(serde_json::to_vec_pretty(&v).expect("error serialize response json"))).unwrap(),
 			Self::Status500(v)=> axum::response::Response::builder().status(http::StatusCode::from_u16(500).unwrap()).header(http::header::CONTENT_TYPE, "application/json").body(axum::body::Body::from(serde_json::to_vec_pretty(&v).expect("error serialize response json"))).unwrap(),
 			Self::Error(msg) => axum::response::Response::builder().status(500).header(http::header::CONTENT_TYPE, "text/plain").body(axum::body::Body::from(msg)).unwrap(),
@@ -168,22 +168,15 @@ pub struct Error{
 	pub r#message:String,
 }
 
-#[derive(Default,Clone,Debug,serde::Serialize,serde::Deserialize)]
-pub struct FileEntry{
-	pub r#content_type:String,
-	pub r#data:String,
-	pub r#filename:String,
-}
-
 
 
 #[derive(Default,Clone,Debug,serde::Serialize,serde::Deserialize)]
-pub struct PathsMagnetPostRequestBodyContentApplicationJsonSchema{
+pub struct PathsVesselPostRequestBodyContentApplicationJsonSchema{
 	#[serde(with = "base64_serde")]
 	pub r#body:Vec<u8>,
 }
 #[derive(Default,Clone,Debug,serde::Serialize,serde::Deserialize)]
-pub struct PathsVesselPostRequestBodyContentApplicationJsonSchema{
+pub struct PathsMagnetPostRequestBodyContentApplicationJsonSchema{
 	#[serde(with = "base64_serde")]
 	pub r#body:Vec<u8>,
 }
@@ -216,7 +209,7 @@ impl<T: ApiClient + Sync> ApiInterface for T {
             };
             match r.status().as_u16() {
                 200 =>
-                    match r.json().await { Ok(v) => MagnetResponse::Status200(v), Err(e) => MagnetResponse::Error(e.to_string()) },
+                    match r.bytes().await { Ok(v) => MagnetResponse::Status200(v.to_vec()), Err(e) => MagnetResponse::Error(e.to_string()) },
                 400 =>
                     match r.json().await { Ok(v) => MagnetResponse::Status400(v), Err(e) => MagnetResponse::Error(e.to_string()) },
                 500 =>
@@ -242,7 +235,7 @@ impl<T: ApiClient + Sync> ApiInterface for T {
             };
             match r.status().as_u16() {
                 200 =>
-                    match r.json().await { Ok(v) => VesselResponse::Status200(v), Err(e) => VesselResponse::Error(e.to_string()) },
+                    match r.bytes().await { Ok(v) => VesselResponse::Status200(v.to_vec()), Err(e) => VesselResponse::Error(e.to_string()) },
                 400 =>
                     match r.json().await { Ok(v) => VesselResponse::Status400(v), Err(e) => VesselResponse::Error(e.to_string()) },
                 500 =>
@@ -325,7 +318,7 @@ pub fn axum_router_operations<S: ApiInterfaceAxum + Sync + Send + 'static>(insta
 		ret
 	}));
 	let router = router.route("/openapi.json", axum::routing::get(|| async move{
-			r###"{"components":{"schemas":{"Error":{"properties":{"message":{"type":"string"}},"required":["message"],"type":"object"},"FileEntry":{"properties":{"content_type":{"description":"MIME type hint for the payload (e.g. `model/step`, `text/csv`).","type":"string"},"data":{"description":"Base64-encoded file contents.","format":"base64","type":"string"},"filename":{"description":"Output filename, e.g. `chamber.step` or `magnet_set.csv`.","type":"string"}},"required":["filename","content_type","data"],"type":"object"}}},"info":{"description":"HTTP facade over the alphastell vessel/magnet subcommands. Upload a VMEC\nNetCDF or MAKEGRID coils file and receive the generated STEP + CSV\nartifacts as a list of base64-encoded files.","title":"alphastell API","version":"0.1.0"},"openapi":"3.0.0","paths":{"/magnet":{"post":{"description":"Equivalent to the `magnet` subcommand. Accepts a MAKEGRID-format coils\nfile (e.g. `coils.example`) and returns 2 artifacts: a STEP of the swept\nrectangular-section coils and its CSV point cloud.","operationId":"magnet","parameters":[{"description":"Rectangular cross-section width [m]. Default 0.4 m matches parastell.","explode":false,"in":"query","name":"width","schema":{"default":0.4,"format":"double","type":"number"},"style":"form"},{"description":"Rectangular cross-section thickness [m]. Default 0.5 m matches parastell.","explode":false,"in":"query","name":"thickness","schema":{"default":0.5,"format":"double","type":"number"},"style":"form"},{"description":"Toroidal extent [deg]. 360 keeps all coils; values below 360 are reserved for future use.","explode":false,"in":"query","name":"toroidal_extent","schema":{"default":360,"format":"double","type":"number"},"style":"form"}],"requestBody":{"content":{"application/json":{"schema":{"properties":{"body":{"format":"byte","type":"string"}},"required":["body"],"type":"object"}}},"required":true},"responses":{"200":{"content":{"application/json":{"schema":{"items":{"$ref":"#/components/schemas/FileEntry"},"type":"array"}}},"description":"Generated in-vessel artifacts (6 STEP + 6 CSV)."},"400":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Invalid input file or parameters."},"500":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Processing failure."}},"summary":"Generate a magnet_set STEP from a MAKEGRID coils file"}},"/vessel":{"post":{"description":"Equivalent to the `vessel` subcommand. Accepts a VMEC `wout_*.nc` file\nand returns 12 artifacts: 6 STEP solids (chamber, first_wall, breeder,\nback_wall, shield, vacuum_vessel) and their corresponding CSV point\nclouds.","operationId":"vessel","parameters":[{"description":"Reference flux surface. Parastell default 1.08 (just outside the LCFS).","explode":false,"in":"query","name":"wall_s","schema":{"default":1.08,"format":"double","type":"number"},"style":"form"},{"description":"Unit scaling factor. VMEC is in meters; 100 converts to centimeters to match the parastell default.","explode":false,"in":"query","name":"scale","schema":{"default":100,"format":"double","type":"number"},"style":"form"}],"requestBody":{"content":{"application/json":{"schema":{"properties":{"body":{"format":"byte","type":"string"}},"required":["body"],"type":"object"}}},"required":true},"responses":{"200":{"content":{"application/json":{"schema":{"items":{"$ref":"#/components/schemas/FileEntry"},"type":"array"}}},"description":"Generated in-vessel artifacts (6 STEP + 6 CSV)."},"400":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Invalid input file or parameters."},"500":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Processing failure."}},"summary":"Generate in-vessel components from a VMEC NetCDF file"}}},"servers":[{"description":"Default server","url":"/","variables":{}}]}"###
+			r###"{"components":{"schemas":{"Error":{"properties":{"message":{"type":"string"}},"required":["message"],"type":"object"}}},"info":{"description":"HTTP facade over the alphastell vessel/magnet subcommands. Upload a VMEC\nNetCDF or MAKEGRID coils file and receive a tar archive containing the\ngenerated STEP + STL + CSV artifacts (one set per layer/coil group).","title":"alphastell API","version":"0.1.0"},"openapi":"3.0.0","paths":{"/magnet":{"post":{"description":"Equivalent to the `magnet` subcommand. Accepts a MAKEGRID-format coils\nfile (e.g. `coils.example`) and returns a tar archive containing\n`magnet_set.step` + `magnet_set.stl` + `magnet_set.csv`.","operationId":"magnet","parameters":[{"description":"Rectangular cross-section width [m]. Default 0.4 m matches parastell.","explode":false,"in":"query","name":"width","schema":{"default":0.4,"format":"double","type":"number"},"style":"form"},{"description":"Rectangular cross-section thickness [m]. Default 0.5 m matches parastell.","explode":false,"in":"query","name":"thickness","schema":{"default":0.5,"format":"double","type":"number"},"style":"form"},{"description":"Toroidal extent [deg]. 360 keeps all coils; values below 360 are reserved for future use.","explode":false,"in":"query","name":"toroidal_extent","schema":{"default":360,"format":"double","type":"number"},"style":"form"}],"requestBody":{"content":{"application/json":{"schema":{"properties":{"body":{"format":"byte","type":"string"}},"required":["body"],"type":"object"}}},"required":true},"responses":{"200":{"content":{"application/x-tar":{"schema":{"format":"binary","type":"string"}}},"description":"Tar archive containing all generated artifacts (`\u003cname\u003e.{step,stl,csv}` per layer or coil group)."},"400":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Invalid input file or parameters."},"500":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Processing failure."}},"summary":"Generate a magnet_set STEP from a MAKEGRID coils file"}},"/vessel":{"post":{"description":"Equivalent to the `vessel` subcommand. Accepts a VMEC `wout_*.nc` file\nand returns a tar archive containing 18 entries: the 6 in-vessel layers\n(chamber, first_wall, breeder, back_wall, shield, vacuum_vessel) each as\n`\u003clayer\u003e.step` + `\u003clayer\u003e.stl` + `\u003clayer\u003e.csv`.","operationId":"vessel","parameters":[{"description":"Reference flux surface. Parastell default 1.08 (just outside the LCFS).","explode":false,"in":"query","name":"wall_s","schema":{"default":1.08,"format":"double","type":"number"},"style":"form"},{"description":"Unit scaling factor. VMEC is in meters; 100 converts to centimeters to match the parastell default.","explode":false,"in":"query","name":"scale","schema":{"default":100,"format":"double","type":"number"},"style":"form"}],"requestBody":{"content":{"application/json":{"schema":{"properties":{"body":{"format":"byte","type":"string"}},"required":["body"],"type":"object"}}},"required":true},"responses":{"200":{"content":{"application/x-tar":{"schema":{"format":"binary","type":"string"}}},"description":"Tar archive containing all generated artifacts (`\u003cname\u003e.{step,stl,csv}` per layer or coil group)."},"400":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Invalid input file or parameters."},"500":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Processing failure."}},"summary":"Generate in-vessel components from a VMEC NetCDF file"}}},"servers":[{"description":"Default server","url":"/","variables":{}}]}"###
 		}))
 		.route("/ui", axum::routing::get(|| async move{
 			axum::response::Html(r###"

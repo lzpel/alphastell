@@ -1,15 +1,16 @@
 //! HTTP API: VMEC または coils ファイルをアップロードすると STEP / STL / CSV を
-//! base64 入りの JSON で返す。`vessel`/`magnet` サブコマンドを HTTP 越しに叩く薄い fa
-//! cade。
+//! 1 本の tar (`application/x-tar`) で返す。`vessel`/`magnet` サブコマンドを HTTP 越しに
+//! 叩く薄い facade。
 //!
 //! 重い CAD 構築は `tokio::task::spawn_blocking` でブロッキングプールに逃がす。
+//! gzip 圧縮は `tower-http::CompressionLayer` 任せで、ハンドラは無圧縮 tar を返す。
 
 use std::io::Cursor;
 
 use crate::artifact::Artifact;
 use crate::openapi::{
-	self, ApiInterface, Error as ApiError, FileEntry, MagnetRequest, MagnetResponse,
-	VesselRequest, VesselResponse, axum_router, print_axum_router,
+	self, ApiInterface, Error as ApiError, MagnetRequest, MagnetResponse, VesselRequest,
+	VesselResponse, axum_router, print_axum_router,
 };
 
 struct AlphaStellApi {}
@@ -20,15 +21,15 @@ impl ApiInterface for AlphaStellApi {
 		let wall_s = req.wall_s.unwrap_or(1.08);
 		let scale = req.scale.unwrap_or(100.0);
 
-		let join = tokio::task::spawn_blocking(move || -> Result<Vec<FileEntry>, String> {
+		let join = tokio::task::spawn_blocking(move || -> Result<Vec<u8>, String> {
 			let arts = crate::vessel::run(Cursor::new(bytes), wall_s, scale)
 				.map_err(|e| e.to_string())?;
-			artifacts_to_entries(&arts)
+			artifacts_to_tar(&arts)
 		})
 		.await;
 
 		match join {
-			Ok(Ok(entries)) => VesselResponse::Status200(entries),
+			Ok(Ok(tar)) => VesselResponse::Status200(tar),
 			Ok(Err(msg)) => VesselResponse::Status500(ApiError { message: msg }),
 			Err(e) => VesselResponse::Status500(ApiError {
 				message: format!("blocking task join error: {e}"),
@@ -44,7 +45,7 @@ impl ApiInterface for AlphaStellApi {
 		// CLI/makefile 既定 (cm 出力) と揃える。OpenAPI 側に scale が出ていないので固定。
 		let scale = 100.0_f64;
 
-		let join = tokio::task::spawn_blocking(move || -> Result<Vec<FileEntry>, String> {
+		let join = tokio::task::spawn_blocking(move || -> Result<Vec<u8>, String> {
 			let arts = crate::magnet::run(
 				Cursor::new(bytes),
 				width,
@@ -53,12 +54,12 @@ impl ApiInterface for AlphaStellApi {
 				scale,
 			)
 			.map_err(|e| e.to_string())?;
-			artifacts_to_entries(&arts)
+			artifacts_to_tar(&arts)
 		})
 		.await;
 
 		match join {
-			Ok(Ok(entries)) => MagnetResponse::Status200(entries),
+			Ok(Ok(tar)) => MagnetResponse::Status200(tar),
 			Ok(Err(msg)) => MagnetResponse::Status500(ApiError { message: msg }),
 			Err(e) => MagnetResponse::Status500(ApiError {
 				message: format!("blocking task join error: {e}"),
@@ -69,62 +70,38 @@ impl ApiInterface for AlphaStellApi {
 
 impl openapi::ApiInterfaceAxum for AlphaStellApi {}
 
-/// 1 つの `Artifact` を STEP/STL/CSV の 3 entries に展開して flatten。
-fn artifacts_to_entries(arts: &[Artifact]) -> Result<Vec<FileEntry>, String> {
-	let mut out = Vec::with_capacity(arts.len() * 3);
-	for a in arts {
-		let step = a.step_bytes().map_err(|e| e.to_string())?;
-		out.push(FileEntry {
-			filename: format!("{}.step", a.name),
-			content_type: "model/step".into(),
-			data: base64_encode(&step),
-		});
-		let stl = a.stl_bytes().map_err(|e| e.to_string())?;
-		out.push(FileEntry {
-			filename: format!("{}.stl", a.name),
-			content_type: "model/stl".into(),
-			data: base64_encode(&stl),
-		});
-		let csv = a.csv_bytes();
-		out.push(FileEntry {
-			filename: format!("{}.csv", a.name),
-			content_type: "text/csv".into(),
-			data: base64_encode(&csv),
-		});
+/// 各 `Artifact` を `<name>.{step,stl,csv}` の 3 entries として 1 本の tar にまとめる。
+fn artifacts_to_tar(arts: &[Artifact]) -> Result<Vec<u8>, String> {
+	let mut buf: Vec<u8> = Vec::new();
+	{
+		let mut builder = tar::Builder::new(&mut buf);
+		for a in arts {
+			append(&mut builder, &format!("{}.step", a.name), &a.step_bytes().map_err(|e| e.to_string())?)?;
+			append(&mut builder, &format!("{}.stl", a.name), &a.stl_bytes().map_err(|e| e.to_string())?)?;
+			append(&mut builder, &format!("{}.csv", a.name), &a.csv_bytes())?;
+		}
+		builder.finish().map_err(|e| format!("tar finish: {e}"))?;
 	}
-	Ok(out)
+	Ok(buf)
 }
 
-/// 標準 base64 (RFC 4648, +/= 入り)。`openapi::base64_serde::enc` と同実装。
-fn base64_encode(b: &[u8]) -> String {
-	const T: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-	b.chunks(3)
-		.flat_map(|c| {
-			let n = c.iter().fold(0u32, |a, &b| a << 8 | b as u32) << (8 * (3 - c.len()));
-			[
-				T[(n >> 18 & 63) as usize],
-				T[(n >> 12 & 63) as usize],
-				if c.len() > 1 {
-					T[(n >> 6 & 63) as usize]
-				} else {
-					b'='
-				},
-				if c.len() > 2 {
-					T[(n & 63) as usize]
-				} else {
-					b'='
-				},
-			]
-		})
-		.map(|b| b as char)
-		.collect()
+fn append<W: std::io::Write>(builder: &mut tar::Builder<W>, name: &str, data: &[u8]) -> Result<(), String> {
+	let mut header = tar::Header::new_gnu();
+	header.set_size(data.len() as u64);
+	header.set_mode(0o644);
+	header.set_cksum();
+	builder
+		.append_data(&mut header, name, data)
+		.map_err(|e| format!("tar append {name}: {e}"))
 }
 
 #[tokio::main]
 pub async fn run(port: u16) {
 	print_axum_router(port);
 	let api = AlphaStellApi {};
-	let app = axum_router(api).layer(axum::extract::DefaultBodyLimit::disable());
+	let app = axum_router(api)
+		.layer(axum::extract::DefaultBodyLimit::disable())
+		.layer(tower_http::compression::CompressionLayer::new());
 	let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}"))
 		.await
 		.unwrap();

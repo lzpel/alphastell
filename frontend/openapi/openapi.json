@@ -3,7 +3,7 @@
   "info": {
     "title": "alphastell API",
     "version": "0.1.0",
-    "description": "HTTP facade over the alphastell vessel/magnet subcommands. Upload a VMEC\nNetCDF or MAKEGRID coils file and receive the generated STEP + CSV\nartifacts as a list of base64-encoded files."
+    "description": "HTTP facade over the alphastell vessel/magnet subcommands. Upload a VMEC\nNetCDF or MAKEGRID coils file and receive a tar archive containing the\ngenerated STEP + STL + CSV artifacts (one set per layer/coil group)."
   },
   "tags": [],
   "paths": {
@@ -11,7 +11,7 @@
       "post": {
         "operationId": "magnet",
         "summary": "Generate a magnet_set STEP from a MAKEGRID coils file",
-        "description": "Equivalent to the `magnet` subcommand. Accepts a MAKEGRID-format coils\nfile (e.g. `coils.example`) and returns 2 artifacts: a STEP of the swept\nrectangular-section coils and its CSV point cloud.",
+        "description": "Equivalent to the `magnet` subcommand. Accepts a MAKEGRID-format coils\nfile (e.g. `coils.example`) and returns a tar archive containing\n`magnet_set.step` + `magnet_set.stl` + `magnet_set.csv`.",
         "parameters": [
           {
             "name": "width",
@@ -52,14 +52,12 @@
         ],
         "responses": {
           "200": {
-            "description": "Generated in-vessel artifacts (6 STEP + 6 CSV).",
+            "description": "Tar archive containing all generated artifacts (`<name>.{step,stl,csv}` per layer or coil group).",
             "content": {
-              "application/json": {
+              "application/x-tar": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/FileEntry"
-                  }
+                  "type": "string",
+                  "format": "binary"
                 }
               }
             }
@@ -110,7 +108,7 @@
       "post": {
         "operationId": "vessel",
         "summary": "Generate in-vessel components from a VMEC NetCDF file",
-        "description": "Equivalent to the `vessel` subcommand. Accepts a VMEC `wout_*.nc` file\nand returns 12 artifacts: 6 STEP solids (chamber, first_wall, breeder,\nback_wall, shield, vacuum_vessel) and their corresponding CSV point\nclouds.",
+        "description": "Equivalent to the `vessel` subcommand. Accepts a VMEC `wout_*.nc` file\nand returns a tar archive containing 18 entries: the 6 in-vessel layers\n(chamber, first_wall, breeder, back_wall, shield, vacuum_vessel) each as\n`<layer>.step` + `<layer>.stl` + `<layer>.csv`.",
         "parameters": [
           {
             "name": "wall_s",
@@ -139,14 +137,12 @@
         ],
         "responses": {
           "200": {
-            "description": "Generated in-vessel artifacts (6 STEP + 6 CSV).",
+            "description": "Tar archive containing all generated artifacts (`<name>.{step,stl,csv}` per layer or coil group).",
             "content": {
-              "application/json": {
+              "application/x-tar": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/FileEntry"
-                  }
+                  "type": "string",
+                  "format": "binary"
                 }
               }
             }
@@ -204,29 +200,6 @@
         "properties": {
           "message": {
             "type": "string"
-          }
-        }
-      },
-      "FileEntry": {
-        "type": "object",
-        "required": [
-          "filename",
-          "content_type",
-          "data"
-        ],
-        "properties": {
-          "filename": {
-            "type": "string",
-            "description": "Output filename, e.g. `chamber.step` or `magnet_set.csv`."
-          },
-          "content_type": {
-            "type": "string",
-            "description": "MIME type hint for the payload (e.g. `model/step`, `text/csv`)."
-          },
-          "data": {
-            "type": "string",
-            "format": "base64",
-            "description": "Base64-encoded file contents."
           }
         }
       }
