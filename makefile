@@ -7,6 +7,18 @@ OUT_DIR  := out
 # chamber は parastell の plasma.step と概念的に対応 (ファイル名のみ別)。
 LAYERS := chamber first_wall breeder back_wall shield vacuum_vessel
 
+# ============================================================
+# Submodule auto-init: parastell/ は git submodule。
+# `git clone --recurse-submodules` 忘れでも、$(VMEC_IN) が無ければ初回だけ
+# `git submodule update --init --recursive` を一回実行する。同 init で
+# $(COILS_IN) / $(PARA_DIR)/*.step も同時に揃うので、それらは $(VMEC_IN) を
+# 依存にぶら下げて連鎖取得させれば十分。init 済みなら recipe はスキップ。
+# ============================================================
+$(VMEC_IN):
+	git submodule update --init --recursive
+
+$(COILS_IN): $(VMEC_IN)
+
 run: vessel magnet
 
 server:
@@ -22,13 +34,13 @@ openapi:
 #   出力: $(OUT_DIR)/{chamber,first_wall,breeder,back_wall,shield,vacuum_vessel}.step
 #   wall_s=1.08 を基準に mesh() + boolean_subtract で構築 (Solid::shell は使わない)。
 # ============================================================
-vessel:
+vessel: $(VMEC_IN)
 	cargo run --release -- vessel --input $(VMEC_IN) --output $(OUT_DIR)/
 
 # ============================================================
 # magnet — coils.example から長方形断面 sweep で magnet_set.step を生成 (m 単位)
 # ============================================================
-magnet:
+magnet: $(COILS_IN)
 	cargo run --release -- magnet --input $(COILS_IN) --output $(OUT_DIR)/magnet_set.step
 
 # ============================================================
@@ -38,6 +50,10 @@ magnet:
 #   tol=0.05 は s=1.08 外挿 + Planar 2D 法線近似に由来する数 % 程度のズレを許容。
 # ============================================================
 validate: $(addprefix validate-,$(LAYERS))
+
+# 各 validate-LAYER は parastell/examples/alphastell_full/*.step (submodule 配下) を
+# 参照対象として読むので、$(VMEC_IN) sentinel に依存させて自動 init を効かせる。
+$(addprefix validate-,$(LAYERS)): $(VMEC_IN)
 
 validate-chamber:
 	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/chamber.step $(PARA_DIR)/plasma.step
