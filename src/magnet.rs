@@ -13,7 +13,7 @@
 //! 3. 全コイルを集めて STEP 出力
 
 use cadrum::{BSplineEnd, DVec3, ProfileOrient, Solid, Wire};
-use std::path::Path;
+use std::io::Read;
 
 use crate::Result;
 use crate::artifact::Artifact;
@@ -22,22 +22,21 @@ use crate::coils;
 /// magnet サブコマンドのエントリポイント。
 ///
 /// # 引数
-/// - `input`: `coils.example` パス
+/// - `input`: MAKEGRID 形式の coils ストリーム (`Read`)。CLI ではファイルを `File::open` で渡し、
+///            API ではアップロード bytes を `Cursor` で渡す。
 /// - `width`: 矩形断面の幅 [m]
 /// - `thickness`: 矩形断面の厚み [m]
 /// - `toroidal_extent`: [deg]。360.0 で全コイル、<360 で将来的にコイル間引き (本 PR では未実装、値だけログ出力)
 /// - `scale`: 入力 (m) に掛ける倍率。100 で cm (vessel と統一)。**sweep 前の点列・寸法に直接適用**するので、`Solid::scale` post-scale は使わない。
 ///
-/// 戻り値は `("magnet_set", Artifact)` の長さ 1 の Vec。書き出し基底名は呼び出し側が
-/// `Artifact::write(out_dir, name)` の第 2 引数で指定する。
+/// 戻り値は `Artifact` 長さ 1 の Vec (`name = "magnet_set"`)。
 pub fn run(
-    input: &Path,
+    input: impl Read,
     width: f64,
     thickness: f64,
     toroidal_extent: f64,
     scale: f64,
 ) -> Result<Vec<Artifact>> {
-    println!("Parsing coils: {}", input.display());
     let filaments = coils::parse(input)?;
     println!(
         "  Parsed {} filaments (nfp={})",

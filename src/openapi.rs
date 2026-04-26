@@ -72,10 +72,10 @@ use std::future::Future;
 pub trait ApiInterface{
 
 	// POST /magnet
-	fn upload_coils(&self, _req: UploadCoilsRequest) -> impl Future<Output = UploadCoilsResponse> + Send{async{Default::default()}}
+	fn magnet(&self, _req: MagnetRequest) -> impl Future<Output = MagnetResponse> + Send{async{Default::default()}}
 
 	// POST /vessel
-	fn upload_vmec(&self, _req: UploadVmecRequest) -> impl Future<Output = UploadVmecResponse> + Send{async{Default::default()}}
+	fn vessel(&self, _req: VesselRequest) -> impl Future<Output = VesselResponse> + Send{async{Default::default()}}
 }
 
 
@@ -89,31 +89,31 @@ pub struct AuthContext{
 
 
 
-// Request type for upload_coils
+// Request type for magnet
 #[derive(Debug)]
-pub struct UploadCoilsRequest{
+pub struct MagnetRequest{
 	pub width:Option<f64>,
 	pub thickness:Option<f64>,
 	pub toroidal_extent:Option<f64>,
 	pub body: PathsMagnetPostRequestBodyContentApplicationJsonSchema,
 }
-// Response type for upload_coils
+// Response type for magnet
 #[derive(Debug)]
-pub enum UploadCoilsResponse{
-	Status200(Vec<FileEntry>),
+pub enum MagnetResponse{
+	Status200(Vec<u8>),
 	Status400(Error),
 	Status500(Error),
 	Error(String),
 }
-impl Default for UploadCoilsResponse{
+impl Default for MagnetResponse{
 	fn default() -> Self{
 		Self::Status200(Default::default())
 	}
 }
-impl axum::response::IntoResponse for UploadCoilsResponse{
+impl axum::response::IntoResponse for MagnetResponse{
 	fn into_response(self) -> axum::response::Response{
 		match self{
-			Self::Status200(v)=> axum::response::Response::builder().status(http::StatusCode::from_u16(200).unwrap()).header(http::header::CONTENT_TYPE, "application/json").body(axum::body::Body::from(serde_json::to_vec_pretty(&v).expect("error serialize response json"))).unwrap(),
+			Self::Status200(v)=> axum::response::Response::builder().status(http::StatusCode::from_u16(200).unwrap()).header(http::header::CONTENT_TYPE, "application/x-tar").body(axum::body::Body::from(v)).unwrap(),
 			Self::Status400(v)=> axum::response::Response::builder().status(http::StatusCode::from_u16(400).unwrap()).header(http::header::CONTENT_TYPE, "application/json").body(axum::body::Body::from(serde_json::to_vec_pretty(&v).expect("error serialize response json"))).unwrap(),
 			Self::Status500(v)=> axum::response::Response::builder().status(http::StatusCode::from_u16(500).unwrap()).header(http::header::CONTENT_TYPE, "application/json").body(axum::body::Body::from(serde_json::to_vec_pretty(&v).expect("error serialize response json"))).unwrap(),
 			Self::Error(msg) => axum::response::Response::builder().status(500).header(http::header::CONTENT_TYPE, "text/plain").body(axum::body::Body::from(msg)).unwrap(),
@@ -121,30 +121,30 @@ impl axum::response::IntoResponse for UploadCoilsResponse{
 	}
 }
 
-// Request type for upload_vmec
+// Request type for vessel
 #[derive(Debug)]
-pub struct UploadVmecRequest{
+pub struct VesselRequest{
 	pub wall_s:Option<f64>,
 	pub scale:Option<f64>,
 	pub body: PathsVesselPostRequestBodyContentApplicationJsonSchema,
 }
-// Response type for upload_vmec
+// Response type for vessel
 #[derive(Debug)]
-pub enum UploadVmecResponse{
-	Status200(Vec<FileEntry>),
+pub enum VesselResponse{
+	Status200(Vec<u8>),
 	Status400(Error),
 	Status500(Error),
 	Error(String),
 }
-impl Default for UploadVmecResponse{
+impl Default for VesselResponse{
 	fn default() -> Self{
 		Self::Status200(Default::default())
 	}
 }
-impl axum::response::IntoResponse for UploadVmecResponse{
+impl axum::response::IntoResponse for VesselResponse{
 	fn into_response(self) -> axum::response::Response{
 		match self{
-			Self::Status200(v)=> axum::response::Response::builder().status(http::StatusCode::from_u16(200).unwrap()).header(http::header::CONTENT_TYPE, "application/json").body(axum::body::Body::from(serde_json::to_vec_pretty(&v).expect("error serialize response json"))).unwrap(),
+			Self::Status200(v)=> axum::response::Response::builder().status(http::StatusCode::from_u16(200).unwrap()).header(http::header::CONTENT_TYPE, "application/x-tar").body(axum::body::Body::from(v)).unwrap(),
 			Self::Status400(v)=> axum::response::Response::builder().status(http::StatusCode::from_u16(400).unwrap()).header(http::header::CONTENT_TYPE, "application/json").body(axum::body::Body::from(serde_json::to_vec_pretty(&v).expect("error serialize response json"))).unwrap(),
 			Self::Status500(v)=> axum::response::Response::builder().status(http::StatusCode::from_u16(500).unwrap()).header(http::header::CONTENT_TYPE, "application/json").body(axum::body::Body::from(serde_json::to_vec_pretty(&v).expect("error serialize response json"))).unwrap(),
 			Self::Error(msg) => axum::response::Response::builder().status(500).header(http::header::CONTENT_TYPE, "text/plain").body(axum::body::Body::from(msg)).unwrap(),
@@ -168,22 +168,15 @@ pub struct Error{
 	pub r#message:String,
 }
 
-#[derive(Default,Clone,Debug,serde::Serialize,serde::Deserialize)]
-pub struct FileEntry{
-	pub r#content_type:String,
-	pub r#data:String,
-	pub r#filename:String,
-}
-
 
 
 #[derive(Default,Clone,Debug,serde::Serialize,serde::Deserialize)]
-pub struct PathsMagnetPostRequestBodyContentApplicationJsonSchema{
+pub struct PathsVesselPostRequestBodyContentApplicationJsonSchema{
 	#[serde(with = "base64_serde")]
 	pub r#body:Vec<u8>,
 }
 #[derive(Default,Clone,Debug,serde::Serialize,serde::Deserialize)]
-pub struct PathsVesselPostRequestBodyContentApplicationJsonSchema{
+pub struct PathsMagnetPostRequestBodyContentApplicationJsonSchema{
 	#[serde(with = "base64_serde")]
 	pub r#body:Vec<u8>,
 }
@@ -200,7 +193,7 @@ pub trait ApiClient {
 impl<T: ApiClient + Sync> ApiInterface for T {
 
     // POST /magnet
-    fn upload_coils(&self, req: UploadCoilsRequest) -> impl Future<Output = UploadCoilsResponse> + Send {
+    fn magnet(&self, req: MagnetRequest) -> impl Future<Output = MagnetResponse> + Send {
         let url = format!("{}{}", self.get_base_url(), "/magnet"
         );
         let client = self.get_client().clone();
@@ -212,22 +205,22 @@ impl<T: ApiClient + Sync> ApiInterface for T {
                 .json(&req.body)
                 .send().await {
                 Ok(r) => r,
-                Err(e) => return UploadCoilsResponse::Error(e.to_string()),
+                Err(e) => return MagnetResponse::Error(e.to_string()),
             };
             match r.status().as_u16() {
                 200 =>
-                    match r.json().await { Ok(v) => UploadCoilsResponse::Status200(v), Err(e) => UploadCoilsResponse::Error(e.to_string()) },
+                    match r.bytes().await { Ok(v) => MagnetResponse::Status200(v.to_vec()), Err(e) => MagnetResponse::Error(e.to_string()) },
                 400 =>
-                    match r.json().await { Ok(v) => UploadCoilsResponse::Status400(v), Err(e) => UploadCoilsResponse::Error(e.to_string()) },
+                    match r.json().await { Ok(v) => MagnetResponse::Status400(v), Err(e) => MagnetResponse::Error(e.to_string()) },
                 500 =>
-                    match r.json().await { Ok(v) => UploadCoilsResponse::Status500(v), Err(e) => UploadCoilsResponse::Error(e.to_string()) },
-                code => UploadCoilsResponse::Error(format!("unexpected status: {code}")),
+                    match r.json().await { Ok(v) => MagnetResponse::Status500(v), Err(e) => MagnetResponse::Error(e.to_string()) },
+                code => MagnetResponse::Error(format!("unexpected status: {code}")),
             }
         }
     }
 
     // POST /vessel
-    fn upload_vmec(&self, req: UploadVmecRequest) -> impl Future<Output = UploadVmecResponse> + Send {
+    fn vessel(&self, req: VesselRequest) -> impl Future<Output = VesselResponse> + Send {
         let url = format!("{}{}", self.get_base_url(), "/vessel"
         );
         let client = self.get_client().clone();
@@ -238,16 +231,16 @@ impl<T: ApiClient + Sync> ApiInterface for T {
                 .json(&req.body)
                 .send().await {
                 Ok(r) => r,
-                Err(e) => return UploadVmecResponse::Error(e.to_string()),
+                Err(e) => return VesselResponse::Error(e.to_string()),
             };
             match r.status().as_u16() {
                 200 =>
-                    match r.json().await { Ok(v) => UploadVmecResponse::Status200(v), Err(e) => UploadVmecResponse::Error(e.to_string()) },
+                    match r.bytes().await { Ok(v) => VesselResponse::Status200(v.to_vec()), Err(e) => VesselResponse::Error(e.to_string()) },
                 400 =>
-                    match r.json().await { Ok(v) => UploadVmecResponse::Status400(v), Err(e) => UploadVmecResponse::Error(e.to_string()) },
+                    match r.json().await { Ok(v) => VesselResponse::Status400(v), Err(e) => VesselResponse::Error(e.to_string()) },
                 500 =>
-                    match r.json().await { Ok(v) => UploadVmecResponse::Status500(v), Err(e) => UploadVmecResponse::Error(e.to_string()) },
-                code => UploadVmecResponse::Error(format!("unexpected status: {code}")),
+                    match r.json().await { Ok(v) => VesselResponse::Status500(v), Err(e) => VesselResponse::Error(e.to_string()) },
+                code => VesselResponse::Error(format!("unexpected status: {code}")),
             }
         }
     }
@@ -267,14 +260,14 @@ pub trait ApiInterfaceAxum: ApiInterface + Sync{
 	fn authorize(&self, _req: http::Request<()>) -> impl Future<Output = Result<AuthContext, String>> + Send{async { Ok(Default::default()) } }
 
 	// POST /magnet
-	fn upload_coils(&self, _raw: http::Request<()>, req: UploadCoilsRequest) -> impl Future<Output = axum::response::Response> + Send{
-		let fut = <Self as ApiInterface>::upload_coils(self, req);
+	fn magnet(&self, _raw: http::Request<()>, req: MagnetRequest) -> impl Future<Output = axum::response::Response> + Send{
+		let fut = <Self as ApiInterface>::magnet(self, req);
 		async move{ axum::response::IntoResponse::into_response(fut.await) }
 	}
 
 	// POST /vessel
-	fn upload_vmec(&self, _raw: http::Request<()>, req: UploadVmecRequest) -> impl Future<Output = axum::response::Response> + Send{
-		let fut = <Self as ApiInterface>::upload_vmec(self, req);
+	fn vessel(&self, _raw: http::Request<()>, req: VesselRequest) -> impl Future<Output = axum::response::Response> + Send{
+		let fut = <Self as ApiInterface>::vessel(self, req);
 		async move{ axum::response::IntoResponse::into_response(fut.await) }
 	}
 }
@@ -300,7 +293,7 @@ pub fn axum_router_operations<S: ApiInterfaceAxum + Sync + Send + 'static>(insta
 			request: http::Request<axum::body::Body>,
 		| async move{
 			let (parts, body) = request.into_parts();
-			let ret=<S as ApiInterfaceAxum>::upload_coils(i.as_ref(), http::Request::from_parts(parts.clone(), ()), UploadCoilsRequest{
+			let ret=<S as ApiInterfaceAxum>::magnet(i.as_ref(), http::Request::from_parts(parts.clone(), ()), MagnetRequest{
 			r#width:{let v=query.get("width").and_then(|v| v.parse().ok());v},
 			r#thickness:{let v=query.get("thickness").and_then(|v| v.parse().ok());v},
 			r#toroidal_extent:{let v=query.get("toroidal_extent").and_then(|v| v.parse().ok());v},
@@ -317,7 +310,7 @@ pub fn axum_router_operations<S: ApiInterfaceAxum + Sync + Send + 'static>(insta
 			request: http::Request<axum::body::Body>,
 		| async move{
 			let (parts, body) = request.into_parts();
-			let ret=<S as ApiInterfaceAxum>::upload_vmec(i.as_ref(), http::Request::from_parts(parts.clone(), ()), UploadVmecRequest{
+			let ret=<S as ApiInterfaceAxum>::vessel(i.as_ref(), http::Request::from_parts(parts.clone(), ()), VesselRequest{
 			r#wall_s:{let v=query.get("wall_s").and_then(|v| v.parse().ok());v},
 			r#scale:{let v=query.get("scale").and_then(|v| v.parse().ok());v},
 			body:match axum::body::to_bytes(body, usize::MAX).await.map_err(|v| format!("{v:?}")).and_then(|v| serde_json::from_slice(&v).map_err(|v| v.to_string())) {Ok(v)=>v,Err(v)=>return text_response(http::StatusCode::BAD_REQUEST, v)},
@@ -325,7 +318,7 @@ pub fn axum_router_operations<S: ApiInterfaceAxum + Sync + Send + 'static>(insta
 		ret
 	}));
 	let router = router.route("/openapi.json", axum::routing::get(|| async move{
-			r###"{"components":{"schemas":{"Error":{"properties":{"message":{"type":"string"}},"required":["message"],"type":"object"},"FileEntry":{"properties":{"content_type":{"description":"MIME type hint for the payload (e.g. `model/step`, `text/csv`).","type":"string"},"data":{"description":"Base64-encoded file contents.","format":"base64","type":"string"},"filename":{"description":"Output filename, e.g. `chamber.step` or `magnet_set.csv`.","type":"string"}},"required":["filename","content_type","data"],"type":"object"}}},"info":{"description":"HTTP facade over the alphastell vessel/magnet subcommands. Upload a VMEC\nNetCDF or MAKEGRID coils file and receive the generated STEP + CSV\nartifacts as a list of base64-encoded files.","title":"alphastell API","version":"0.1.0"},"openapi":"3.0.0","paths":{"/magnet":{"post":{"description":"Equivalent to the `magnet` subcommand. Accepts a MAKEGRID-format coils\nfile (e.g. `coils.example`) and returns 2 artifacts: a STEP of the swept\nrectangular-section coils and its CSV point cloud.","operationId":"uploadCoils","parameters":[{"description":"Rectangular cross-section width [m]. Default 0.4 m matches parastell.","explode":false,"in":"query","name":"width","schema":{"default":0.4,"format":"double","type":"number"},"style":"form"},{"description":"Rectangular cross-section thickness [m]. Default 0.5 m matches parastell.","explode":false,"in":"query","name":"thickness","schema":{"default":0.5,"format":"double","type":"number"},"style":"form"},{"description":"Toroidal extent [deg]. 360 keeps all coils; values below 360 are reserved for future use.","explode":false,"in":"query","name":"toroidal_extent","schema":{"default":360,"format":"double","type":"number"},"style":"form"}],"requestBody":{"content":{"application/json":{"schema":{"properties":{"body":{"format":"byte","type":"string"}},"required":["body"],"type":"object"}}},"required":true},"responses":{"200":{"content":{"application/json":{"schema":{"items":{"$ref":"#/components/schemas/FileEntry"},"type":"array"}}},"description":"Generated in-vessel artifacts (6 STEP + 6 CSV)."},"400":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Invalid input file or parameters."},"500":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Processing failure."}},"summary":"Generate a magnet_set STEP from a MAKEGRID coils file"}},"/vessel":{"post":{"description":"Equivalent to the `vessel` subcommand. Accepts a VMEC `wout_*.nc` file\nand returns 12 artifacts: 6 STEP solids (chamber, first_wall, breeder,\nback_wall, shield, vacuum_vessel) and their corresponding CSV point\nclouds.","operationId":"uploadVmec","parameters":[{"description":"Reference flux surface. Parastell default 1.08 (just outside the LCFS).","explode":false,"in":"query","name":"wall_s","schema":{"default":1.08,"format":"double","type":"number"},"style":"form"},{"description":"Unit scaling factor. VMEC is in meters; 100 converts to centimeters to match the parastell default.","explode":false,"in":"query","name":"scale","schema":{"default":100,"format":"double","type":"number"},"style":"form"}],"requestBody":{"content":{"application/json":{"schema":{"properties":{"body":{"format":"byte","type":"string"}},"required":["body"],"type":"object"}}},"required":true},"responses":{"200":{"content":{"application/json":{"schema":{"items":{"$ref":"#/components/schemas/FileEntry"},"type":"array"}}},"description":"Generated in-vessel artifacts (6 STEP + 6 CSV)."},"400":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Invalid input file or parameters."},"500":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Processing failure."}},"summary":"Generate in-vessel components from a VMEC NetCDF file"}}},"servers":[{"description":"Default server","url":"/","variables":{}}]}"###
+			r###"{"components":{"schemas":{"Error":{"properties":{"message":{"type":"string"}},"required":["message"],"type":"object"}}},"info":{"description":"HTTP facade over the alphastell vessel/magnet subcommands. Upload a VMEC\nNetCDF or MAKEGRID coils file and receive a tar archive containing the\ngenerated STEP + STL + CSV artifacts (one set per layer/coil group).","title":"alphastell API","version":"0.1.0"},"openapi":"3.0.0","paths":{"/magnet":{"post":{"description":"Equivalent to the `magnet` subcommand. Accepts a MAKEGRID-format coils\nfile (e.g. `coils.example`) and returns a tar archive containing\n`magnet_set.step` + `magnet_set.stl` + `magnet_set.csv`.","operationId":"magnet","parameters":[{"description":"Rectangular cross-section width [m]. Default 0.4 m matches parastell.","explode":false,"in":"query","name":"width","schema":{"default":0.4,"format":"double","type":"number"},"style":"form"},{"description":"Rectangular cross-section thickness [m]. Default 0.5 m matches parastell.","explode":false,"in":"query","name":"thickness","schema":{"default":0.5,"format":"double","type":"number"},"style":"form"},{"description":"Toroidal extent [deg]. 360 keeps all coils; values below 360 are reserved for future use.","explode":false,"in":"query","name":"toroidal_extent","schema":{"default":360,"format":"double","type":"number"},"style":"form"}],"requestBody":{"content":{"application/json":{"schema":{"properties":{"body":{"format":"byte","type":"string"}},"required":["body"],"type":"object"}}},"required":true},"responses":{"200":{"content":{"application/x-tar":{"schema":{"format":"binary","type":"string"}}},"description":"Tar archive containing all generated artifacts (`\u003cname\u003e.{step,stl,csv}` per layer or coil group)."},"400":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Invalid input file or parameters."},"500":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Processing failure."}},"summary":"Generate a magnet_set STEP from a MAKEGRID coils file"}},"/vessel":{"post":{"description":"Equivalent to the `vessel` subcommand. Accepts a VMEC `wout_*.nc` file\nand returns a tar archive containing 18 entries: the 6 in-vessel layers\n(chamber, first_wall, breeder, back_wall, shield, vacuum_vessel) each as\n`\u003clayer\u003e.step` + `\u003clayer\u003e.stl` + `\u003clayer\u003e.csv`.","operationId":"vessel","parameters":[{"description":"Reference flux surface. Parastell default 1.08 (just outside the LCFS).","explode":false,"in":"query","name":"wall_s","schema":{"default":1.08,"format":"double","type":"number"},"style":"form"},{"description":"Unit scaling factor. VMEC is in meters; 100 converts to centimeters to match the parastell default.","explode":false,"in":"query","name":"scale","schema":{"default":100,"format":"double","type":"number"},"style":"form"}],"requestBody":{"content":{"application/json":{"schema":{"properties":{"body":{"format":"byte","type":"string"}},"required":["body"],"type":"object"}}},"required":true},"responses":{"200":{"content":{"application/x-tar":{"schema":{"format":"binary","type":"string"}}},"description":"Tar archive containing all generated artifacts (`\u003cname\u003e.{step,stl,csv}` per layer or coil group)."},"400":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Invalid input file or parameters."},"500":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Processing failure."}},"summary":"Generate in-vessel components from a VMEC NetCDF file"}}},"servers":[{"description":"Default server","url":"/","variables":{}}]}"###
 		}))
 		.route("/ui", axum::routing::get(|| async move{
 			axum::response::Html(r###"
@@ -374,20 +367,20 @@ impl ApiInterface for TestServer{
 	// Implement required methods here
 
 	// POST /magnet
-	// async fn upload_coils(&self, _req: UploadCoilsRequest) -> UploadCoilsResponse{Default::default()}
+	// async fn magnet(&self, _req: MagnetRequest) -> MagnetResponse{Default::default()}
 
 	// POST /vessel
-	// async fn upload_vmec(&self, _req: UploadVmecRequest) -> UploadVmecResponse{Default::default()}
+	// async fn vessel(&self, _req: VesselRequest) -> VesselResponse{Default::default()}
 }
 impl ApiInterfaceAxum for TestServer{
 	// Override for axum-specific behavior (e.g. custom auth, streaming, custom headers)
 	// async fn authorize(&self, _req: http::Request<()>) -> Result<AuthContext, String>{ Ok(Default::default()) }
 
 	// POST /magnet
-	// async fn upload_coils(&self, _raw: http::Request<()>, req: UploadCoilsRequest) -> axum::response::Response{ axum::response::IntoResponse::into_response(<Self as ApiInterface>::upload_coils(self, req).await) }
+	// async fn magnet(&self, _raw: http::Request<()>, req: MagnetRequest) -> axum::response::Response{ axum::response::IntoResponse::into_response(<Self as ApiInterface>::magnet(self, req).await) }
 
 	// POST /vessel
-	// async fn upload_vmec(&self, _raw: http::Request<()>, req: UploadVmecRequest) -> axum::response::Response{ axum::response::IntoResponse::into_response(<Self as ApiInterface>::upload_vmec(self, req).await) }
+	// async fn vessel(&self, _raw: http::Request<()>, req: VesselRequest) -> axum::response::Response{ axum::response::IntoResponse::into_response(<Self as ApiInterface>::vessel(self, req).await) }
 }
 
 /// Estimates the origin URL (scheme://host) from an HTTP request

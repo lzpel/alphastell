@@ -5,7 +5,7 @@ frontend-generate:
 	npm run tsp -- compile main.tsp --config ./out.yaml
 	echo "$${openapi_ts}" > ./out.ts
 	npm run openapi-ts -- --file ./out.ts
-	./out/bin/mandolin -i ./out/openapi.json -o ../../src/openapi.rs
+	./out/bin/mandolin -i ./openapi.json -o ../../src/openapi.rs
 %:
 	@echo "No rule to make target '$@'"
 install:
@@ -24,7 +24,7 @@ export
 define openapi_ts
 import { defineConfig } from '@hey-api/openapi-ts';
 export default defineConfig({
-    input: './out/openapi.json',
+    input: './openapi.json',
     output: {
         path: '../out/client',
         clean: true,

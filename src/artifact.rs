@@ -1,15 +1,15 @@
-//! `vessel` / `magnet` が生成する STEP solid + CSV 点群のペアを
+//! `vessel` / `magnet` が生成する STEP solid + STL mesh + CSV 点群を
 //! 一括で扱うための共通 record。
-//!
-//! `name` は意図的に持たせない。書き出し基底名は呼び出し側が
-//! `write(out_dir, name)` の第 2 引数で渡す。
 
 use cadrum::{DVec3, Solid};
-use std::fs::File;
-use std::io::{BufWriter, Write};
+use std::io::Write;
 use std::path::Path;
 
 use crate::Result;
+
+/// STL meshing tolerance [出力単位]。vessel/magnet の `--scale 100` (cm) 想定で
+/// モデル全長 ~2000 cm に対して 10 cm = 0.5 % の粗さ。デモ視認用にバランスを取った値。
+const STL_MESH_TOL: f64 = 10.0;
 
 pub struct Artifact {
 	pub name: String,
@@ -20,28 +20,47 @@ pub struct Artifact {
 }
 
 impl Artifact {
-	/// `<out_dir>/<name>.step` と `<out_dir>/<name>.csv` を書き出す。
+	/// STEP バイナリを `Vec<u8>` で取得。
+	pub fn step_bytes(&self) -> Result<Vec<u8>> {
+		let mut buf = Vec::new();
+		cadrum::write_step(self.solids.iter(), &mut buf)
+			.map_err(|e| format!("write_step failed: {:?}", e))?;
+		Ok(buf)
+	}
+
+	/// バイナリ STL を `Vec<u8>` で取得。`solids` を `STL_MESH_TOL` で tessellate。
+	pub fn stl_bytes(&self) -> Result<Vec<u8>> {
+		let mesh = cadrum::mesh(self.solids.iter(), STL_MESH_TOL)
+			.map_err(|e| format!("mesh failed: {:?}", e))?;
+		let mut buf = Vec::new();
+		mesh.write_stl(&mut buf)
+			.map_err(|e| format!("write_stl failed: {:?}", e))?;
+		Ok(buf)
+	}
+
+	/// header 無し `x,y,z` CSV を `Vec<u8>` で取得。
+	pub fn csv_bytes(&self) -> Vec<u8> {
+		let mut buf = Vec::new();
+		for p in &self.points {
+			writeln!(buf, "{},{},{}", p.x, p.y, p.z).expect("write to Vec<u8> never fails");
+		}
+		buf
+	}
+
+	/// `<out_dir>/<name>.{step,stl,csv}` を書き出す。
 	pub fn write(&self, out_dir: &Path, name: &str) -> Result<()> {
 		std::fs::create_dir_all(out_dir)
 			.map_err(|e| format!("create_dir_all {}: {}", out_dir.display(), e))?;
-
-		let step_path = out_dir.join(format!("{}.step", name));
-		println!("  Writing STEP: {}", step_path.display());
-		let mut step_file = File::create(&step_path)
-			.map_err(|e| format!("create {}: {}", step_path.display(), e))?;
-		cadrum::write_step(self.solids.iter(), &mut step_file)
-			.map_err(|e| format!("write_step failed: {:?}", e))?;
-
-		let csv_path = out_dir.join(format!("{}.csv", name));
-		println!("  Writing CSV: {}", csv_path.display());
-		let csv_file = File::create(&csv_path)
-			.map_err(|e| format!("create {}: {}", csv_path.display(), e))?;
-		let mut csv = BufWriter::new(csv_file);
-		for p in &self.points {
-			writeln!(csv, "{},{},{}", p.x, p.y, p.z)
-				.map_err(|e| format!("write csv: {}", e))?;
+		for (ext, bytes) in [
+			("step", self.step_bytes()?),
+			("stl", self.stl_bytes()?),
+			("csv", self.csv_bytes()),
+		] {
+			let path = out_dir.join(format!("{}.{}", name, ext));
+			println!("  Writing {}: {}", ext.to_uppercase(), path.display());
+			std::fs::write(&path, bytes)
+				.map_err(|e| format!("write {}: {}", path.display(), e))?;
 		}
-		csv.flush().map_err(|e| format!("flush csv: {}", e))?;
 		Ok(())
 	}
 }

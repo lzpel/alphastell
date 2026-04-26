@@ -17,9 +17,7 @@
 //! nfp=4 周期 × 対称反射 2) で、ステラレータのコイル群を成す。
 
 use cadrum::DVec3;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
-use std::path::Path;
+use std::io::{BufRead, BufReader, Read};
 
 use crate::Result;
 
@@ -32,7 +30,7 @@ pub struct Filaments {
 	pub coils: Vec<Vec<DVec3>>,
 }
 
-/// `coils.example` を開いて [`Filaments`] を返す。
+/// 任意の `Read` から MAKEGRID coils フォーマットをパースして [`Filaments`] を返す。
 ///
 /// パース規則:
 /// 1. 先頭 3 行: `periods N` / `begin filament` / `mirror NIL` をヘッダ扱い
@@ -41,9 +39,8 @@ pub struct Filaments {
 ///    - 5 列目以降に `<coil_id> <label>` が付く行があるが無視
 /// 3. 4 列目 (current) が 0.0 のとき: その行までを 1 フィラメントとして push、次から新フィラメント
 /// 4. `end` 行で終了
-pub fn parse(path: &Path) -> Result<Filaments> {
-	let file = File::open(path).map_err(|e| format!("open {}: {}", path.display(), e))?;
-	let reader = BufReader::new(file);
+pub fn parse(input: impl Read) -> Result<Filaments> {
+	let reader = BufReader::new(input);
 
 	let mut nfp: Option<u32> = None;
 	let mut coils: Vec<Vec<DVec3>> = Vec::new();

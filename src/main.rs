@@ -168,7 +168,10 @@ fn main() -> Result<()> {
 			wall_s,
 			scale,
 		} => {
-			for a in vessel::run(&input, wall_s, scale)? {
+			println!("Loading VMEC: {}", input.display());
+			let file = std::fs::File::open(&input)
+				.map_err(|e| format!("open {}: {}", input.display(), e))?;
+			for a in vessel::run(file, wall_s, scale)? {
 				a.write(&output, &a.name)?;
 			}
 			println!("Done.");
@@ -198,7 +201,10 @@ fn main() -> Result<()> {
 			toroidal_extent,
 			scale,
 		} => {
-			for a in magnet::run(&input, width, thickness, toroidal_extent, scale)? {
+			println!("Parsing coils: {}", input.display());
+			let file = std::fs::File::open(&input)
+				.map_err(|e| format!("open {}: {}", input.display(), e))?;
+			for a in magnet::run(file, width, thickness, toroidal_extent, scale)? {
 				a.write(&output, &a.name)?;
 			}
 			println!("Done.");

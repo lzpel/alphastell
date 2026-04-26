@@ -54,7 +54,7 @@
 use crate::Result;
 use netcdf3::FileReader;
 use std::f64::consts::TAU;
-use std::path::Path;
+use std::io::{Read, Seek};
 use std::sync::OnceLock;
 
 // ================================================================
@@ -132,14 +132,14 @@ impl VmecData {
 	/// VMEC の wout ファイルには何十もの変数が入っていますが、今回プラズマ表面を
 	/// 描くのに必要なのは `rmnc`, `zmns`, `xm`, `xn` の 4 つだけです
 	/// (Rust 側の名前はそれぞれ `rmnc`, `zmns`, `mode_poloidal`, `mode_toroidal`)。
-	pub fn load(path: &Path) -> Result<Self> {
+	pub fn load(input: impl Read + Seek + 'static) -> Result<Self> {
 		// netCDF-3 (Classic / 64-bit offset) ファイルを pure-Rust で読む。
 		// VMEC の wout は `CDF\x02` (64-bit offset) なので HDF5 は不要。
 		//
 		// netcdf3 の ReadError は内部に Rc を持つので !Send。エラーメッセージを
 		// 文字列化してから Box<dyn Error> に載せる。
-		let mut file = FileReader::open(path)
-			.map_err(|e| format!("open {}: {:?}", path.display(), e))?;
+		let mut file = FileReader::open_seek_read("vmec", Box::new(input))
+			.map_err(|e| format!("open vmec stream: {:?}", e))?;
 
 		// rmnc の shape を DataSet から取る (ns × mnmax)
 		let shape: Vec<usize> = file
@@ -624,6 +624,7 @@ impl CubicSpline {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use std::path::Path;
 	use std::time::Instant;
 
 	/// phi=0 と phi=2π で (R, Z) および全偏導関数が厳密一致することを確認する。
@@ -642,7 +643,7 @@ mod tests {
 			eprintln!("skip: {} not found", path.display());
 			return;
 		}
-		let vmec = VmecData::load(path).expect("load vmec");
+		let vmec = VmecData::load(std::fs::File::open(path).expect("open vmec")).expect("load vmec");
 
 		// --- 前提: xm, xn が整数であること ---
 		let xn_nonint = vmec
@@ -713,7 +714,7 @@ mod tests {
 			eprintln!("skip: {} not found", path.display());
 			return;
 		}
-		let vmec = VmecData::load(path).expect("load vmec");
+		let vmec = VmecData::load(std::fs::File::open(path).expect("open vmec")).expect("load vmec");
 		let div_theta = 64;
 		let div_phi = 240;
 		let s = 1.08;
@@ -777,7 +778,7 @@ mod tests {
 			eprintln!("skip: {} not found", path.display());
 			return;
 		}
-		let vmec = VmecData::load(path).expect("load vmec");
+		let vmec = VmecData::load(std::fs::File::open(path).expect("open vmec")).expect("load vmec");
 
 		const N: usize = 1000;
 		let mut checksum = 0.0f64;
@@ -811,7 +812,7 @@ mod tests {
 			eprintln!("skip: {} not found", path.display());
 			return;
 		}
-		let vmec = VmecData::load(path).expect("load vmec");
+		let vmec = VmecData::load(std::fs::File::open(path).expect("open vmec")).expect("load vmec");
 		// LCFS (s=1.0) と磁気軸寄り (s=0.5) と中央 (s=0.5 付近の index) を抜き打ち確認。
 		for &i in &[0, vmec.s_grid.len() / 2, vmec.s_grid.len() - 1] {
 			let s = vmec.s_grid[i];
@@ -878,7 +879,7 @@ mod tests {
 			eprintln!("skip: {} not found", path.display());
 			return;
 		}
-		let vmec = VmecData::load(path).expect("load vmec");
+		let vmec = VmecData::load(std::fs::File::open(path).expect("open vmec")).expect("load vmec");
 		let mnmax = vmec.mode_poloidal.len();
 		let s = 1.08;
 
@@ -930,7 +931,7 @@ mod tests {
 			eprintln!("skip: {} not found", path.display());
 			return;
 		}
-		let vmec = VmecData::load(path).expect("load vmec");
+		let vmec = VmecData::load(std::fs::File::open(path).expect("open vmec")).expect("load vmec");
 		let mnmax = vmec.mode_poloidal.len();
 
 		// 各モードの rmnc, zmns について natural / not-a-knot 2 通りのスプラインを
