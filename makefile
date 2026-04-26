@@ -74,6 +74,13 @@ validate-vacuum_vessel:
 	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/vacuum_vessel.step $(PARA_DIR)/vacuum_vessel.step
 
 # ============================================================
+# bbox — parastell/examples/alphastell_full 下の全 *.step の bbox を列挙
+#   1 行 1 ファイル: path x0 y0 z0 x1 y1 z1 dx dy dz
+# ============================================================
+bbox:
+	cargo run --release -- bbox $(wildcard $(PARA_DIR)/*.step)
+
+# ============================================================
 # points — $(OUT_DIR) 下の *.csv をすべて matplotlib 3D 散布で重ね表示
 #   header 有無は自動判定、末尾 3 列を (x, y, z) として扱う。
 #   vessel (*.csv) / magnet (magnet_set.csv) ともに m 単位で同スケール、
