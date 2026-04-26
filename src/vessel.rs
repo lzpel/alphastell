@@ -140,17 +140,6 @@ pub fn run(input: &Path, output_dir: &Path, wall_s: f64, scale: f64) -> Result<(
 	Ok(())
 }
 
-/// `mesh()` の出力 (`[phi_idx][theta_idx]`) を scale 倍して `Solid::bspline` の
-/// 定数サイズ配列に詰め替える。
-fn to_const_grid(mesh: &[Vec<[f64; 3]>], scale: f64) -> [[DVec3; N_POLO]; M_TORO] {
-	std::array::from_fn(|i| {
-		std::array::from_fn(|j| {
-			let p = &mesh[i][j];
-			DVec3::new(p[0] * scale, p[1] * scale, p[2] * scale)
-		})
-	})
-}
-
 fn write_step(solids: &[Solid], output: &Path) -> Result<()> {
 	println!("  Writing STEP: {}", output.display());
 	let mut f = File::create(output)
