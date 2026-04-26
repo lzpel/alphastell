@@ -9,7 +9,7 @@
   "paths": {
     "/magnet": {
       "post": {
-        "operationId": "uploadCoils",
+        "operationId": "magnet",
         "summary": "Generate a magnet_set STEP from a MAKEGRID coils file",
         "description": "Equivalent to the `magnet` subcommand. Accepts a MAKEGRID-format coils\nfile (e.g. `coils.example`) and returns 2 artifacts: a STEP of the swept\nrectangular-section coils and its CSV point cloud.",
         "parameters": [
@@ -108,7 +108,7 @@
     },
     "/vessel": {
       "post": {
-        "operationId": "uploadVmec",
+        "operationId": "vessel",
         "summary": "Generate in-vessel components from a VMEC NetCDF file",
         "description": "Equivalent to the `vessel` subcommand. Accepts a VMEC `wout_*.nc` file\nand returns 12 artifacts: 6 STEP solids (chamber, first_wall, breeder,\nback_wall, shield, vacuum_vessel) and their corresponding CSV point\nclouds.",
         "parameters": [
