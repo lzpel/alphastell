@@ -1,5 +1,5 @@
 export MSYS_NO_PATHCONV := 1
-MAKE_RECURSIVE_DIRS := openapi frontend
+MAKE_RECURSIVE_DIRS := frontend/openapi frontend
 export MAKE_RECURSIVE = time printf '%s\n' $(MAKE_RECURSIVE_DIRS) | xargs -IX sh -c '$(MAKE) -C X $@ || exit 255'
 
 VMEC_IN  := parastell/examples/wout_vmec.nc
