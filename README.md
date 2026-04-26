@@ -125,7 +125,6 @@ Both are then normalized, scaled by $o$, added to $\mathbf p$, and the whole poi
 |---|---|---|
 | `vessel`   | 6 × `.step` + `.csv` | 6-layer in-vessel build from a VMEC `wout_*.nc` |
 | `magnet`   | `magnet_set.step` + `.csv` | Rectangular-cross-section sweep of 40 coil filaments |
-| `plasma`   | `plasma_M*_N*.step` | Diagnostic: LCFS (s=1.0) at several (M, N) resolutions |
 | `cut`      | 1 × `.step` | Sector-wedge boolean: `--cut` keeps the wedge, `--union` removes it |
 | `compound` | merged `.step` + `.svg` | Merge multiple STEP inputs (optionally plus an in-memory magnet sector) with chamber→vacuum-vessel gradient coloring, and write a projected SVG |
 | `validate` | stdout | Volume-ratio check (and optional boolean-Union volume) against a reference STEP |
