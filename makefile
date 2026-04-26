@@ -35,13 +35,13 @@ openapi:
 #   wall_s=1.08 を基準に mesh() + boolean_subtract で構築 (Solid::shell は使わない)。
 # ============================================================
 vessel: $(VMEC_IN)
-	cargo run --release -- vessel --input $(VMEC_IN) --output $(OUT_DIR)/
+	cargo run --release -- vessel --wall-s 1.08 --scale 100 --input $(VMEC_IN) --output $(OUT_DIR)/
 
 # ============================================================
 # magnet — coils.example から長方形断面 sweep で magnet_set.step を生成 (m 単位)
 # ============================================================
 magnet: $(COILS_IN)
-	cargo run --release -- magnet --input $(COILS_IN) --output $(OUT_DIR)/magnet_set.step
+	cargo run --release -- magnet --scale 100 --input $(COILS_IN) --output $(OUT_DIR)/magnet_set.step
 
 # ============================================================
 # validate — 各層を parastell 参照と体積比較
@@ -78,6 +78,7 @@ validate-vacuum_vessel:
 #   1 行 1 ファイル: path x0 y0 z0 x1 y1 z1 dx dy dz
 # ============================================================
 bbox:
+	cargo run --release -- bbox $(wildcard $(OUT_DIR)/*.step)
 	cargo run --release -- bbox $(wildcard $(PARA_DIR)/*.step)
 
 # ============================================================
@@ -105,11 +106,9 @@ points-save:
 #     i=3  back_wall     : ±1/12 (= 30°、span 60°)
 #     i=4  shield        : ±1/9  (= 40°、span 80°)
 #     i=5  vacuum_vessel : ±5/36 (= 50°、span 100°)
-#     i=6  magnet (±1/6) : compound --input-magnet で in-memory、120°ウェッジ外の
-#                          コイルだけ 40 色 rainbow (build_sector が色付け)
+#     i=6  magnet (±1/6) : $(OUT_DIR)/magnet_set.step を -i で挿入 (cut せずそのまま)
 #
-#   vessel 6 層は compound::run が hsv(i*0.2/N, 1, 1) の穏やかな gradient で着色。
-#   extras (magnet) は build_sector の rainbow をそのまま preserve。
+#   vessel 6 層 + magnet は compound::run が hsv(i*0.2/N, 1, 1) の穏やかな gradient で着色。
 #   同名 out/showcase.svg も自動生成 (-X 方向投影、隠線 + shading)。
 # ============================================================
 showcase: run
@@ -126,5 +125,5 @@ showcase: run
 		-i $(OUT_DIR)/showcase/back_wall.step \
 		-i $(OUT_DIR)/showcase/shield.step \
 		-i $(OUT_DIR)/showcase/vacuum_vessel.step \
-		--input-magnet $(COILS_IN) \
+		-i $(OUT_DIR)/magnet_set.step \
 		-o $(OUT_DIR)/showcase.step
