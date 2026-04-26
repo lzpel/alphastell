@@ -26,16 +26,16 @@ $(COILS_IN): $(VMEC_IN)
 run: vessel magnet
 
 # ============================================================
-# デモサーバーを起動
+# generate frontend
 # ============================================================
 
-server-generate:
+frontend-generate:
 	bash -c "$${MAKE_RECURSIVE}"
-server-run:
+frontend-run:
 	cargo install --root out rebab
 	out/bin/rebab --frontend 127.0.0.1:8000 --rule "prefix=/api,port=7998,command=cargo run -- server" --rule "port=7999,command=make -C frontend server-run"
 	# bash -c "$${MAKE_RECURSIVE}"
-server-deploy:
+frontend-deploy:
 	bash -c "$${MAKE_RECURSIVE}"
 
 # ============================================================
