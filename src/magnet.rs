@@ -13,30 +13,30 @@
 //! 3. 全コイルを集めて STEP 出力
 
 use cadrum::{BSplineEnd, DVec3, ProfileOrient, Solid, Wire};
-use std::fs::File;
-use std::io::{BufWriter, Write};
 use std::path::Path;
 
 use crate::Result;
+use crate::artifact::Artifact;
 use crate::coils;
 
 /// magnet サブコマンドのエントリポイント。
 ///
 /// # 引数
 /// - `input`: `coils.example` パス
-/// - `output`: `magnet_set.step` パス
 /// - `width`: 矩形断面の幅 [m]
 /// - `thickness`: 矩形断面の厚み [m]
 /// - `toroidal_extent`: [deg]。360.0 で全コイル、<360 で将来的にコイル間引き (本 PR では未実装、値だけログ出力)
 /// - `scale`: 入力 (m) に掛ける倍率。100 で cm (vessel と統一)。**sweep 前の点列・寸法に直接適用**するので、`Solid::scale` post-scale は使わない。
+///
+/// 戻り値は `("magnet_set", Artifact)` の長さ 1 の Vec。書き出し基底名は呼び出し側が
+/// `Artifact::write(out_dir, name)` の第 2 引数で指定する。
 pub fn run(
     input: &Path,
-    output: &Path,
     width: f64,
     thickness: f64,
     toroidal_extent: f64,
     scale: f64,
-) -> Result<()> {
+) -> Result<Vec<Artifact>> {
     println!("Parsing coils: {}", input.display());
     let filaments = coils::parse(input)?;
     println!(
@@ -59,7 +59,7 @@ pub fn run(
         scale
     );
     let mut solids: Vec<Solid> = Vec::with_capacity(filaments.coils.len());
-    let mut coil_points: Vec<Vec<DVec3>> = Vec::with_capacity(filaments.coils.len());
+    let mut points: Vec<DVec3> = Vec::new();
     for (idx, raw_pts) in filaments.coils.iter().enumerate() {
         match build_one(
             raw_pts.iter().map(|p| *p * scale),
@@ -68,7 +68,7 @@ pub fn run(
         ) {
             Ok((s, pts)) => {
                 solids.push(s);
-                coil_points.push(pts);
+                points.extend(pts);
             }
             Err(e) => {
                 eprintln!("  [warn] coil #{} sweep failed: {}", idx, e);
@@ -85,35 +85,11 @@ pub fn run(
         return Err("no coil solids produced".into());
     }
 
-    // 出力ディレクトリ作成
-    if let Some(parent) = output.parent() {
-        if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| format!("create_dir_all {}: {}", parent.display(), e))?;
-        }
-    }
-
-    println!("Writing STEP: {}", output.display());
-    let colored: Vec<Solid> = solids.into_iter().map(|s| s.color("orange")).collect();
-    let mut f = File::create(output).map_err(|e| format!("create {}: {}", output.display(), e))?;
-    cadrum::write_step(colored.iter(), &mut f)
-        .map_err(|e| format!("write_step failed: {:?}", e))?;
-
-    // 可視化用 CSV: STEP と同名で拡張子だけ .csv。中身は header 無し、
-    // 1 行 = "x,y,z" (scale 倍済みの sweep 構築単位)。コイルごとに profile 4 点 → spine n 点の順で並ぶ。
-    let csv_path = output.with_extension("csv");
-    println!("Writing CSV: {}", csv_path.display());
-    let csv_file =
-        File::create(&csv_path).map_err(|e| format!("create {}: {}", csv_path.display(), e))?;
-    let mut csv = BufWriter::new(csv_file);
-    for pts in &coil_points {
-        for p in pts {
-            writeln!(csv, "{},{},{}", p.x, p.y, p.z).map_err(|e| format!("write csv: {}", e))?;
-        }
-    }
-    csv.flush().map_err(|e| format!("flush csv: {}", e))?;
-    println!("Done.");
-    Ok(())
+    Ok([(Artifact { 
+        name: "magnet_set".to_string(),
+        solids, 
+        points 
+    })].into_iter().collect())
 }
 
 /// 1 本のコイルを長方形断面で sweep して Solid にする。

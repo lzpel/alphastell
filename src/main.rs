@@ -22,6 +22,7 @@
 //! - `vessel`   : vessel サブコマンド本体
 //! - `validate` : validate サブコマンド本体
 
+mod artifact;
 mod bbox;
 mod coils;
 mod compound;
@@ -32,7 +33,7 @@ mod vessel;
 mod vmec;
 #[allow(dead_code, unused_imports, unused_variables, unexpected_cfgs)]
 mod openapi;
-mod server;
+mod api;
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -97,10 +98,11 @@ enum Command {
 		union: bool,
 	},
 	/// `coils.example` から 40 本のフィラメントを読み、長方形断面 sweep で
-	/// parastell 互換の magnet_set.step を出力する。座標単位は m。
+	/// parastell 互換の magnet_set.step を `output` ディレクトリに出力する。座標単位は m。
 	Magnet {
 		#[arg(long)]
 		input: PathBuf,
+		/// 出力先ディレクトリ (`magnet_set.step` と `magnet_set.csv` が作成される)。
 		#[arg(long)]
 		output: PathBuf,
 		/// 矩形断面の幅 [m]。既定 0.4 m = 40 cm (parastell 既定と物理寸法一致)
@@ -165,7 +167,13 @@ fn main() -> Result<()> {
 			output,
 			wall_s,
 			scale,
-		} => vessel::run(&input, &output, wall_s, scale),
+		} => {
+			for a in vessel::run(&input, wall_s, scale)? {
+				a.write(&output, &a.name)?;
+			}
+			println!("Done.");
+			Ok(())
+		}
 		Command::Cut {
 			input,
 			output,
@@ -189,7 +197,13 @@ fn main() -> Result<()> {
 			thickness,
 			toroidal_extent,
 			scale,
-		} => magnet::run(&input, &output, width, thickness, toroidal_extent, scale),
+		} => {
+			for a in magnet::run(&input, width, thickness, toroidal_extent, scale)? {
+				a.write(&output, &a.name)?;
+			}
+			println!("Done.");
+			Ok(())
+		}
 		Command::Compound {
 			inputs,
 			output,
@@ -204,7 +218,7 @@ fn main() -> Result<()> {
 		Command::Server {
 			port,
 		} => {
-			server::run(port);
+			api::run(port);
 			Ok(())
 		}
 		Command::Bbox { inputs } => bbox::run(&inputs),
