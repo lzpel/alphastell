@@ -30,7 +30,7 @@ exclude = [
 ]
 
 [dependencies]
-cadrum = "^0.7.1"
+cadrum = "^0.7.3"
 netcdf3 = "^0.6"
 clap = { version = "^4", features = ["derive", "env"] }
 regex = "^1"
