@@ -95,12 +95,12 @@ pub struct UploadCoilsRequest{
 	pub width:Option<f64>,
 	pub thickness:Option<f64>,
 	pub toroidal_extent:Option<f64>,
-	pub body: PathsMagnetPostRequestBodyContentMultipartFormDataSchema,
+	pub body: PathsMagnetPostRequestBodyContentApplicationJsonSchema,
 }
 // Response type for upload_coils
 #[derive(Debug)]
 pub enum UploadCoilsResponse{
-	Status200(FileList),
+	Status200(Vec<FileEntry>),
 	Status400(Error),
 	Status500(Error),
 	Error(String),
@@ -126,12 +126,12 @@ impl axum::response::IntoResponse for UploadCoilsResponse{
 pub struct UploadVmecRequest{
 	pub wall_s:Option<f64>,
 	pub scale:Option<f64>,
-	pub body: PathsVesselPostRequestBodyContentMultipartFormDataSchema,
+	pub body: PathsVesselPostRequestBodyContentApplicationJsonSchema,
 }
 // Response type for upload_vmec
 #[derive(Debug)]
 pub enum UploadVmecResponse{
-	Status200(FileList),
+	Status200(Vec<FileEntry>),
 	Status400(Error),
 	Status500(Error),
 	Error(String),
@@ -171,22 +171,21 @@ pub struct Error{
 #[derive(Default,Clone,Debug,serde::Serialize,serde::Deserialize)]
 pub struct FileEntry{
 	pub r#content_type:String,
-	#[serde(with = "base64_serde")]
-	pub r#data:Vec<u8>,
+	pub r#data:String,
 	pub r#filename:String,
 }
 
-pub type FileList=Vec<FileEntry>;
-
 
 
 #[derive(Default,Clone,Debug,serde::Serialize,serde::Deserialize)]
-pub struct PathsVesselPostRequestBodyContentMultipartFormDataSchema{
-	pub r#file:Vec<u8>,
+pub struct PathsVesselPostRequestBodyContentApplicationJsonSchema{
+	#[serde(with = "base64_serde")]
+	pub r#body:Vec<u8>,
 }
 #[derive(Default,Clone,Debug,serde::Serialize,serde::Deserialize)]
-pub struct PathsMagnetPostRequestBodyContentMultipartFormDataSchema{
-	pub r#file:Vec<u8>,
+pub struct PathsMagnetPostRequestBodyContentApplicationJsonSchema{
+	#[serde(with = "base64_serde")]
+	pub r#body:Vec<u8>,
 }
 
 // following part is only for client
@@ -210,7 +209,7 @@ impl<T: ApiClient + Sync> ApiInterface for T {
                 .query(&req.r#width.as_ref().map(|v| [("width", v.to_string())]))
                 .query(&req.r#thickness.as_ref().map(|v| [("thickness", v.to_string())]))
                 .query(&req.r#toroidal_extent.as_ref().map(|v| [("toroidal_extent", v.to_string())]))
-                .body(req.body)
+                .json(&req.body)
                 .send().await {
                 Ok(r) => r,
                 Err(e) => return UploadCoilsResponse::Error(e.to_string()),
@@ -236,7 +235,7 @@ impl<T: ApiClient + Sync> ApiInterface for T {
             let r = match client.post(&url)
                 .query(&req.r#wall_s.as_ref().map(|v| [("wall_s", v.to_string())]))
                 .query(&req.r#scale.as_ref().map(|v| [("scale", v.to_string())]))
-                .body(req.body)
+                .json(&req.body)
                 .send().await {
                 Ok(r) => r,
                 Err(e) => return UploadVmecResponse::Error(e.to_string()),
@@ -305,23 +304,7 @@ pub fn axum_router_operations<S: ApiInterfaceAxum + Sync + Send + 'static>(insta
 			r#width:{let v=query.get("width").and_then(|v| v.parse().ok());v},
 			r#thickness:{let v=query.get("thickness").and_then(|v| v.parse().ok());v},
 			r#toroidal_extent:{let v=query.get("toroidal_extent").and_then(|v| v.parse().ok());v},
-			body:{
-	let r=http::Request::from_parts(parts.clone(), body);
-	let v=match axum::extract::Multipart::from_request(r, &()).await{Ok(v)=>v,Err(e)=>return text_response(http::StatusCode::BAD_REQUEST, e.body_text())};
-	match async |mut x: axum::extract::Multipart| -> std::result::Result<PathsMagnetPostRequestBodyContentMultipartFormDataSchema,String>{
-	let mut o:PathsMagnetPostRequestBodyContentMultipartFormDataSchema=Default::default();
-	while let Some(field) = x.next_field().await.map_err(|e| e.body_text())? {
-		match field.name().unwrap_or_default() {
-			"file" =>o.file=field.bytes().await.map(|v| v.to_vec()).map_err(|e| e.body_text())?,
-			other => return Err(format!("unknown field {other} in multipart-formdata"))
-		}
-	}
-	Ok(o)
-}(v).await {
-	Ok(v)=>v,
-	Err(e)=>return text_response(http::StatusCode::BAD_REQUEST,e)
-}
-},
+			body:match axum::body::to_bytes(body, usize::MAX).await.map_err(|v| format!("{v:?}")).and_then(|v| serde_json::from_slice(&v).map_err(|v| v.to_string())) {Ok(v)=>v,Err(v)=>return text_response(http::StatusCode::BAD_REQUEST, v)},
 		}).await;
 		ret
 	}));
@@ -337,28 +320,12 @@ pub fn axum_router_operations<S: ApiInterfaceAxum + Sync + Send + 'static>(insta
 			let ret=<S as ApiInterfaceAxum>::upload_vmec(i.as_ref(), http::Request::from_parts(parts.clone(), ()), UploadVmecRequest{
 			r#wall_s:{let v=query.get("wall_s").and_then(|v| v.parse().ok());v},
 			r#scale:{let v=query.get("scale").and_then(|v| v.parse().ok());v},
-			body:{
-	let r=http::Request::from_parts(parts.clone(), body);
-	let v=match axum::extract::Multipart::from_request(r, &()).await{Ok(v)=>v,Err(e)=>return text_response(http::StatusCode::BAD_REQUEST, e.body_text())};
-	match async |mut x: axum::extract::Multipart| -> std::result::Result<PathsVesselPostRequestBodyContentMultipartFormDataSchema,String>{
-	let mut o:PathsVesselPostRequestBodyContentMultipartFormDataSchema=Default::default();
-	while let Some(field) = x.next_field().await.map_err(|e| e.body_text())? {
-		match field.name().unwrap_or_default() {
-			"file" =>o.file=field.bytes().await.map(|v| v.to_vec()).map_err(|e| e.body_text())?,
-			other => return Err(format!("unknown field {other} in multipart-formdata"))
-		}
-	}
-	Ok(o)
-}(v).await {
-	Ok(v)=>v,
-	Err(e)=>return text_response(http::StatusCode::BAD_REQUEST,e)
-}
-},
+			body:match axum::body::to_bytes(body, usize::MAX).await.map_err(|v| format!("{v:?}")).and_then(|v| serde_json::from_slice(&v).map_err(|v| v.to_string())) {Ok(v)=>v,Err(v)=>return text_response(http::StatusCode::BAD_REQUEST, v)},
 		}).await;
 		ret
 	}));
 	let router = router.route("/openapi.json", axum::routing::get(|| async move{
-			r###"{"components":{"schemas":{"Error":{"additionalProperties":false,"properties":{"message":{"type":"string"}},"required":["message"],"type":"object"},"FileEntry":{"additionalProperties":false,"properties":{"content_type":{"description":"MIME type hint for the payload (e.g. `model/step`, `text/csv`).","type":"string"},"data":{"description":"Base64-encoded file contents.","format":"byte","type":"string"},"filename":{"description":"Output filename, e.g. `chamber.step` or `magnet_set.csv`.","type":"string"}},"required":["filename","content_type","data"],"type":"object"},"FileList":{"items":{"$ref":"#/components/schemas/FileEntry"},"type":"array"}}},"info":{"description":"HTTP facade over the alphastell vessel/magnet subcommands. Upload a VMEC NetCDF or MAKEGRID coils file and receive the generated STEP + CSV artifacts as a list of base64-encoded files.","title":"alphastell API","version":"0.1.0"},"openapi":"3.1.0","paths":{"/magnet":{"post":{"description":"Equivalent to the `magnet` subcommand. Accepts a MAKEGRID-format coils file (e.g. `coils.example`) and returns 2 artifacts: a STEP of the swept rectangular-section coils and its CSV point cloud.","operationId":"uploadCoils","parameters":[{"description":"Rectangular cross-section width [m]. Default 0.4 m matches parastell.","in":"query","name":"width","schema":{"default":0.4,"format":"double","type":"number"},"style":"form"},{"description":"Rectangular cross-section thickness [m]. Default 0.5 m matches parastell.","in":"query","name":"thickness","schema":{"default":0.5,"format":"double","type":"number"},"style":"form"},{"description":"Toroidal extent [deg]. 360 keeps all coils; values below 360 are reserved for future use.","in":"query","name":"toroidal_extent","schema":{"default":360.0,"format":"double","type":"number"},"style":"form"}],"requestBody":{"content":{"multipart/form-data":{"encoding":{"file":{"contentType":"application/octet-stream"}},"schema":{"additionalProperties":false,"properties":{"file":{"description":"MAKEGRID-format coils file (text).","format":"binary","type":"string"}},"required":["file"],"type":"object"}}},"required":true},"responses":{"200":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/FileList"}}},"description":"Generated magnet artifacts (1 STEP + 1 CSV)."},"400":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Invalid input file or parameters."},"500":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Processing failure."}},"summary":"Generate a magnet_set STEP from a MAKEGRID coils file"}},"/vessel":{"post":{"description":"Equivalent to the `vessel` subcommand. Accepts a VMEC `wout_*.nc` file and returns 12 artifacts: 6 STEP solids (chamber, first_wall, breeder, back_wall, shield, vacuum_vessel) and their corresponding CSV point clouds.","operationId":"uploadVmec","parameters":[{"description":"Reference flux surface. Parastell default 1.08 (just outside the LCFS).","in":"query","name":"wall_s","schema":{"default":1.08,"format":"double","type":"number"},"style":"form"},{"description":"Unit scaling factor. VMEC is in meters; 100 converts to centimeters to match the parastell default.","in":"query","name":"scale","schema":{"default":100.0,"format":"double","type":"number"},"style":"form"}],"requestBody":{"content":{"multipart/form-data":{"encoding":{"file":{"contentType":"application/octet-stream"}},"schema":{"additionalProperties":false,"properties":{"file":{"description":"VMEC NetCDF-3 64-bit offset file (wout_*.nc).","format":"binary","type":"string"}},"required":["file"],"type":"object"}}},"required":true},"responses":{"200":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/FileList"}}},"description":"Generated in-vessel artifacts (6 STEP + 6 CSV)."},"400":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Invalid input file or parameters."},"500":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Processing failure."}},"summary":"Generate in-vessel components from a VMEC NetCDF file"}}},"servers":[{"url":"/"}]}"###
+			r###"{"components":{"schemas":{"Error":{"properties":{"message":{"type":"string"}},"required":["message"],"type":"object"},"FileEntry":{"properties":{"content_type":{"description":"MIME type hint for the payload (e.g. `model/step`, `text/csv`).","type":"string"},"data":{"description":"Base64-encoded file contents.","format":"base64","type":"string"},"filename":{"description":"Output filename, e.g. `chamber.step` or `magnet_set.csv`.","type":"string"}},"required":["filename","content_type","data"],"type":"object"}}},"info":{"description":"HTTP facade over the alphastell vessel/magnet subcommands. Upload a VMEC\nNetCDF or MAKEGRID coils file and receive the generated STEP + CSV\nartifacts as a list of base64-encoded files.","title":"alphastell API","version":"0.1.0"},"openapi":"3.0.0","paths":{"/magnet":{"post":{"description":"Equivalent to the `magnet` subcommand. Accepts a MAKEGRID-format coils\nfile (e.g. `coils.example`) and returns 2 artifacts: a STEP of the swept\nrectangular-section coils and its CSV point cloud.","operationId":"uploadCoils","parameters":[{"description":"Rectangular cross-section width [m]. Default 0.4 m matches parastell.","explode":false,"in":"query","name":"width","schema":{"default":0.4,"format":"double","type":"number"},"style":"form"},{"description":"Rectangular cross-section thickness [m]. Default 0.5 m matches parastell.","explode":false,"in":"query","name":"thickness","schema":{"default":0.5,"format":"double","type":"number"},"style":"form"},{"description":"Toroidal extent [deg]. 360 keeps all coils; values below 360 are reserved for future use.","explode":false,"in":"query","name":"toroidal_extent","schema":{"default":360,"format":"double","type":"number"},"style":"form"}],"requestBody":{"content":{"application/json":{"schema":{"properties":{"body":{"format":"byte","type":"string"}},"required":["body"],"type":"object"}}},"required":true},"responses":{"200":{"content":{"application/json":{"schema":{"items":{"$ref":"#/components/schemas/FileEntry"},"type":"array"}}},"description":"Generated in-vessel artifacts (6 STEP + 6 CSV)."},"400":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Invalid input file or parameters."},"500":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Processing failure."}},"summary":"Generate a magnet_set STEP from a MAKEGRID coils file"}},"/vessel":{"post":{"description":"Equivalent to the `vessel` subcommand. Accepts a VMEC `wout_*.nc` file\nand returns 12 artifacts: 6 STEP solids (chamber, first_wall, breeder,\nback_wall, shield, vacuum_vessel) and their corresponding CSV point\nclouds.","operationId":"uploadVmec","parameters":[{"description":"Reference flux surface. Parastell default 1.08 (just outside the LCFS).","explode":false,"in":"query","name":"wall_s","schema":{"default":1.08,"format":"double","type":"number"},"style":"form"},{"description":"Unit scaling factor. VMEC is in meters; 100 converts to centimeters to match the parastell default.","explode":false,"in":"query","name":"scale","schema":{"default":100,"format":"double","type":"number"},"style":"form"}],"requestBody":{"content":{"application/json":{"schema":{"properties":{"body":{"format":"byte","type":"string"}},"required":["body"],"type":"object"}}},"required":true},"responses":{"200":{"content":{"application/json":{"schema":{"items":{"$ref":"#/components/schemas/FileEntry"},"type":"array"}}},"description":"Generated in-vessel artifacts (6 STEP + 6 CSV)."},"400":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Invalid input file or parameters."},"500":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}},"description":"Processing failure."}},"summary":"Generate in-vessel components from a VMEC NetCDF file"}}},"servers":[{"description":"Default server","url":"/","variables":{}}]}"###
 		}))
 		.route("/ui", axum::routing::get(|| async move{
 			axum::response::Html(r###"
