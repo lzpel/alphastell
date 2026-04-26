@@ -60,10 +60,10 @@ enum Command {
 		#[arg(long)]
 		output: PathBuf,
 		/// 基準磁束面 wall_s。parastell 既定 1.08 (LCFS の外側に少し広げた面)。
-		#[arg(long, default_value_t = 1.08)]
+		#[arg(long)]
 		wall_s: f64,
 		/// 単位スケール。VMEC は m なので 100 を掛けると cm になり parastell 既定と揃う。
-		#[arg(long, default_value_t = 100.0)]
+		#[arg(long)]
 		scale: f64,
 	},
 	/// 入力 STEP を Z 軸まわりの扇形 (sector) で切って一部分だけ残した STEP を出力する。
@@ -112,20 +112,17 @@ enum Command {
 		/// コイル間引き toroidal 範囲 [deg]。360 で全コイル。<360 は将来用 (本 PR では未実装)
 		#[arg(long, default_value_t = 360.0)]
 		toroidal_extent: f64,
+		/// 単位スケール。MAKEGRID は m なので 100 を掛けると cm になり vessel 既定と揃う。
+		#[arg(long)]
+		scale: f64,
 	},
 	/// 複数の STEP ファイルを 1 つにまとめ、各ファイルに均等な HSV 色相で
 	/// 識別しやすい色を割り当てて出力する。
 	/// 例: `compound -i a.step -i b.step -i c.step -o out.step`
-	/// `--input-magnet` で coils.example を直接渡すと、±τ/4 (= ±90°) の
-	/// toroidal セクタに入るコイルだけを in-memory で sweep して 1 source として
-	/// 合成する (STEP round-trip を経由しない)。
 	Compound {
 		/// 入力 STEP のパス (複数回指定可)
 		#[arg(short = 'i', long = "input")]
 		inputs: Vec<PathBuf>,
-		/// coils.example を直接読み込んで ±τ/4 セクタに絞って合成する (任意)。
-		#[arg(short = 'm', long = "input-magnet")]
-		input_magnet: Option<PathBuf>,
 		/// 出力 STEP のパス
 		#[arg(short = 'o', long)]
 		output: PathBuf,
@@ -191,35 +188,12 @@ fn main() -> Result<()> {
 			width,
 			thickness,
 			toroidal_extent,
-		} => magnet::run(&input, &output, width, thickness, toroidal_extent),
+			scale,
+		} => magnet::run(&input, &output, width, thickness, toroidal_extent, scale),
 		Command::Compound {
 			inputs,
-			input_magnet,
 			output,
-		} => {
-			let mut extras: Vec<(String, Vec<cadrum::Solid>)> = Vec::new();
-			if let Some(coil_path) = input_magnet {
-				// showcase の最大開口 (magnet 層) は ±τ/6 = ±60° = ウェッジ幅 τ/3。
-				// build_sector にその半スパンを渡し、扇形 **外側** (残り 2τ/3 分) の
-				// コイルだけを残す。
-				// magnet は m、vessel は既定 --scale 100 (cm) なので、単位合わせに
-				// `Solid::scale(origin, 100)` を全コイルに適用する。build_sector 内で
-				// コイルごとに rainbow 着色済み、compound::run は extras を preserve。
-				use cadrum::DVec3;
-				let remove_half_span_tau = 1.0f64 / 6.0;
-				let solids =
-					magnet::build_sector(&coil_path, 0.4, 0.5, remove_half_span_tau)?;
-				let scaled: Vec<cadrum::Solid> = solids
-					.into_iter()
-					.map(|s| s.scale(DVec3::ZERO, 100.0))
-					.collect();
-				extras.push((
-					format!("{} (outside ±1/6 τ, ×100)", coil_path.display()),
-					scaled,
-				));
-			}
-			compound::run(&inputs, extras, &output)
-		}
+		} => compound::run(&inputs, Vec::new(), &output),
 		Command::Validate {
 			a,
 			b,
