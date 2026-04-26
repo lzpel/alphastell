@@ -3,3 +3,5 @@
 *.step
 *.svg
 out.*
+node_modules/
+**/out/
