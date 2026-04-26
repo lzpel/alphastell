@@ -22,6 +22,7 @@
 //! - `vessel`   : vessel サブコマンド本体
 //! - `validate` : validate サブコマンド本体
 
+mod bbox;
 mod coils;
 mod compound;
 mod cut;
@@ -149,7 +150,14 @@ enum Command {
         /// Port to listen on (or set PORT env var)
         #[arg(long, env = "PORT", default_value = "8080")]
         port: u16,
-	}
+	},
+	/// 各 STEP ファイルの軸並行バウンディングボックスを
+	/// `path x0 y0 z0 x1 y1 z1 dx dy dz` 形式で 1 行ずつ出力する。
+	Bbox {
+		/// 入力 STEP のパス (複数指定可)
+		#[arg(required = true)]
+		inputs: Vec<PathBuf>,
+	},
 }
 
 fn main() -> Result<()> {
@@ -225,5 +233,6 @@ fn main() -> Result<()> {
 			server::run(port);
 			Ok(())
 		}
+		Command::Bbox { inputs } => bbox::run(&inputs),
 	}
 }
