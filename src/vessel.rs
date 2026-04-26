@@ -107,13 +107,13 @@ pub fn run(input: &Path, output_dir: &Path, wall_s: f64, scale: f64) -> Result<(
 	for (i, &o) in offsets_m.iter().enumerate() {
 		println!("  [{}] offset = {:.3} m", i, o);
 		let mesh = vmec.mesh(N_POLO, M_TORO, wall_s, o, NormalKind::Planar);
+		let points = |i: usize, j: usize| -> DVec3 { DVec3::from(mesh[i][j]) * scale };
 		// 可視化用: STEP と同名の .csv に layer の外側 bounding surface mesh を
 		// 生点群 (x,y,z) で書き出す。単位は生 VMEC (m) で固定。
 		let name = LAYERS[i].0;
 		let csv_path = output_dir.join(format!("{}.csv", name));
-		write_mesh_csv(&mesh, 1.0, &csv_path)?;
-		let grid = to_const_grid(&mesh, scale);
-		let solid = Solid::bspline(M_TORO, N_POLO, true, |i, j| grid[i][j])
+		write_mesh_csv((0..M_TORO).map(|i: usize| (0..N_POLO).map(move |j: usize| [i, j])).flatten().map(|[i, j]| points(i, j)), &csv_path)?;
+		let solid = Solid::bspline(M_TORO, N_POLO, true, points)
 			.map_err(|e| format!("bspline #{}: {:?}", i, e))?;
 		full_solids.push(solid);
 	}
@@ -165,21 +165,19 @@ fn write_step(solids: &[Solid], output: &Path) -> Result<()> {
 /// magnet サブコマンドの CSV と同形式で、`tools/view_points.py` がそのまま
 /// 3D scatter できる。走査順: phi=0 から phi=(M-1)·2π/M、各 phi で
 /// theta=0 から theta=(N-1)·2π/N。
-fn write_mesh_csv(mesh: &[Vec<[f64; 3]>], scale: f64, output: &Path) -> Result<()> {
+fn write_mesh_csv(mesh: impl Iterator<Item = DVec3>, output: &Path) -> Result<()> {
 	println!("  Writing CSV: {}", output.display());
 	let mut f = File::create(output)
 		.map_err(|e| format!("create {}: {}", output.display(), e))?;
-	for row in mesh {
-		for p in row {
-			writeln!(
-				f,
-				"{},{},{}",
-				p[0] * scale,
-				p[1] * scale,
-				p[2] * scale,
-			)
-			.map_err(|e| format!("write csv row: {}", e))?;
-		}
+	for p in mesh {
+		writeln!(
+			f,
+			"{},{},{}",
+			p.x,
+			p.y,
+			p.z,
+		)
+		.map_err(|e| format!("write csv row: {}", e))?;
 	}
 	Ok(())
 }
