@@ -11,13 +11,6 @@ LAYERS := chamber first_wall breeder back_wall shield vacuum_vessel
 MAG_OUT := $(OUT_DIR)/magnet_set.step
 MAG_REF := $(PARA_DIR)/magnet_set.step
 
-.PHONY: run vessel \
-        validate $(addprefix validate-,$(LAYERS)) \
-        cut cut-first-wall \
-        magnet magnet-generate magnet-validate \
-        points points-save plasma showcase
-
-
 run: vessel validate
 
 server:
@@ -34,7 +27,7 @@ openapi:
 #   wall_s=1.08 を基準に mesh() + boolean_subtract で構築 (Solid::shell は使わない)。
 # ============================================================
 vessel:
-	cargo run --release -- vessel --input $(VMEC_IN) --output $(OUT_DIR)/
+	cargo run -- vessel --input $(VMEC_IN) --output $(OUT_DIR)/
 
 # ============================================================
 # validate — 各層を parastell 参照と体積比較
@@ -45,22 +38,22 @@ vessel:
 validate: $(addprefix validate-,$(LAYERS))
 
 validate-chamber:
-	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/chamber.step $(PARA_DIR)/plasma.step
+	cargo run -- validate --tol 0.05 $(OUT_DIR)/chamber.step $(PARA_DIR)/plasma.step
 
 validate-first_wall:
-	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/first_wall.step $(PARA_DIR)/first_wall.step
+	cargo run -- validate --tol 0.05 $(OUT_DIR)/first_wall.step $(PARA_DIR)/first_wall.step
 
 validate-breeder:
-	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/breeder.step $(PARA_DIR)/breeder.step
+	cargo run -- validate --tol 0.05 $(OUT_DIR)/breeder.step $(PARA_DIR)/breeder.step
 
 validate-back_wall:
-	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/back_wall.step $(PARA_DIR)/back_wall.step
+	cargo run -- validate --tol 0.05 $(OUT_DIR)/back_wall.step $(PARA_DIR)/back_wall.step
 
 validate-shield:
-	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/shield.step $(PARA_DIR)/shield.step
+	cargo run -- validate --tol 0.05 $(OUT_DIR)/shield.step $(PARA_DIR)/shield.step
 
 validate-vacuum_vessel:
-	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/vacuum_vessel.step $(PARA_DIR)/vacuum_vessel.step
+	cargo run -- validate --tol 0.05 $(OUT_DIR)/vacuum_vessel.step $(PARA_DIR)/vacuum_vessel.step
 
 # ============================================================
 # cut — first_wall を Z 軸まわりの扇形で切る
@@ -73,7 +66,7 @@ validate-vacuum_vessel:
 cut: cut-first-wall
 
 cut-first-wall: vessel
-	cargo run --release -- cut --cut -i $(OUT_DIR)/first_wall.step -o $(OUT_DIR)/first_wall_half.step -s 0 -e 1/2
+	cargo run -- cut --cut -i $(OUT_DIR)/first_wall.step -o $(OUT_DIR)/first_wall_half.step -s 0 -e 1/2
 
 # ============================================================
 # plasma — VMEC LCFS (s=1.0) を複数 (M, N) 解像度で B-spline STEP 化
@@ -82,7 +75,7 @@ cut-first-wall: vessel
 #   phi=0/2π seam の Nyquist aliasing 依存性を viewer で並べて切り分ける。
 # ============================================================
 plasma:
-	cargo run --release -- plasma --input $(VMEC_IN) --output $(OUT_DIR)/
+	cargo run -- plasma --input $(VMEC_IN) --output $(OUT_DIR)/
 
 # ============================================================
 # points — $(OUT_DIR) 下の *.csv をすべて matplotlib 3D 散布で重ね表示
@@ -102,7 +95,7 @@ points-save:
 # magnet — coils.example から長方形断面 sweep で magnet_set.step を生成 (m 単位)
 # ============================================================
 magnet:
-	cargo run --release -- magnet --input $(COILS_IN) --output $(MAG_OUT)
+	cargo run -- magnet --input $(COILS_IN) --output $(MAG_OUT)
 
 # ============================================================
 # showcase — 核融合炉の内部を覗かせる cutaway STEP (+ 同名 SVG) を生成
