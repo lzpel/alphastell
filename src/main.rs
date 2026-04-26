@@ -26,7 +26,6 @@ mod coils;
 mod compound;
 mod cut;
 mod magnet;
-mod plasma;
 mod validate;
 mod vessel;
 mod vmec;
@@ -113,20 +112,6 @@ enum Command {
 		#[arg(long, default_value_t = 360.0)]
 		toroidal_extent: f64,
 	},
-	/// 診断: VMEC LCFS (s=1.0) を複数の (M, N) 解像度で B-spline STEP 化。
-	/// `index_rz` 直接 (スプライン補間なし) で、`output` ディレクトリに
-	/// `plasma_M<m>_N<n>.step` を一括出力する。
-	/// Nyquist aliasing が seam の原因かを resolution 依存で切り分ける用途。
-	Plasma {
-		#[arg(long)]
-		input: PathBuf,
-		/// 出力先ディレクトリ (複数の plasma_M*_N*.step が作成される)。
-		#[arg(long)]
-		output: PathBuf,
-		/// 単位スケール。既定 1.0 = m (生 VMEC 単位)。100 で cm。
-		#[arg(long, default_value_t = 1.0)]
-		scale: f64,
-	},
 	/// 複数の STEP ファイルを 1 つにまとめ、各ファイルに均等な HSV 色相で
 	/// 識別しやすい色を割り当てて出力する。
 	/// 例: `compound -i a.step -i b.step -i c.step -o out.step`
@@ -199,11 +184,6 @@ fn main() -> Result<()> {
 			thickness,
 			toroidal_extent,
 		} => magnet::run(&input, &output, width, thickness, toroidal_extent),
-		Command::Plasma {
-			input,
-			output,
-			scale,
-		} => plasma::run(&input, &output, scale),
 		Command::Compound {
 			inputs,
 			input_magnet,

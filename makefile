@@ -7,18 +7,7 @@ OUT_DIR  := out
 # chamber は parastell の plasma.step と概念的に対応 (ファイル名のみ別)。
 LAYERS := chamber first_wall breeder back_wall shield vacuum_vessel
 
-# magnet (コイル)
-MAG_OUT := $(OUT_DIR)/magnet_set.step
-MAG_REF := $(PARA_DIR)/magnet_set.step
-
-.PHONY: run vessel \
-        validate $(addprefix validate-,$(LAYERS)) \
-        cut cut-first-wall \
-        magnet magnet-generate magnet-validate \
-        points points-save plasma showcase
-
-
-run: vessel validate
+run: vessel magnet
 
 server:
 	cargo run -- server
@@ -35,6 +24,12 @@ openapi:
 # ============================================================
 vessel:
 	cargo run --release -- vessel --input $(VMEC_IN) --output $(OUT_DIR)/
+
+# ============================================================
+# magnet — coils.example から長方形断面 sweep で magnet_set.step を生成 (m 単位)
+# ============================================================
+magnet:
+	cargo run --release -- magnet --input $(COILS_IN) --output $(OUT_DIR)/magnet_set.step
 
 # ============================================================
 # validate — 各層を parastell 参照と体積比較
@@ -63,46 +58,17 @@ validate-vacuum_vessel:
 	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/vacuum_vessel.step $(PARA_DIR)/vacuum_vessel.step
 
 # ============================================================
-# cut — first_wall を Z 軸まわりの扇形で切る
-#   --start/-s, --end/-e は τ (= 2π) 単位の有理数。形式 (+|-)?\d+(/\d+)? のみ。
-#   例: -s 0 -e 1/2 で半周、-s 0 -e 1/4 で nfp=4 の 1 周期分、-s -1/6 -e 1/6 で非対称。
-#   --cut/-c (扇形内側を残す) と --union/-u (扇形を除去) は排他必須。
-#   内部は line+arc+line の閉 wire を extrude した扇柱と boolean 演算する方式で、
-#   旧 half-space 方式の div>=3 empty 問題は回避済み。
-# ============================================================
-cut: cut-first-wall
-
-cut-first-wall: vessel
-	cargo run --release -- cut --cut -i $(OUT_DIR)/first_wall.step -o $(OUT_DIR)/first_wall_half.step -s 0 -e 1/2
-
-# ============================================================
-# plasma — VMEC LCFS (s=1.0) を複数 (M, N) 解像度で B-spline STEP 化
-#   index_rz 直接 (スプライン補間なし)、scale=1 (m) で生 VMEC 単位。
-#   出力: out/plasma_M{m}_N{n}.step を pair リスト分。
-#   phi=0/2π seam の Nyquist aliasing 依存性を viewer で並べて切り分ける。
-# ============================================================
-plasma:
-	cargo run --release -- plasma --input $(VMEC_IN) --output $(OUT_DIR)/
-
-# ============================================================
 # points — $(OUT_DIR) 下の *.csv をすべて matplotlib 3D 散布で重ね表示
 #   header 有無は自動判定、末尾 3 列を (x, y, z) として扱う。
 #   vessel (*.csv) / magnet (magnet_set.csv) ともに m 単位で同スケール、
 #   重ねて viewing してもそのまま整合する。
 #   環境変数 VIEW="azim,elev,roll" / OUTPUT=path で起動時の視点 / 保存先を指定可能。
 # ============================================================
-points:
+points: points-save
 	uv run tools/view_points.py ./$(OUT_DIR)
 
-# points-save — ヘッドレスで $(OUT_DIR)/points.png に保存 (make points を OUTPUT 付きで再帰呼び出し)
 points-save:
-	OUTPUT=$(OUT_DIR)/points.png $(MAKE) points
-
-# ============================================================
-# magnet — coils.example から長方形断面 sweep で magnet_set.step を生成 (m 単位)
-# ============================================================
-magnet:
-	cargo run --release -- magnet --input $(COILS_IN) --output $(MAG_OUT)
+	OUTPUT=$(OUT_DIR)/points.png uv run tools/view_points.py ./$(OUT_DIR)
 
 # ============================================================
 # showcase — 核融合炉の内部を覗かせる cutaway STEP (+ 同名 SVG) を生成
@@ -123,20 +89,19 @@ magnet:
 #   extras (magnet) は build_sector の rainbow をそのまま preserve。
 #   同名 out/showcase.svg も自動生成 (-X 方向投影、隠線 + shading)。
 # ============================================================
-SHOWCASE_TMP := $(OUT_DIR)/_showcase
-showcase: vessel
-	mkdir -p $(SHOWCASE_TMP)
-	cargo run --release -- cut --union -i $(OUT_DIR)/first_wall.step    -o $(SHOWCASE_TMP)/first_wall.step    -s -1/36 -e 1/36
-	cargo run --release -- cut --union -i $(OUT_DIR)/breeder.step       -o $(SHOWCASE_TMP)/breeder.step       -s -1/18 -e 1/18
-	cargo run --release -- cut --union -i $(OUT_DIR)/back_wall.step     -o $(SHOWCASE_TMP)/back_wall.step     -s -1/12 -e 1/12
-	cargo run --release -- cut --union -i $(OUT_DIR)/shield.step        -o $(SHOWCASE_TMP)/shield.step        -s -1/9  -e 1/9
-	cargo run --release -- cut --union -i $(OUT_DIR)/vacuum_vessel.step -o $(SHOWCASE_TMP)/vacuum_vessel.step -s -5/36 -e 5/36
+showcase: run
+	mkdir -p $(OUT_DIR)/showcase
+	cargo run --release -- cut --union -i $(OUT_DIR)/first_wall.step    -o $(OUT_DIR)/showcase/first_wall.step    -s -1/36 -e 1/36
+	cargo run --release -- cut --union -i $(OUT_DIR)/breeder.step       -o $(OUT_DIR)/showcase/breeder.step       -s -1/18 -e 1/18
+	cargo run --release -- cut --union -i $(OUT_DIR)/back_wall.step     -o $(OUT_DIR)/showcase/back_wall.step     -s -1/12 -e 1/12
+	cargo run --release -- cut --union -i $(OUT_DIR)/shield.step        -o $(OUT_DIR)/showcase/shield.step        -s -1/9  -e 1/9
+	cargo run --release -- cut --union -i $(OUT_DIR)/vacuum_vessel.step -o $(OUT_DIR)/showcase/vacuum_vessel.step -s -5/36 -e 5/36
 	cargo run --release -- compound \
 		-i $(OUT_DIR)/chamber.step \
-		-i $(SHOWCASE_TMP)/first_wall.step \
-		-i $(SHOWCASE_TMP)/breeder.step \
-		-i $(SHOWCASE_TMP)/back_wall.step \
-		-i $(SHOWCASE_TMP)/shield.step \
-		-i $(SHOWCASE_TMP)/vacuum_vessel.step \
+		-i $(OUT_DIR)/showcase/first_wall.step \
+		-i $(OUT_DIR)/showcase/breeder.step \
+		-i $(OUT_DIR)/showcase/back_wall.step \
+		-i $(OUT_DIR)/showcase/shield.step \
+		-i $(OUT_DIR)/showcase/vacuum_vessel.step \
 		--input-magnet $(COILS_IN) \
 		-o $(OUT_DIR)/showcase.step
