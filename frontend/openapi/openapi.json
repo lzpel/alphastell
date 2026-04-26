@@ -1,0 +1,242 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "alphastell API",
+    "version": "0.1.0",
+    "description": "HTTP facade over the alphastell vessel/magnet subcommands. Upload a VMEC\nNetCDF or MAKEGRID coils file and receive the generated STEP + CSV\nartifacts as a list of base64-encoded files."
+  },
+  "tags": [],
+  "paths": {
+    "/magnet": {
+      "post": {
+        "operationId": "uploadCoils",
+        "summary": "Generate a magnet_set STEP from a MAKEGRID coils file",
+        "description": "Equivalent to the `magnet` subcommand. Accepts a MAKEGRID-format coils\nfile (e.g. `coils.example`) and returns 2 artifacts: a STEP of the swept\nrectangular-section coils and its CSV point cloud.",
+        "parameters": [
+          {
+            "name": "width",
+            "in": "query",
+            "required": false,
+            "description": "Rectangular cross-section width [m]. Default 0.4 m matches parastell.",
+            "schema": {
+              "type": "number",
+              "format": "double",
+              "default": 0.4
+            },
+            "explode": false
+          },
+          {
+            "name": "thickness",
+            "in": "query",
+            "required": false,
+            "description": "Rectangular cross-section thickness [m]. Default 0.5 m matches parastell.",
+            "schema": {
+              "type": "number",
+              "format": "double",
+              "default": 0.5
+            },
+            "explode": false
+          },
+          {
+            "name": "toroidal_extent",
+            "in": "query",
+            "required": false,
+            "description": "Toroidal extent [deg]. 360 keeps all coils; values below 360 are reserved for future use.",
+            "schema": {
+              "type": "number",
+              "format": "double",
+              "default": 360
+            },
+            "explode": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Generated in-vessel artifacts (6 STEP + 6 CSV).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FileEntry"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input file or parameters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Processing failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "body": {
+                    "type": "string",
+                    "format": "byte"
+                  }
+                },
+                "required": [
+                  "body"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vessel": {
+      "post": {
+        "operationId": "uploadVmec",
+        "summary": "Generate in-vessel components from a VMEC NetCDF file",
+        "description": "Equivalent to the `vessel` subcommand. Accepts a VMEC `wout_*.nc` file\nand returns 12 artifacts: 6 STEP solids (chamber, first_wall, breeder,\nback_wall, shield, vacuum_vessel) and their corresponding CSV point\nclouds.",
+        "parameters": [
+          {
+            "name": "wall_s",
+            "in": "query",
+            "required": false,
+            "description": "Reference flux surface. Parastell default 1.08 (just outside the LCFS).",
+            "schema": {
+              "type": "number",
+              "format": "double",
+              "default": 1.08
+            },
+            "explode": false
+          },
+          {
+            "name": "scale",
+            "in": "query",
+            "required": false,
+            "description": "Unit scaling factor. VMEC is in meters; 100 converts to centimeters to match the parastell default.",
+            "schema": {
+              "type": "number",
+              "format": "double",
+              "default": 100
+            },
+            "explode": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Generated in-vessel artifacts (6 STEP + 6 CSV).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FileEntry"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input file or parameters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Processing failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "body": {
+                    "type": "string",
+                    "format": "byte"
+                  }
+                },
+                "required": [
+                  "body"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "FileEntry": {
+        "type": "object",
+        "required": [
+          "filename",
+          "content_type",
+          "data"
+        ],
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "Output filename, e.g. `chamber.step` or `magnet_set.csv`."
+          },
+          "content_type": {
+            "type": "string",
+            "description": "MIME type hint for the payload (e.g. `model/step`, `text/csv`)."
+          },
+          "data": {
+            "type": "string",
+            "format": "base64",
+            "description": "Base64-encoded file contents."
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Default server",
+      "variables": {}
+    }
+  ]
+}

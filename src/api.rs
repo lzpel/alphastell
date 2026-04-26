@@ -1,10 +1,10 @@
 use crate::openapi::{self, axum_router, print_axum_router};
 
-struct AlphaStellServer {
+struct AlphaStellApi {
 }
-impl openapi::ApiInterface for AlphaStellServer {
+impl openapi::ApiInterface for AlphaStellApi {
 }	
-impl openapi::ApiInterfaceAxum for AlphaStellServer {
+impl openapi::ApiInterfaceAxum for AlphaStellApi {
 	
 }
 
@@ -12,7 +12,7 @@ impl openapi::ApiInterfaceAxum for AlphaStellServer {
 #[tokio::main]
 pub async fn run(port: u16) {
 	print_axum_router(port);
-	let api = AlphaStellServer {};
+	let api = AlphaStellApi {};
 	let app = axum_router(api).layer(axum::extract::DefaultBodyLimit::disable());
 	let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}"))
 		.await

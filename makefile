@@ -1,5 +1,5 @@
 export MSYS_NO_PATHCONV := 1
-MAKE_RECURSIVE_DIRS := openapi frontend
+MAKE_RECURSIVE_DIRS := frontend/openapi frontend
 export MAKE_RECURSIVE = time printf '%s\n' $(MAKE_RECURSIVE_DIRS) | xargs -IX sh -c '$(MAKE) -C X $@ || exit 255'
 
 VMEC_IN  := parastell/examples/wout_vmec.nc
@@ -26,16 +26,16 @@ $(COILS_IN): $(VMEC_IN)
 run: vessel magnet
 
 # ============================================================
-# デモサーバーを起動
+# generate frontend
 # ============================================================
 
-server-generate:
+frontend-generate:
 	bash -c "$${MAKE_RECURSIVE}"
-server-run:
+frontend-run:
 	cargo install --root out rebab
 	out/bin/rebab --frontend 127.0.0.1:8000 --rule "prefix=/api,port=7998,command=cargo run -- server" --rule "port=7999,command=make -C frontend server-run"
 	# bash -c "$${MAKE_RECURSIVE}"
-server-deploy:
+frontend-deploy:
 	bash -c "$${MAKE_RECURSIVE}"
 
 # ============================================================
@@ -50,7 +50,7 @@ vessel: $(VMEC_IN)
 # magnet — coils.example から長方形断面 sweep で magnet_set.step を生成 (m 単位)
 # ============================================================
 magnet: $(COILS_IN)
-	cargo run --release -- magnet --scale 100 --input $(COILS_IN) --output $(OUT_DIR)/magnet_set.step
+	cargo run --release -- magnet --scale 100 --input $(COILS_IN) --output $(OUT_DIR)/
 
 # ============================================================
 # validate — 各層を parastell 参照と体積比較
