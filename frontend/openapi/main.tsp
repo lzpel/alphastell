@@ -57,10 +57,10 @@ model ServerErrorResponse {
  * clouds.
  */
 @summary("Generate in-vessel components from a VMEC NetCDF file")
-@operationId("uploadVmec")
+@operationId("vessel")
 @route("/vessel")
 @post
-op uploadVmec(
+op vessel(
 	/** Reference flux surface. Parastell default 1.08 (just outside the LCFS). */
 	@query wall_s?: float64 = 1.08,
 
@@ -76,10 +76,10 @@ op uploadVmec(
  * rectangular-section coils and its CSV point cloud.
  */
 @summary("Generate a magnet_set STEP from a MAKEGRID coils file")
-@operationId("uploadCoils")
+@operationId("magnet")
 @route("/magnet")
 @post
-op uploadCoils(
+op magnet(
 	/** Rectangular cross-section width [m]. Default 0.4 m matches parastell. */
 	@query width?: float64 = 0.4,
 
