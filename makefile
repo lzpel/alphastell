@@ -1,3 +1,7 @@
+export MSYS_NO_PATHCONV := 1
+MAKE_RECURSIVE_DIRS := openapi frontend
+export MAKE_RECURSIVE = time printf '%s\n' $(MAKE_RECURSIVE_DIRS) | xargs -IX sh -c '$(MAKE) -C X $@ || exit 255'
+
 VMEC_IN  := parastell/examples/wout_vmec.nc
 COILS_IN := parastell/examples/coils.example
 PARA_DIR := parastell/examples/alphastell_full
@@ -21,13 +25,18 @@ $(COILS_IN): $(VMEC_IN)
 
 run: vessel magnet
 
-server:
-	cargo run -- server
+# ============================================================
+# デモサーバーを起動
+# ============================================================
 
-# Rust の mandolin crate を使ったコード自動生成
-openapi:
-	cargo install --root out mandolin
-	out/bin/mandolin -i openapi.json -o src/openapi.rs
+server-generate:
+	bash -c "$${MAKE_RECURSIVE}"
+server-run:
+	cargo install --root out rebab
+	out/bin/rebab --frontend 127.0.0.1:8000 --rule "prefix=/api,port=7998,command=cargo run -- server" --rule "port=7999,command=make -C frontend server-run"
+	# bash -c "$${MAKE_RECURSIVE}"
+server-deploy:
+	bash -c "$${MAKE_RECURSIVE}"
 
 # ============================================================
 # vessel — 6 層 in-vessel build を一括生成
