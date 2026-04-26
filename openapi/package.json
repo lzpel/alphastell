@@ -1,0 +1,12 @@
+{
+  "dependencies": {
+    "@hey-api/openapi-ts": "^0.96.1",
+    "@typespec/compiler": "^1.11.0",
+    "@typespec/http": "^1.11.0",
+    "@typespec/openapi3": "^1.11.0"
+  },
+  "scripts": {
+    "tsp": "tsp",
+    "openapi-ts": "openapi-ts"
+  }
+}

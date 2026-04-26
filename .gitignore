@@ -1,5 +1,6 @@
-/target
-/out
+target/
+out/
 *.step
 *.svg
 out.*
+node_modules/
