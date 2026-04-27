@@ -45,6 +45,9 @@ const nextConfig: NextConfig = {
 	experimental: {
 		externalDir: true,
 	},
+	// rebab 等で別ポート経由 (例 :8000 → :7999) でアクセスする場合、
+	// Next 16 の cross-origin guard で /_next/* が 403 になるので明示許可。
+	allowedDevOrigins: ["127.0.0.1", "localhost", "*"],
 }
 ;export default nextConfig;
 endef
