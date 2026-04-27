@@ -33,7 +33,7 @@ frontend-generate:
 	bash -c "$${MAKE_RECURSIVE}"
 frontend-run:
 	cargo install --root out rebab
-	out/bin/rebab --frontend 127.0.0.1:8000 --rule "prefix=/api,port=7998,command=cargo run -- server" --rule "port=7999,command=make -C frontend server-run"
+	out/bin/rebab --frontend 127.0.0.1:8000 --rule "prefix=/api,port=7998,command=cargo run -- server" --rule "port=7999,command=make -C frontend frontend-run"
 	# bash -c "$${MAKE_RECURSIVE}"
 frontend-deploy:
 	bash -c "$${MAKE_RECURSIVE}"
