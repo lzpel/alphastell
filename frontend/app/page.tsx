@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { parseTar } from 'nanotar';
-import { magnet, vessel } from '@/out/client/sdk.gen';
-import { client } from '@/out/client/client.gen';
+import { magnet, vessel } from '@/client/sdk.gen';
+import { client } from '@/client/client.gen';
 
 // rebab で /api → cargo run -- server に proxy される前提。
 // 直接 :8080 を叩く場合は NEXT_PUBLIC_API_BASE で上書き。
