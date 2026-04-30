@@ -28,6 +28,7 @@ mod coils;
 mod compound;
 mod cut;
 mod magnet;
+mod strip_netcdf;
 mod validate;
 mod vessel;
 mod vmec;
@@ -157,6 +158,19 @@ enum Command {
 		#[arg(required = true)]
 		inputs: Vec<PathBuf>,
 	},
+	/// NetCDF3 ファイルから `--include` で指定した変数だけ残したスリム版を書き出す。
+	/// プリセット VMEC を 4 変数 (`xm xn rmnc zmns`) だけにして数百 KB に縮める用途。
+	StripNetcdf {
+		/// 入力 NetCDF3 ファイル
+		#[arg(long)]
+		input: PathBuf,
+		/// 出力 NetCDF3 ファイル
+		#[arg(long)]
+		output: PathBuf,
+		/// 残す変数名 (複数指定可: `--include rmnc --include zmns ...`)
+		#[arg(long, required = true)]
+		include: Vec<String>,
+	},
 }
 
 fn main() -> Result<()> {
@@ -228,5 +242,8 @@ fn main() -> Result<()> {
 			Ok(())
 		}
 		Command::Bbox { inputs } => bbox::run(&inputs),
+		Command::StripNetcdf { input, output, include } => {
+			strip_netcdf::run(&input, &output, &include)
+		}
 	}
 }
