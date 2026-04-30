@@ -5,3 +5,15 @@ out/
 out.*
 node_modules/
 frontend/client/
+cdk.out/
+parastell/
+lambda360form/
+.git/
+.github/
+.claude/
+figure/
+notes/
+tools/
+pyproject.toml
+uv.lock
+#EOF_DOCKERIGNORE
