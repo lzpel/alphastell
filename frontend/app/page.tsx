@@ -1,16 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { parseTar } from 'nanotar';
 import { magnet, vessel } from '@/client/sdk.gen';
 import { client } from '@/client/client.gen';
 import GlbViewer from './view';
+import { DownloadList, Entry, Spinner } from './components';
 
 // rebab で /api → cargo run -- server に proxy される前提。
 // 直接 :8080 を叩く場合は NEXT_PUBLIC_API_BASE で上書き。
 client.setConfig({ baseUrl: process.env.NEXT_PUBLIC_API_BASE ?? '/api' });
-
-type Entry = { name: string; url: string; size: number };
 
 async function fileToBase64(file: File): Promise<string> {
 	return new Promise((resolve, reject) => {
@@ -35,71 +34,6 @@ function tarToEntries(buf: ArrayBuffer): Entry[] {
 		}));
 }
 
-/** 処理中インジケータ。CSS keyframes は styled-jsx で同梱。 */
-export function Spinner() {
-	return (
-		<>
-			<span className="spinner" aria-hidden="true" />
-			<style jsx>{`
-				.spinner {
-					display: inline-block;
-					width: 12px;
-					height: 12px;
-					margin-right: 6px;
-					border: 2px solid #ccc;
-					border-top-color: #333;
-					border-radius: 50%;
-					animation: spin 0.8s linear infinite;
-					vertical-align: middle;
-				}
-				@keyframes spin {
-					to {
-						transform: rotate(360deg);
-					}
-				}
-			`}</style>
-		</>
-	);
-}
-
-type DownloadListProps = {
-	entries: Entry[];
-	onToggleView?: (entry: Entry) => void;
-	activeUrls?: string[];
-};
-
-export function DownloadList(props: DownloadListProps) {
-	const active = new Set(props.activeUrls ?? []);
-	return (
-		<ul>
-			{props.entries.map((e) => {
-				const isGlb = e.name.toLowerCase().endsWith('.glb');
-				const isActive = active.has(e.url);
-				return (
-					<li key={e.name}>
-						{isGlb && props.onToggleView && (
-							<>
-								<label style={{ marginRight: 6 }}>
-									<input
-										type="checkbox"
-										checked={isActive}
-										onChange={() => props.onToggleView!(e)}
-									/>{' '}
-									view
-								</label>
-							</>
-						)}
-						<a href={e.url} download={e.name}>
-							{e.name}
-						</a>{' '}
-						({e.size} bytes)
-					</li>
-				);
-			})}
-		</ul>
-	);
-}
-
 export default function Home() {
 	const [vesselFile, setVesselFile] = useState<File | null>(null);
 	const [vesselUploading, setVesselUploading] = useState(false);
@@ -111,13 +45,40 @@ export default function Home() {
 	const [magnetEntries, setMagnetEntries] = useState<Entry[]>([]);
 	const [magnetStatus, setMagnetStatus] = useState<string>('');
 
-	// 現在ビュワーに表示している GLB の Blob URL 群 (vessel/magnet 共通)。
-	const [viewUrls, setViewUrls] = useState<string[]>([]);
-	const toggleView = (e: Entry) => {
-		setViewUrls((prev) =>
+	// 非表示の GLB の Blob URL 群 (vessel/magnet 共通)。デフォルト空 = 全て表示。
+	// チェックボックスを入れた層だけビュワーから除外する。
+	const [hiddenUrls, setHiddenUrls] = useState<string[]>([]);
+	const toggleHide = (e: Entry) => {
+		setHiddenUrls((prev) =>
 			prev.includes(e.url) ? prev.filter((u) => u !== e.url) : [...prev, e.url],
 		);
 	};
+
+	// 全 .glb エントリから非表示分を引いた URL リストをビュワーに渡す。
+	const visibleUrls = [...vesselEntries, ...magnetEntries]
+		.filter((e) => e.name.toLowerCase().endsWith('.glb') && !hiddenUrls.includes(e.url))
+		.map((e) => e.url);
+
+	// プリセットファイル (frontend/public/) を fetch して `<input type="file">` に
+	// 流し込む。input の `files` は通常 read-only だが、DataTransfer 経由で
+	// プログラム的にセットできる (Chrome/Firefox/Safari いずれもサポート)。
+	const vesselInputRef = useRef<HTMLInputElement>(null);
+	const magnetInputRef = useRef<HTMLInputElement>(null);
+	async function usePreset(url: string, filename: string, target: 'vessel' | 'magnet') {
+		const res = await fetch(url);
+		const blob = await res.blob();
+		const file = new File([blob], filename, {
+			type: blob.type || 'application/octet-stream',
+		});
+		const inputRef = target === 'vessel' ? vesselInputRef : magnetInputRef;
+		if (inputRef.current) {
+			const dt = new DataTransfer();
+			dt.items.add(file);
+			inputRef.current.files = dt.files;
+		}
+		if (target === 'vessel') setVesselFile(file);
+		else setMagnetFile(file);
+	}
 
 	async function uploadVessel(f: File) {
 		setVesselEntries([]);
@@ -180,11 +141,20 @@ export default function Home() {
 						VMEC NetCDF (wout_*.nc) → 6 layers × {`{step,glb,csv}`}
 					</p>
 					<input
+						ref={vesselInputRef}
 						type="file"
 						accept=".nc"
 						onChange={(e) => setVesselFile(e.target.files?.[0] ?? null)}
 					/>
-					<br />
+					<div style={{ fontSize: 12, margin: '4px 0' }}>
+						Preset: <a href="/wout_vmec.nc" download>wout_vmec.nc</a>{' '}
+						<button
+							type="button"
+							onClick={() => usePreset('/wout_vmec.nc', 'wout_vmec.nc', 'vessel')}
+						>
+							use preset
+						</button>
+					</div>
 					<button
 						type="button"
 						disabled={!vesselFile || vesselUploading}
@@ -203,7 +173,7 @@ export default function Home() {
 						{vesselUploading && <Spinner />}
 						{vesselStatus}
 					</p>
-					<DownloadList entries={vesselEntries} onToggleView={toggleView} activeUrls={viewUrls} />
+					<DownloadList entries={vesselEntries} onToggleHide={toggleHide} hiddenUrls={hiddenUrls} />
 				</section>
 
 				<section>
@@ -212,10 +182,19 @@ export default function Home() {
 						MAKEGRID coils → magnet_set.{`{step,glb,csv}`}
 					</p>
 					<input
+						ref={magnetInputRef}
 						type="file"
 						onChange={(e) => setMagnetFile(e.target.files?.[0] ?? null)}
 					/>
-					<br />
+					<div style={{ fontSize: 12, margin: '4px 0' }}>
+						Preset: <a href="/coils.example" download>coils.example</a>{' '}
+						<button
+							type="button"
+							onClick={() => usePreset('/coils.example', 'coils.example', 'magnet')}
+						>
+							use preset
+						</button>
+					</div>
 					<button
 						type="button"
 						disabled={!magnetFile || magnetUploading}
@@ -234,12 +213,12 @@ export default function Home() {
 						{magnetUploading && <Spinner />}
 						{magnetStatus}
 					</p>
-					<DownloadList entries={magnetEntries} onToggleView={toggleView} activeUrls={viewUrls} />
+					<DownloadList entries={magnetEntries} onToggleHide={toggleHide} hiddenUrls={hiddenUrls} />
 				</section>
 			</aside>
 
 			<div style={{ flex: 1, minWidth: 0, height: '100%' }}>
-				<GlbViewer urls={viewUrls} height="100%" />
+				<GlbViewer urls={visibleUrls} height="100%" />
 			</div>
 		</main>
 	);
