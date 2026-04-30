@@ -18,11 +18,10 @@ struct AlphaStellApi {}
 impl ApiInterface for AlphaStellApi {
 	async fn vessel(&self, req: VesselRequest) -> VesselResponse {
 		let bytes = req.body.body;
-		let wall_s = req.wall_s.unwrap_or(1.08);
 		let scale = req.scale.unwrap_or(100.0);
 
 		let join = tokio::task::spawn_blocking(move || -> Result<Vec<u8>, String> {
-			let arts = crate::vessel::run(Cursor::new(bytes), wall_s, scale)
+			let arts = crate::vessel::run(Cursor::new(bytes), scale)
 				.map_err(|e| e.to_string())?;
 			artifacts_to_tar(&arts)
 		})

@@ -1,80 +1,163 @@
-//! `vessel` サブコマンド。VMEC LCFS の外側に parastell 互換の 6 層 in-vessel
-//! 構造を `VmecData::mesh()` ベースで構築し、個別の STEP ファイルとして書き出す。
+//! `vessel` subcommand. Builds parastell-compatible 6-layer in-vessel structures
+//! outside the VMEC LCFS via `VmecData::interpolate()` and writes each layer as a
+//! separate STEP file.
 //!
-//! # 層構造 (内側 → 外側)
+//! # Layer structure (inside → outside)
 //!
-//! | index | ファイル            | 厚み [cm] | 役割                       |
-//! |-------|---------------------|-----------|----------------------------|
-//! | 0     | chamber.step        | —         | プラズマ / 真空領域        |
-//! | 1     | first_wall.step     | 5         | プラズマ対向壁 (FW)        |
-//! | 2     | breeder.step        | 50 (*)    | トリチウム増殖ブランケット |
-//! | 3     | back_wall.step      | 5         | 構造背壁                   |
-//! | 4     | shield.step         | 50        | 中性子遮蔽                 |
-//! | 5     | vacuum_vessel.step  | 10        | 真空容器 (VV)              |
+//! | index | file                | thickness [cm] | role                              |
+//! |-------|---------------------|----------------|-----------------------------------|
+//! | 0     | chamber.step        | —              | plasma / vacuum region            |
+//! | 1     | first_wall.step     | 5              | plasma-facing wall (FW)           |
+//! | 2     | breeder.step        | 50 (*)         | tritium breeding blanket          |
+//! | 3     | back_wall.step      | 5              | structural back wall              |
+//! | 4     | shield.step         | 50             | neutron shield                    |
+//! | 5     | vacuum_vessel.step  | 10             | vacuum vessel (VV)                |
 //!
-//! (*) parastell 標準の 25〜75 cm poloidal 変動は本実装では 50 cm 固定で近似。
-//!     poloidal matrix 版は `mesh()` を offset-per-(θ,φ) に拡張してから対応予定。
+//! (*) parastell's standard 25–75 cm poloidal variation is approximated here by a
+//!     fixed 50 cm. Per-layer poloidal-varying offset can be expressed by swapping
+//!     the `surface` closure of that layer.
 //!
-//! # アルゴリズム
+//! # Algorithm
 //!
-//! wall_s (既定 1.08) を基準面として、`VmecData::mesh(..., offset, Planar)` を
-//! 呼んで 6 枚の offset 曲面を得る。各曲面から閉 B-spline solid (filled) を作り、
-//! 隣接 2 solid の **boolean subtract** で殻層を切り出す。chamber は一番内側の
-//! filled solid をそのまま使う。
+//! Register layers in order (inside → outside) via `vessel::builder()`. Each layer
+//! is defined by a `(phi, theta) -> [x,y,z]` surface closure. `build()` samples
+//! each layer on an M×N grid, constructs a closed B-spline filled solid, and
+//! carves shells via **boolean subtract** between adjacent solids. The chamber
+//! keeps the innermost filled solid as-is.
 //!
-//! shell API (`cadrum::Solid::shell`) は使わない。代わりに法線方向オフセットを
-//! `mesh()` の `NormalKind::Planar` (parastell 互換、constant-φ 断面内法線) に
-//! 委ねる。
+//! The shell API (`cadrum::Solid::shell`) is not used. Normal-direction offsets
+//! are delegated to `VmecData::interpolate(..., NormalKind::Planar)` (parastell-
+//! compatible, in-cross-section normal at constant φ).
 //!
-//! # 既知の問題
+//! # Known issues
 //!
-//! cadrum (OCCT) の `Solid::bspline(grid, periodic=true)` は周期 U seam で
-//! C¹ を保証せず、chamber などの surface に mm 級の dent を残す
-//! (詳細・再現コード・OCCT 内部の診断は lzpel/cadrum#120)。実用上許容して
-//! 前進する方針 — 解像度 M=128, N=48 で可視性は小さくなる。
-//! `examples/08_bspline_with_waves.rs` は cadrum 側で修正が入った際の回帰検証に利用可能。
+//! cadrum (OCCT) `Solid::bspline(grid, periodic=true)` does not guarantee C¹
+//! continuity at the periodic U seam, leaving mm-scale dents on chamber-like
+//! surfaces (see lzpel/cadrum#120 for details, repro, and OCCT-internal
+//! diagnosis). We accept this and move forward — at M=128, N=48 the artifact
+//! becomes visually small. `examples/08_bspline_with_waves.rs` can serve as a
+//! regression check once cadrum gets a fix.
 
 use cadrum::{DVec3, Solid};
+use std::f64::consts::TAU;
 use std::io::{Read, Seek};
 
 use crate::Result;
 use crate::artifact::Artifact;
 use crate::vmec::{NormalKind, VmecData};
 
-/// トーラス方向 (φ 軸) のリブ本数。nfp=4 の倍数にして周期対称性と揃える。
-/// M=128 は parastell 準拠 (M=240) よりやや低解像度だが、cadrum#120 の seam dent が
-/// 可視性を下げつつ boolean_subtract の所要時間も実用レベルに収まるバランス値。
-const M_TORO: usize = 128;
-/// 断面方向 (θ 軸) のリブ 1 本あたりの点数。
-const N_POLO: usize = 48;
+type SurfaceFn<'a> = Box<dyn Fn(f64, f64) -> [f64; 3] + 'a>;
 
-// 層の厚み [m] (VMEC ネイティブ単位)
-const THICK_FW_M: f64 = 0.05;
-const THICK_BREEDER_M: f64 = 0.50;
-const THICK_BACK_WALL_M: f64 = 0.05;
-const THICK_SHIELD_M: f64 = 0.50;
-const THICK_VV_M: f64 = 0.10;
+struct LayerSpec<'a> {
+	name: &'static str,
+	color: &'static str,
+	surface: SurfaceFn<'a>,
+}
 
-/// 出力ファイル名と可視化カラー (内側 → 外側)。
-const LAYERS: [(&str, &str); 6] = [
-	("chamber", "cyan"),
-	("first_wall", "red"),
-	("breeder", "orange"),
-	("back_wall", "gold"),
-	("shield", "green"),
-	("vacuum_vessel", "blue"),
-];
-
-/// vessel サブコマンドのエントリポイント。
+/// Builder that registers layers in order and produces nested solids on `build()`.
 ///
-/// # 引数
-/// - `input` : VMEC NetCDF ストリーム (`Read + Seek`)。CLI ではファイルを `File::open` で渡し、
-///             API ではアップロード bytes を `Cursor` で渡す。
-/// - `wall_s`: 基準磁束面 (parastell 既定 1.08)。
-/// - `scale` : VMEC の m 単位から出力単位への倍率 (100 → cm)。
+/// Insertion order is **inside → outside**. `build()` returns layer 0 as a filled
+/// solid and layers i ≥ 1 as `solid[i].subtract([&solid[i-1]])` shells.
+pub struct VesselBuilder<'a> {
+	grid_phi: usize,
+	grid_theta: usize,
+	scale: f64,
+	layers: Vec<LayerSpec<'a>>,
+}
+
+impl<'a> VesselBuilder<'a> {
+
+	/// Construct a `VesselBuilder`. `grid_phi × grid_theta` is the B-spline
+	/// sampling resolution; `scale` is the multiplier from VMEC m to output units
+	/// (100 → cm).
+	pub fn builder(grid_phi: usize, grid_theta: usize, scale: f64) -> Self {
+		VesselBuilder {
+			grid_phi,
+			grid_theta,
+			scale,
+			layers: Vec::new(),
+		}
+	}
+	/// Append a single layer. `surface(phi, theta) -> [x,y,z]` returns a point in
+	/// VMEC m units.
+	pub fn layer<F>(mut self, name: &'static str, color: &'static str, surface: F) -> Self
+	where
+		F: Fn(f64, f64) -> [f64; 3] + 'a,
+	{
+		self.layers.push(LayerSpec {
+			name,
+			color,
+			surface: Box::new(surface),
+		});
+		self
+	}
+
+	pub fn build(self) -> Result<Vec<Artifact>> {
+		let m = self.grid_phi;
+		let n = self.grid_theta;
+		println!(
+			"Building {} nested filled solids (scale = {}, grid = {}×{})...",
+			self.layers.len(),
+			self.scale,
+			m,
+			n
+		);
+
+		let mut full_solids: Vec<Solid> = Vec::with_capacity(self.layers.len());
+		let mut layer_points: Vec<Vec<DVec3>> = Vec::with_capacity(self.layers.len());
+		for (i, spec) in self.layers.iter().enumerate() {
+			println!("  [{}] sampling layer {}", i, spec.name);
+			let pts: Vec<DVec3> = (0..m)
+				.flat_map(|ii| {
+					let phi = TAU * (ii as f64) / (m as f64);
+					(0..n).map(move |jj| {
+						let theta = TAU * (jj as f64) / (n as f64);
+						DVec3::from((spec.surface)(phi, theta)) * self.scale
+					})
+				})
+				.collect();
+			let solid = Solid::bspline(m, n, true, |ii, jj| pts[ii * n + jj])
+				.map_err(|e| format!("bspline #{}: {:?}", i, e))?;
+			full_solids.push(solid);
+			layer_points.push(pts);
+		}
+
+		let mut artifacts: Vec<Artifact> = Vec::with_capacity(self.layers.len());
+		for (i, spec) in self.layers.iter().enumerate() {
+			println!("Building layer: {}", spec.name);
+			let solids: Vec<Solid> = if i == 0 {
+				vec![full_solids[0].clone()]
+			} else {
+				full_solids[i]
+					.subtract([&full_solids[i - 1]])
+					.map_err(|e| format!("subtract {}: {:?}", spec.name, e))?
+			};
+			if solids.is_empty() {
+				return Err(format!("layer {} produced no solid", spec.name).into());
+			}
+			let colored: Vec<Solid> = solids.into_iter().map(|s| s.color(spec.color)).collect();
+			artifacts.push(Artifact {
+				name: spec.name.to_string(),
+				solids: colored,
+				points: layer_points[i].clone(),
+			});
+		}
+		Ok(artifacts)
+	}
+}
+
+/// Entry point for the `vessel` subcommand.
 ///
-/// 戻り値は `Artifact` 6 要素 (LAYERS 順)。`Artifact::write(out_dir, name)` で書き出せる。
-pub fn run(input: impl Read + Seek + 'static, wall_s: f64, scale: f64) -> Result<Vec<Artifact>> {
+/// # Arguments
+/// - `input` : VMEC NetCDF stream (`Read + Seek`). The CLI passes a `File::open`,
+///             the API passes uploaded bytes wrapped in `Cursor`.
+/// - `scale` : Multiplier from VMEC m to output units (100 → cm).
+///
+/// `wall_s` is hard-coded to 1.08 (parastell default).
+///
+/// Returns `Artifact` with 6 elements (inside → outside). Use
+/// `Artifact::write(out_dir, name)` to write them out.
+pub fn run(input: impl Read + Seek + 'static, scale: f64) -> Result<Vec<Artifact>> {
 	let vmec = VmecData::load(input)?;
 	println!(
 		"  ns = {}, mnmax = {}, s_max in grid = {}",
@@ -83,61 +166,36 @@ pub fn run(input: impl Read + Seek + 'static, wall_s: f64, scale: f64) -> Result
 		vmec.s_grid.last().unwrap()
 	);
 
-	// wall_s 基準面からの累積 offset [m]。index 0 が chamber 外周 = FW 内周。
-	let offsets_m: [f64; 6] = [
-		0.0,
-		THICK_FW_M,
-		THICK_FW_M + THICK_BREEDER_M,
-		THICK_FW_M + THICK_BREEDER_M + THICK_BACK_WALL_M,
-		THICK_FW_M + THICK_BREEDER_M + THICK_BACK_WALL_M + THICK_SHIELD_M,
-		THICK_FW_M + THICK_BREEDER_M + THICK_BACK_WALL_M + THICK_SHIELD_M + THICK_VV_M,
-	];
+	/// Number of ribs along the toroidal direction (φ axis). Kept as a multiple
+	/// of nfp=4 to align with the periodic symmetry. M=128 is slightly coarser
+	/// than parastell's M=240, but keeps the cadrum#120 seam dents inconspicuous
+	/// while keeping boolean_subtract time practical.
+	const M_TORO: usize = 128;
+	/// Number of points per rib along the cross-section direction (θ axis).
+	const N_POLO: usize = 48;
 
-	println!(
-		"Building {} nested filled solids (wall_s = {}, scale = {}, grid = {}×{})...",
-		offsets_m.len(),
-		wall_s,
-		scale,
-		M_TORO,
-		N_POLO
-	);
-	let mut full_solids: Vec<Solid> = Vec::with_capacity(offsets_m.len());
-	let mut layer_points: Vec<Vec<DVec3>> = Vec::with_capacity(offsets_m.len());
-	for (i, &o) in offsets_m.iter().enumerate() {
-		println!("  [{}] offset = {:.3} m", i, o);
-		let mesh = vmec.mesh(N_POLO, M_TORO, wall_s, o, NormalKind::Planar);
-		let mut pts: Vec<DVec3> = Vec::with_capacity(M_TORO * N_POLO);
-		for ii in 0..M_TORO {
-			for jj in 0..N_POLO {
-				pts.push(DVec3::from(mesh[ii][jj]) * scale);
-			}
-		}
-		let solid = Solid::bspline(M_TORO, N_POLO, true, |ii, jj| pts[ii * N_POLO + jj])
-			.map_err(|e| format!("bspline #{}: {:?}", i, e))?;
-		full_solids.push(solid);
-		layer_points.push(pts);
-	}
+	// Layer thicknesses [m] (VMEC native units)
+	const THICK_FW_M: f64 = 0.05;
+	const THICK_BREEDER_M: f64 = 0.50;
+	const THICK_BACK_WALL_M: f64 = 0.05;
+	const THICK_SHIELD_M: f64 = 0.50;
+	const THICK_VV_M: f64 = 0.10;
 
-	// chamber は filled、それ以外は outer.subtract([inner])。
-	let mut artifacts: Vec<Artifact> = Vec::with_capacity(LAYERS.len());
-	for (i, (name, color)) in LAYERS.iter().enumerate() {
-		println!("Building layer: {}", name);
-		let solids: Vec<Solid> = if i == 0 {
-			vec![full_solids[0].clone()]
-		} else {
-			full_solids[i]
-				.subtract([&full_solids[i - 1]])
-				.map_err(|e| format!("subtract {}: {:?}", name, e))?
-		};
-		if solids.is_empty() {
-			return Err(format!("layer {} produced no solid", name).into());
-		}
-		let colored: Vec<Solid> = solids.into_iter().map(|s| s.color(*color)).collect();
-		artifacts.push(Artifact { 
-			name: name.to_string(), 
-			solids: colored, points: 
-			layer_points[i].clone()
-		});
-	}
-	Ok(artifacts)
+	let normal = NormalKind::Planar;
+	let wall_s = 1.08;
+	let o0 = 0.0;
+	let o1 = THICK_FW_M;
+	let o2 = o1 + THICK_BREEDER_M;
+	let o3 = o2 + THICK_BACK_WALL_M;
+	let o4 = o3 + THICK_SHIELD_M;
+	let o5 = o4 + THICK_VV_M;
+
+	VesselBuilder::builder(M_TORO, N_POLO, scale)
+		.layer("chamber",       "#FFA500", |phi, theta| vmec.interpolate(phi, theta, wall_s, o0, normal))
+		.layer("first_wall",    "#FFB733", |phi, theta| vmec.interpolate(phi, theta, wall_s, o1, normal))
+		.layer("breeder",       "#FFC966", |phi, theta| vmec.interpolate(phi, theta, wall_s, o2, normal))
+		.layer("back_wall",     "#FFDB99", |phi, theta| vmec.interpolate(phi, theta, wall_s, o3, normal))
+		.layer("shield",        "#FFEDCC", |phi, theta| vmec.interpolate(phi, theta, wall_s, o4, normal))
+		.layer("vacuum_vessel", "#FFFFFF", |phi, theta| vmec.interpolate(phi, theta, wall_s, o5, normal))
+		.build()
 }
