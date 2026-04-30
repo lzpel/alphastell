@@ -12,7 +12,7 @@ using OpenAPI;
  */
 @service(#{ title: "alphastell API" })
 @info(#{ version: "0.1.0" })
-@server("/", "Default server")
+@server("/api", "Main server")
 namespace AlphastellApi;
 
 @error
