@@ -190,12 +190,14 @@ pub fn run(input: impl Read + Seek + 'static, scale: f64) -> Result<Vec<Artifact
 	let o4 = o3 + THICK_SHIELD_M;
 	let o5 = o4 + THICK_VV_M;
 
+	// 6 層の色: HSV(H, 1, 1) で H = 0.0 (赤) → 0.25 (黄緑) を等間隔に分配。
+	// 計算結果: i/5 * 0.25 をビルド時に丸めて #RRGGBB を埋め込み。
 	VesselBuilder::builder(M_TORO, N_POLO, scale)
-		.layer("chamber",       "#FFA500", |phi, theta| vmec.interpolate(phi, theta, wall_s, o0, normal))
-		.layer("first_wall",    "#FFB733", |phi, theta| vmec.interpolate(phi, theta, wall_s, o1, normal))
-		.layer("breeder",       "#FFC966", |phi, theta| vmec.interpolate(phi, theta, wall_s, o2, normal))
-		.layer("back_wall",     "#FFDB99", |phi, theta| vmec.interpolate(phi, theta, wall_s, o3, normal))
-		.layer("shield",        "#FFEDCC", |phi, theta| vmec.interpolate(phi, theta, wall_s, o4, normal))
-		.layer("vacuum_vessel", "#FFFFFF", |phi, theta| vmec.interpolate(phi, theta, wall_s, o5, normal))
+		.layer("chamber",       "#FF0000", |phi, theta| vmec.interpolate(phi, theta, wall_s, o0, normal))
+		.layer("first_wall",    "#FF4D00", |phi, theta| vmec.interpolate(phi, theta, wall_s, o1, normal))
+		.layer("breeder",       "#FF9900", |phi, theta| vmec.interpolate(phi, theta, wall_s, o2, normal))
+		.layer("back_wall",     "#FFE500", |phi, theta| vmec.interpolate(phi, theta, wall_s, o3, normal))
+		.layer("shield",        "#CCFF00", |phi, theta| vmec.interpolate(phi, theta, wall_s, o4, normal))
+		.layer("vacuum_vessel", "#80FF00", |phi, theta| vmec.interpolate(phi, theta, wall_s, o5, normal))
 		.build()
 }
