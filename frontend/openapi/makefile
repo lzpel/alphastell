@@ -6,6 +6,7 @@ frontend-generate:
 	echo "$${openapi_ts}" > ./out.ts
 	npm run openapi-ts -- --file ./out.ts
 	./out/bin/mandolin -i ./openapi.json -o ../../src/openapi.rs
+frontend-deploy: frontend-generate
 %:
 	@echo "No rule to make target '$@'"
 install:
@@ -26,7 +27,7 @@ import { defineConfig } from '@hey-api/openapi-ts';
 export default defineConfig({
     input: './openapi.json',
     output: {
-        path: '../out/client',
+        path: '../client',
         clean: true,
     },
     plugins: [
