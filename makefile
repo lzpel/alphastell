@@ -30,6 +30,10 @@ run: vessel magnet
 # ============================================================
 
 frontend-generate:
+	cargo run -- strip-netcdf \
+      --input parastell/examples/wout_vmec.nc \
+      --output frontend/public/wout_vmec.nc \
+      --include xm --include xn --include rmnc --include zmns
 	bash -c "$${MAKE_RECURSIVE}"
 frontend-run-backend:
 	cargo run -- server --port 7998 --port-frontend 7999
