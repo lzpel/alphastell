@@ -76,7 +76,7 @@ export default function GlbViewer(props: GlbViewerProps) {
 
 	return (
 		<div style={{ width: '100%', height, position: 'relative' }}>
-			<Lambda360View model={models} axisUp="Z" showEdges showViewMenu nodeCenter={overlay} backgroundColor='#EEE' />
+			<Lambda360View model={models} axisUp="Z" showEdges showViewMenu nodeCenter={overlay} />
 		</div>
 	);
 }
