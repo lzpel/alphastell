@@ -86,18 +86,10 @@
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
+            "application/octet-stream": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "body": {
-                    "type": "string",
-                    "format": "byte"
-                  }
-                },
-                "required": [
-                  "body"
-                ]
+                "type": "string",
+                "format": "binary"
               }
             }
           }
@@ -171,18 +163,10 @@
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
+            "application/octet-stream": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "body": {
-                    "type": "string",
-                    "format": "byte"
-                  }
-                },
-                "required": [
-                  "body"
-                ]
+                "type": "string",
+                "format": "binary"
               }
             }
           }
