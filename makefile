@@ -30,6 +30,7 @@ run: vessel magnet
 # ============================================================
 
 frontend-generate:
+	find . -maxdepth 2 -name .gitignore | xargs -IX sed '/^#\s*EOF_DOCKERIGNORE.*/q' X > .dockerignore
 	bash -c "$${MAKE_RECURSIVE}"
 frontend-run-backend:
 	cargo run -- server --port 7998 --port-frontend 7999
@@ -37,7 +38,7 @@ frontend-run-frontend:
 	PORT=7999 make -C frontend frontend-run
 frontend-run: frontend-run-backend frontend-run-frontend
 	# bash -c "$${MAKE_RECURSIVE}"
-frontend-deploy:
+frontend-deploy: frontend-generate
 	bash -c "$${MAKE_RECURSIVE}"
 	cargo build --features frontend-embed --release
 

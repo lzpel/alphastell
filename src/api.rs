@@ -17,7 +17,9 @@ struct AlphaStellApi {}
 
 impl ApiInterface for AlphaStellApi {
 	async fn vessel(&self, req: VesselRequest) -> VesselResponse {
-		let bytes = req.body.body;
+		// body は application/octet-stream の生バイト。Content-Encoding: gzip
+		// が付いていた場合は DecompressionLayer (axum_router の手前) が透過展開済み。
+		let bytes = req.body;
 		let scale = req.scale.unwrap_or(100.0);
 
 		let join = tokio::task::spawn_blocking(move || -> Result<Vec<u8>, String> {
@@ -37,7 +39,7 @@ impl ApiInterface for AlphaStellApi {
 	}
 
 	async fn magnet(&self, req: MagnetRequest) -> MagnetResponse {
-		let bytes = req.body.body;
+		let bytes = req.body;
 		let width = req.width.unwrap_or(0.4);
 		let thickness = req.thickness.unwrap_or(0.5);
 		let toroidal_extent = req.toroidal_extent.unwrap_or(360.0);
@@ -100,6 +102,9 @@ pub async fn run(port: u16, port_frontend: u16) {
 	let api = AlphaStellApi {};
 	let app = axum_router(api)
 		.layer(axum::extract::DefaultBodyLimit::disable())
+		// Content-Encoding: gzip 付きで来た /api/* のリクエストを自動展開する。
+		// クライアントは生 NetCDF / coils を gzip して送れば良い。
+		.layer(tower_http::decompression::RequestDecompressionLayer::new())
 		.layer(tower_http::compression::CompressionLayer::new());
 
 	// frontend-embed OFF (default): 未マッチのリクエストを `--port-frontend`
@@ -124,25 +129,22 @@ pub async fn run(port: u16, port_frontend: u16) {
 		.await
 		.unwrap();
 }
+
 #[cfg(feature = "frontend-embed")]
 async fn frontend(uri: axum::http::Uri) -> axum::response::Response<axum::body::Body> {
 	#[derive(rust_embed::Embed)]
 	#[folder = "frontend/out"] // ← このフォルダ配下をバイナリに埋め込む
 	struct Assets;
-	// /foo/bar → "foo/bar"
 	let mut path = std::path::PathBuf::from(uri.path().trim_start_matches("/"));
-	// ディレクトリっぽいアクセスは index.html
 	if path.file_name().is_none() {
 		path.push("index.html");
 	} else if path.extension().is_none() {
 		path.set_extension("html");
 	}
-	// MIME type 推論
 	let mime = mime_guess::from_path(&path)
 		.first()
 		.map(|m| m.essence_str().to_string())
 		.unwrap_or_else(|| "application/octet-stream".into());
-	// 埋め込み検索
 	match Assets::get(&path.to_string_lossy().to_string()) {
 		Some(file) => axum::response::Response::builder()
 			.status(axum::http::StatusCode::OK)

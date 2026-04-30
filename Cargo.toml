@@ -45,9 +45,9 @@ tokio = { version = "^1", features = ["rt", "rt-multi-thread", "macros", "signal
 http = "^1"
 tar = "^0.4"
 gltf-json = { version = "^1", features = ["names", "extras", "extensions", "KHR_materials_unlit"] }
-tower-http = { version = "^0.6", features = ["compression-gzip"] }
+tower-http = { version = "^0.6", features = ["compression-gzip", "decompression-gzip"] }
 # frontend 埋め込み用 (frontend-embed feature ON 時のみ)
 rust-embed = { version = "^8", optional=true }
 mime_guess = { version = "^2", optional=true }
-# frontend プロキシ用 (default、frontend-embed OFF 時のフォールバックとして dev frontend に転送)
+# dev で /api/* 以外を Next.js dev (`--port-frontend`) へ転送する用 (frontend-embed OFF 時)
 axum-reverse-proxy = "^1.3"
