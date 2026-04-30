@@ -171,11 +171,12 @@ fn build_one(
     // 「コイル COM → spine 点」方向に向ける。Torsion (Frenet-Serret) が
     // 変曲点で不安定になる問題を避け、parastell 準拠の径方向基準フレームを
     // 全点で維持する。
+    let aux_spines = [aux_spine];
     let coil = Solid::sweep(
         profile.iter(),
         std::iter::once(&spine),
         //ProfileOrient::Torsion
-        ProfileOrient::Auxiliary(&[aux_spine]),
+        ProfileOrient::Auxiliary(&aux_spines),
     )
     .map_err(|e| format!("sweep failed: {:?}", e))?;
 
