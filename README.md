@@ -6,6 +6,11 @@ A Rust CAD generator for stellarator fusion reactors, built on top of OpenCASCAD
 
 *Cutaway of the six in-vessel layers (chamber → vacuum vessel) with the 40-filament magnet coil set, produced by `make showcase`.*
 
+- See online demo here: https://d208cxcpnw2718.cloudfront.net/
+- See youtube video here: https://youtu.be/WwD3qL0VLBc
+
+![Webdemo of alphastell](figure/screenshot.png)
+
 ## Overview
 
 alphastell reads a [VMEC](https://princetonuniversity.github.io/STELLOPT/VMEC) magnetic equilibrium (`wout_*.nc`, NetCDF3) and produces solid CAD geometry for a full stellarator in-vessel build plus its modular coil assembly. It is intended as a small, fast, statically-linked companion tool for reactor-design studies — write a VMEC surface, get a STEP file you can drop into a CAD viewer or a neutronics pipeline.
