@@ -44,7 +44,7 @@ frontend-deploy:
 #   wall_s=1.08 を基準に mesh() + boolean_subtract で構築 (Solid::shell は使わない)。
 # ============================================================
 vessel: $(VMEC_IN)
-	cargo run --release -- vessel --wall-s 1.08 --scale 100 --input $(VMEC_IN) --output $(OUT_DIR)/
+	cargo run --release -- vessel --scale 100 --input $(VMEC_IN) --output $(OUT_DIR)/
 
 # ============================================================
 # magnet — coils.example から長方形断面 sweep で magnet_set.step を生成 (m 単位)
