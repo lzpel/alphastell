@@ -56,7 +56,8 @@ op vessel(
 	/** Unit scaling factor. VMEC is in meters; 100 converts to centimeters to match the parastell default. */
 	@query scale?: float64 = 100.0,
 
-	body: bytes,
+	@header("Content-Type") contentType: "application/octet-stream",
+	@body body: bytes,
 ): OkResponse | BadRequestResponse | ServerErrorResponse;
 
 /**
@@ -78,5 +79,6 @@ op magnet(
 	/** Toroidal extent [deg]. 360 keeps all coils; values below 360 are reserved for future use. */
 	@query toroidal_extent?: float64 = 360.0,
 
-	body: bytes,
+	@header("Content-Type") contentType: "application/octet-stream",
+	@body body: bytes,
 ): OkResponse | BadRequestResponse | ServerErrorResponse;

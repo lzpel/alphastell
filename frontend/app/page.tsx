@@ -6,23 +6,12 @@ import { magnet, vessel } from '@/client/sdk.gen';
 import { client } from '@/client/client.gen';
 import GlbViewer from './view';
 import { DownloadList, Entry, Spinner } from './components';
+import { slimVmec } from './vmec';
 
 // rebab で /api → cargo run -- server に proxy される前提。
 // 直接 :8080 を叩く場合は NEXT_PUBLIC_API_BASE で上書き。
 client.setConfig({ baseUrl: process.env.NEXT_PUBLIC_API_BASE ?? '/api' });
 
-async function fileToBase64(file: File): Promise<string> {
-	return new Promise((resolve, reject) => {
-		const reader = new FileReader();
-		reader.onerror = () => reject(reader.error);
-		reader.onload = () => {
-			const result = reader.result as string;
-			const idx = result.indexOf(',');
-			resolve(result.slice(idx + 1));
-		};
-		reader.readAsDataURL(file);
-	});
-}
 
 function tarToEntries(buf: ArrayBuffer): Entry[] {
 	return parseTar(buf)
@@ -83,14 +72,21 @@ export default function Home() {
 	async function uploadVessel(f: File) {
 		setVesselEntries([]);
 		setVesselUploading(true);
-		setVesselStatus(`uploading ${f.name} (${f.size.toLocaleString()} bytes)…`);
+		setVesselStatus(`extracting needed variables from ${f.name}…`);
 		try {
-			const b64 = await fileToBase64(f);
+			// 8MB 級の wout_*.nc は浮動小数バイナリで gzip がほぼ効かない (slim 後の
+			// 追加 gzip は 4% 程度)。slim だけで Lambda 6MB 上限を 1/12 まで切るので
+			// gzip は省く (CPU 100ms とトレードオフが合わない)。
+			const slim = await slimVmec(f);
+			setVesselStatus(`uploading ${slim.size.toLocaleString()} bytes (slim)…`);
+			const res = await vessel({
+				body: slim,
+				parseAs: 'blob',
+			});
 			setVesselStatus('computing on server… (10-60s)');
-			const res = await vessel({ body: { body: b64 }, parseAs: 'blob' });
-			setVesselStatus('parsing response…');
 			const blob = res.data as Blob;
 			const buf = await blob.arrayBuffer();
+			setVesselStatus('parsing response…');
 			const entries = tarToEntries(buf);
 			setVesselEntries(entries);
 			setVesselStatus(`done: ${entries.length} files`);
@@ -106,12 +102,14 @@ export default function Home() {
 		setMagnetUploading(true);
 		setMagnetStatus(`uploading ${f.name} (${f.size.toLocaleString()} bytes)…`);
 		try {
-			const b64 = await fileToBase64(f);
+			const res = await magnet({
+				body: f,
+				parseAs: 'blob',
+			});
 			setMagnetStatus('computing on server… (5-30s)');
-			const res = await magnet({ body: { body: b64 }, parseAs: 'blob' });
-			setMagnetStatus('parsing response…');
 			const blob = res.data as Blob;
 			const buf = await blob.arrayBuffer();
+			setMagnetStatus('parsing response…');
 			const entries = tarToEntries(buf);
 			setMagnetEntries(entries);
 			setMagnetStatus(`done: ${entries.length} files`);
