@@ -5,7 +5,7 @@ import { parseTar } from 'nanotar';
 import { magnet, vessel } from '@/client/sdk.gen';
 import { client } from '@/client/client.gen';
 import GlbViewer from './view';
-import { DownloadList, Entry, Spinner } from './components';
+import { DownloadList, Entry, SourceRow, Spinner } from './components';
 import { slimVmec } from './vmec';
 
 // rebab で /api → cargo run -- server に proxy される前提。
@@ -138,25 +138,19 @@ export default function Home() {
 					<p style={{ fontSize: 12, color: '#666', margin: '4px 0' }}>
 						VMEC NetCDF (wout_*.nc) → 6 layers × {`{step,glb,csv}`}
 					</p>
-					<input
-						ref={vesselInputRef}
-						type="file"
+					<SourceRow
+						inputRef={vesselInputRef}
 						accept=".nc"
-						onChange={(e) => setVesselFile(e.target.files?.[0] ?? null)}
+						onFileChange={setVesselFile}
+						presetUrl="/wout_vmec.nc"
+						presetName="wout_vmec.nc"
+						onUsePreset={() => usePreset('/wout_vmec.nc', 'wout_vmec.nc', 'vessel')}
 					/>
-					<div style={{ fontSize: 12, margin: '4px 0' }}>
-						Preset: <a href="/wout_vmec.nc" download>wout_vmec.nc</a>{' '}
-						<button
-							type="button"
-							onClick={() => usePreset('/wout_vmec.nc', 'wout_vmec.nc', 'vessel')}
-						>
-							use preset
-						</button>
-					</div>
 					<button
 						type="button"
 						disabled={!vesselFile || vesselUploading}
 						onClick={() => vesselFile && uploadVessel(vesselFile)}
+						style={{ marginTop: 4 }}
 					>
 						{vesselUploading ? (
 							<>
@@ -167,7 +161,7 @@ export default function Home() {
 							'build vessel'
 						)}
 					</button>
-					<p style={{ minHeight: '1.2em' }}>
+					<p style={{ minHeight: '1.2em', fontSize: 12 }}>
 						{vesselUploading && <Spinner />}
 						{vesselStatus}
 					</p>
@@ -179,24 +173,18 @@ export default function Home() {
 					<p style={{ fontSize: 12, color: '#666', margin: '4px 0' }}>
 						MAKEGRID coils → magnet_set.{`{step,glb,csv}`}
 					</p>
-					<input
-						ref={magnetInputRef}
-						type="file"
-						onChange={(e) => setMagnetFile(e.target.files?.[0] ?? null)}
+					<SourceRow
+						inputRef={magnetInputRef}
+						onFileChange={setMagnetFile}
+						presetUrl="/coils.example"
+						presetName="coils.example"
+						onUsePreset={() => usePreset('/coils.example', 'coils.example', 'magnet')}
 					/>
-					<div style={{ fontSize: 12, margin: '4px 0' }}>
-						Preset: <a href="/coils.example" download>coils.example</a>{' '}
-						<button
-							type="button"
-							onClick={() => usePreset('/coils.example', 'coils.example', 'magnet')}
-						>
-							use preset
-						</button>
-					</div>
 					<button
 						type="button"
 						disabled={!magnetFile || magnetUploading}
 						onClick={() => magnetFile && uploadMagnet(magnetFile)}
+						style={{ marginTop: 4 }}
 					>
 						{magnetUploading ? (
 							<>
@@ -207,7 +195,7 @@ export default function Home() {
 							'build magnet'
 						)}
 					</button>
-					<p style={{ minHeight: '1.2em' }}>
+					<p style={{ minHeight: '1.2em', fontSize: 12 }}>
 						{magnetUploading && <Spinner />}
 						{magnetStatus}
 					</p>
