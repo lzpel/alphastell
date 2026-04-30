@@ -48,7 +48,7 @@
 //! 2. [`VmecData::index_rz`] — s グリッド上の離散点 `s_grid[index_s]` で (R, Z) を計算
 //! 3. [`VmecData::interpolate_rz`] — 任意の s で (R, Z) を計算 (Fourier 係数を s 方向にスプライン)
 //!
-//! vessel / first_wall は `interpolate_rz(s, θ, φ)` を (θ, φ) 走査しながら呼べばよい。
+//! vessel / first_wall は `interpolate_rz(φ, θ, s)` を (φ, θ) 走査しながら呼べばよい。
 //! 内部ヘルパーとして `eval_rz(r_coeff, z_coeff, θ, φ)` (private) が Fourier 和だけを担当する。
 
 use crate::Result;
@@ -280,25 +280,22 @@ impl VmecData {
 	}
 
 	#[allow(dead_code)] // API として公開; 現在は tests からのみ使用
-	pub fn index_rz(&self, index_s: usize, theta: f64, phi: f64) -> RZ {
+	pub fn index_rz(&self, phi: f64, theta: f64, index_s: usize) -> RZ {
 		self.eval_rz(&self.rmnc[index_s], &self.zmns[index_s], theta, phi)
 	}
 
-	/// (θ, φ) を等分した格子で磁束面 (または `offset` だけ離れた平行面) の 3D 点を返す。
+	/// (φ, θ, s) を指定して磁束面 (または `offset` だけ離れた平行面) 上の 3D 点を返す。
 	///
-	/// - 角度範囲は `[0, 2π)` の半開区間。θ=0 と θ=2π は同一点なので終点は含めない。
 	/// - `offset` の単位は VMEC ネイティブの **m**。スケール変換は呼び出し側で行う。
-	/// - 戻り値は `result[phi_idx][theta_idx]` で `div_phi × div_theta` の行列。
 	/// - `offset == 0.0` なら法線計算はスキップする。
-	#[allow(dead_code)] // API として公開; 呼び出し側は後続 PR で導入予定
-	pub fn mesh(
+	pub fn interpolate(
 		&self,
-		div_theta: usize,
-		div_phi: usize,
+		phi: f64,
+		theta: f64,
 		s: f64,
 		offset: f64,
 		normal: NormalKind,
-	) -> Vec<Vec<[f64; 3]>> {
+	) -> [f64; 3] {
 		fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
 			[
 				a[1] * b[2] - a[2] * b[1],
@@ -307,54 +304,68 @@ impl VmecData {
 			]
 		}
 
+		let rz = self.interpolate_rz(phi, theta, s);
+		// まず φ=0 の断面で点と法線を組み立てる (x=R, y=0, z=Z の 2D ライクな座標系)。
+		// ∂R/∂φ, ∂Z/∂φ はこの座標系では「隣の断面がどう変わるか」の成分として残る。
+		let mut p = [rz.r, 0.0, rz.z];
+		if offset != 0.0 {
+			let [t_theta, t_phi] = match normal {
+				NormalKind::Planar => {
+					// θ 接線 (Surface と共通) と、constant-φ 面の法線 (φ=0 で y_hat)。
+					// cross(y_hat, t_θ) が parastell `_normals()` と同じ断面内 2D 外向き法線。
+					[
+						[rz.dr_dtheta, 0.0, rz.dz_dtheta],
+						[0.0, 1.0, 0.0],
+					]
+				}
+				NormalKind::Surface => {
+					// φ=0 での接線: ∂p/∂θ = (dR/dθ, 0, dZ/dθ), ∂p/∂φ = (dR/dφ, R, dZ/dφ)
+					// cross(t_φ, t_θ) が外向き 3D 曲面法線 (t_θ × t_φ は内向きになる)。
+					[
+						[rz.dr_dtheta, 0.0, rz.dz_dtheta],
+						[rz.dr_dphi, rz.r, rz.dz_dphi],
+					]
+				}
+			};
+			let n = cross(t_phi, t_theta);
+			let inv_len = 1.0 / (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
+			p[0] += offset * n[0] * inv_len;
+			p[1] += offset * n[1] * inv_len;
+			p[2] += offset * n[2] * inv_len;
+		}
+		// 最後に Z 軸まわり φ 回転で実際の (x, y, z) に持ち上げる。
+		// (x, y, z) → (x cosφ − y sinφ, x sinφ + y cosφ, z)
+		let (sp, cp) = phi.sin_cos();
+		[p[0] * cp - p[1] * sp, p[0] * sp + p[1] * cp, p[2]]
+	}
+
+	/// (φ, θ) を等分した格子で磁束面 (または `offset` だけ離れた平行面) の 3D 点を返す。
+	///
+	/// - 角度範囲は `[0, 2π)` の半開区間。φ=0 と φ=2π は同一点なので終点は含めない。
+	/// - 戻り値は `result[phi_idx][theta_idx]` で `div_phi × div_theta` の行列。
+	#[allow(dead_code)] // API として公開; 呼び出し側は後続 PR で導入予定
+	pub fn mesh(
+		&self,
+		div_phi: usize,
+		div_theta: usize,
+		s: f64,
+		offset: f64,
+		normal: NormalKind,
+	) -> Vec<Vec<[f64; 3]>> {
 		let mut grid: Vec<Vec<[f64; 3]>> = Vec::with_capacity(div_phi);
 		for i in 0..div_phi {
 			let phi = TAU * (i as f64) / (div_phi as f64);
-			let (sp, cp) = phi.sin_cos();
 			let mut row: Vec<[f64; 3]> = Vec::with_capacity(div_theta);
 			for j in 0..div_theta {
 				let theta = TAU * (j as f64) / (div_theta as f64);
-				let rz = self.interpolate_rz(s, theta, phi);
-				// まず φ=0 の断面で点と法線を組み立てる (x=R, y=0, z=Z の 2D ライクな座標系)。
-				// ∂R/∂φ, ∂Z/∂φ はこの座標系では「隣の断面がどう変わるか」の成分として残る。
-				let mut p = [rz.r, 0.0, rz.z];
-				if offset != 0.0 {
-					let n = {
-						let [t_theta, t_phi] = match normal {
-							NormalKind::Planar => {
-								// θ 接線 (Surface と共通) と、constant-φ 面の法線 (φ=0 で y_hat)。
-								// cross(y_hat, t_θ) が parastell `_normals()` と同じ断面内 2D 外向き法線。
-								[
-									[rz.dr_dtheta, 0.0, rz.dz_dtheta],
-									[0.0, 1.0, 0.0],
-								]
-							}
-							NormalKind::Surface => {
-								// φ=0 での接線: ∂p/∂θ = (dR/dθ, 0, dZ/dθ), ∂p/∂φ = (dR/dφ, R, dZ/dφ)
-								// cross(t_φ, t_θ) が外向き 3D 曲面法線 (t_θ × t_φ は内向きになる)。
-								[
-									[rz.dr_dtheta, 0.0, rz.dz_dtheta],
-									[rz.dr_dphi, rz.r, rz.dz_dphi],
-								]
-							}
-						};
-						cross(t_phi, t_theta)
-					};
-					let inv_len = 1.0 / (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
-					p[0] += offset * n[0] * inv_len;
-					p[1] += offset * n[1] * inv_len;
-					p[2] += offset * n[2] * inv_len;
-				}
-				// 最後に Z 軸まわり φ 回転で実際の (x, y, z) に持ち上げる。
-				// (x, y, z) → (x cosφ − y sinφ, x sinφ + y cosφ, z)
-				row.push([p[0] * cp - p[1] * sp, p[0] * sp + p[1] * cp, p[2]]);
+				row.push(self.interpolate(phi, theta, s, offset, normal));
 			}
 			grid.push(row);
 		}
 		grid
 	}
 
-	pub fn interpolate_rz(&self, s: f64, theta: f64, phi: f64) -> RZ {
+	pub fn interpolate_rz(&self, phi: f64, theta: f64, s: f64) -> RZ {
 		// 各モードごとの s 軸方向スプラインは (s, θ, φ) に依存しないので、VmecData の
 		// ライフタイムで 1 回だけ構築してメモ化する。初回呼び出しで lazy 初期化。
 		let (r_splines, z_splines) = self.splines.get_or_init(|| {
@@ -671,8 +682,8 @@ mod tests {
 			// θ は 64 点で sweep (mesh と同じ粒度)
 			for j in 0..64 {
 				let theta = std::f64::consts::TAU * (j as f64) / 64.0;
-				let a = vmec.interpolate_rz(s, theta, 0.0);
-				let b = vmec.interpolate_rz(s, theta, std::f64::consts::TAU);
+				let a = vmec.interpolate_rz(0.0, theta, s);
+				let b = vmec.interpolate_rz(std::f64::consts::TAU, theta, s);
 				let d_r = (a.r - b.r).abs();
 				let d_z = (a.z - b.z).abs();
 				let d_dr_dt = (a.dr_dtheta - b.dr_dtheta).abs();
@@ -719,7 +730,7 @@ mod tests {
 		let div_phi = 240;
 		let s = 1.08;
 		for (offset, kind) in [(0.0, NormalKind::Planar), (0.05, NormalKind::Planar), (0.05, NormalKind::Surface)] {
-			let grid = vmec.mesh(div_theta, div_phi, s, offset, kind);
+			let grid = vmec.mesh(div_phi, div_theta, s, offset, kind);
 			// 行 0 (phi=0)
 			let row0 = &grid[0];
 			// 手計算で phi=TAU の虚構行を再構築 (mesh と同じロジックを phi=TAU で)
@@ -728,7 +739,7 @@ mod tests {
 			let mut virt: Vec<[f64; 3]> = Vec::with_capacity(div_theta);
 			for j in 0..div_theta {
 				let theta = std::f64::consts::TAU * (j as f64) / (div_theta as f64);
-				let rz = vmec.interpolate_rz(s, theta, phi);
+				let rz = vmec.interpolate_rz(phi, theta, s);
 				let mut p = [rz.r, 0.0, rz.z];
 				if offset != 0.0 {
 					let (a, b) = match kind {
@@ -790,7 +801,7 @@ mod tests {
 			let s = 0.2 + 0.88 * t;
 			let theta = 0.037 * i as f64;
 			let phi = 0.041 * i as f64;
-			let rz = vmec.interpolate_rz(s, theta, phi);
+			let rz = vmec.interpolate_rz(phi, theta, s);
 			checksum += rz.r + rz.z;
 		}
 		let elapsed = start.elapsed();
@@ -817,8 +828,8 @@ mod tests {
 		for &i in &[0, vmec.s_grid.len() / 2, vmec.s_grid.len() - 1] {
 			let s = vmec.s_grid[i];
 			for (theta, phi) in [(0.0, 0.0), (0.37, 1.29), (1.0, 0.5)] {
-				let idx = vmec.index_rz(i, theta, phi);
-				let int = vmec.interpolate_rz(s, theta, phi);
+				let idx = vmec.index_rz(phi, theta, i);
+				let int = vmec.interpolate_rz(phi, theta, s);
 				let tol = 1e-9;
 				assert!(
 					(idx.r - int.r).abs() < tol,
@@ -897,9 +908,9 @@ mod tests {
 
 		// (θ, φ) = (0, 0) での (R, Z) を 3 通りで比較。
 		// (現在の interpolate_rz は not-a-knot を使用)
-		let int = vmec.interpolate_rz(s, 0.0, 0.0);
+		let int = vmec.interpolate_rz(0.0, 0.0, s);
 		// 末端グリッド点での値 (s=1.0)
-		let grid = vmec.index_rz(vmec.s_grid.len() - 1, 0.0, 0.0);
+		let grid = vmec.index_rz(0.0, 0.0, vmec.s_grid.len() - 1);
 		eprintln!(
 			"(θ=0, φ=0): at s=1.0 (R={:.4}, Z={:.4}), at s=1.08 not-a-knot (R={:.4}, Z={:.4})",
 			grid.r, grid.z, int.r, int.z

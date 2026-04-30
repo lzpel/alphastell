@@ -60,9 +60,6 @@ enum Command {
 		/// 出力先ディレクトリ (6 枚の *.step ファイルが作成される)。
 		#[arg(long)]
 		output: PathBuf,
-		/// 基準磁束面 wall_s。parastell 既定 1.08 (LCFS の外側に少し広げた面)。
-		#[arg(long)]
-		wall_s: f64,
 		/// 単位スケール。VMEC は m なので 100 を掛けると cm になり parastell 既定と揃う。
 		#[arg(long)]
 		scale: f64,
@@ -165,13 +162,12 @@ fn main() -> Result<()> {
 		Command::Vessel {
 			input,
 			output,
-			wall_s,
 			scale,
 		} => {
 			println!("Loading VMEC: {}", input.display());
 			let file = std::fs::File::open(&input)
 				.map_err(|e| format!("open {}: {}", input.display(), e))?;
-			for a in vessel::run(file, wall_s, scale)? {
+			for a in vessel::run(file, scale)? {
 				a.write(&output, &a.name)?;
 			}
 			println!("Done.");
