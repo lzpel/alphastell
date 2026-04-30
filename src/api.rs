@@ -17,7 +17,7 @@ struct AlphaStellApi {}
 
 impl ApiInterface for AlphaStellApi {
 	async fn vessel(&self, req: VesselRequest) -> VesselResponse {
-		let bytes = req.body.body;
+		let bytes = req.body;
 		let scale = req.scale.unwrap_or(100.0);
 
 		let join = tokio::task::spawn_blocking(move || -> Result<Vec<u8>, String> {
@@ -37,7 +37,7 @@ impl ApiInterface for AlphaStellApi {
 	}
 
 	async fn magnet(&self, req: MagnetRequest) -> MagnetResponse {
-		let bytes = req.body.body;
+		let bytes = req.body;
 		let width = req.width.unwrap_or(0.4);
 		let thickness = req.thickness.unwrap_or(0.5);
 		let toroidal_extent = req.toroidal_extent.unwrap_or(360.0);
