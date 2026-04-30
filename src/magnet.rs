@@ -141,13 +141,17 @@ fn build_one(
     // 反時計回りで渡すと sweep の結果が反転 solid になり shape_volume が -0 を返す。
     let w = width;
     let t = thickness;
-    let profile = Edge::polygon(&[
-        DVec3::new(w / 2.0, t / 2.0, 0.0),
-        DVec3::new(w / 2.0, -t / 2.0, 0.0),
-        DVec3::new(-w / 2.0, -t / 2.0, 0.0),
-        DVec3::new(-w / 2.0, t / 2.0, 0.0),
-    ])
-    .map_err(|e| format!("polygon failed: {:?}", e))?;
+    let profile = if false {
+            Edge::polygon(&[
+            DVec3::new(w / 2.0, t / 2.0, 0.0),
+            DVec3::new(w / 2.0, -t / 2.0, 0.0),
+            DVec3::new(-w / 2.0, -t / 2.0, 0.0),
+            DVec3::new(-w / 2.0, t / 2.0, 0.0),
+        ])
+    .map_err(|e| format!("polygon failed: {:?}", e))?
+    } else {
+        vec![Edge::circle(DVec3::new(width, thickness, 0.).length()/2.0, DVec3::Z)?]
+    };
 
     // (d) spine から配置基準を取り出して profile を回転 + 平行移動
     let tangent = spine.start_tangent();
@@ -171,13 +175,14 @@ fn build_one(
     // 「コイル COM → spine 点」方向に向ける。Torsion (Frenet-Serret) が
     // 変曲点で不安定になる問題を避け、parastell 準拠の径方向基準フレームを
     // 全点で維持する。
-    let coil = Solid::sweep(
-        profile.iter(),
-        std::iter::once(&spine),
-        //ProfileOrient::Torsion
-        ProfileOrient::Auxiliary(&[aux_spine]),
-    )
-    .map_err(|e| format!("sweep failed: {:?}", e))?;
+    let aux_spines = [aux_spine];
+    let orient = if profile.len() == 1 {
+        ProfileOrient::Torsion
+    } else {
+        ProfileOrient::Auxiliary(&aux_spines)
+    };
+    let coil = Solid::sweep(profile.iter(), std::iter::once(&spine), orient)
+        .map_err(|e| format!("sweep failed: {:?}", e))?;
 
     Ok((coil, dump_pts))
 }
