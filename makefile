@@ -34,6 +34,7 @@ frontend-generate:
       --input parastell/examples/wout_vmec.nc \
       --output frontend/public/wout_vmec.nc \
       --include xm --include xn --include rmnc --include zmns
+	find . -maxdepth 2 -name .gitignore | xargs -IX sed '/^#\s*EOF_DOCKERIGNORE.*/q' X > .dockerignore
 	bash -c "$${MAKE_RECURSIVE}"
 frontend-run-backend:
 	cargo run -- server --port 7998 --port-frontend 7999
@@ -41,9 +42,11 @@ frontend-run-frontend:
 	PORT=7999 make -C frontend frontend-run
 frontend-run: frontend-run-backend frontend-run-frontend
 	# bash -c "$${MAKE_RECURSIVE}"
-frontend-deploy:
+frontend-deploy: frontend-generate
 	bash -c "$${MAKE_RECURSIVE}"
 	cargo build --features frontend-embed --release
+frontend-publish: frontend-deploy
+	make -C aws deploy
 
 # ============================================================
 # vessel — 6 層 in-vessel build を一括生成

@@ -10,6 +10,7 @@ frontend-run:
 	npm run dev
 
 frontend-deploy: frontend-generate
+	npm install
 	npm run build
 define agents_md
 # Frontend Rules
