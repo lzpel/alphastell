@@ -31,12 +31,15 @@ run: vessel magnet
 
 frontend-generate:
 	bash -c "$${MAKE_RECURSIVE}"
-frontend-run:
-	cargo install --root out rebab
-	out/bin/rebab --frontend 127.0.0.1:8000 --rule "prefix=/api,port=7998,command=cargo run -- server" --rule "port=7999,command=make -C frontend frontend-run"
+frontend-run-backend:
+	cargo run -- server --port 7998 --port-frontend 7999
+frontend-run-frontend:
+	PORT=7999 make -C frontend frontend-run
+frontend-run: frontend-run-backend frontend-run-frontend
 	# bash -c "$${MAKE_RECURSIVE}"
 frontend-deploy:
 	bash -c "$${MAKE_RECURSIVE}"
+	cargo build --features frontend-embed --release
 
 # ============================================================
 # vessel — 6 層 in-vessel build を一括生成

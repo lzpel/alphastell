@@ -146,6 +146,9 @@ enum Command {
         /// Port to listen on (or set PORT env var)
         #[arg(long, env = "PORT", default_value = "8080")]
         port: u16,
+        /// Port to listen on (or set PORT env var)
+        #[arg(long, env = "PORT_FRONTEND", default_value = "8070")]
+        port_frontend: u16,
 	},
 	/// 各 STEP ファイルの軸並行バウンディングボックスを
 	/// `path x0 y0 z0 x1 y1 z1 dx dy dz` 形式で 1 行ずつ出力する。
@@ -219,8 +222,9 @@ fn main() -> Result<()> {
 		} => validate::run(&a, &b, max_ratio, tol, union),
 		Command::Server {
 			port,
+			port_frontend,
 		} => {
-			api::run(port);
+			api::run(port, port_frontend);
 			Ok(())
 		}
 		Command::Bbox { inputs } => bbox::run(&inputs),

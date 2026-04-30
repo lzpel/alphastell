@@ -171,12 +171,12 @@ pub struct Error{
 
 
 #[derive(Default,Clone,Debug,serde::Serialize,serde::Deserialize)]
-pub struct PathsVesselPostRequestBodyContentApplicationJsonSchema{
+pub struct PathsMagnetPostRequestBodyContentApplicationJsonSchema{
 	#[serde(with = "base64_serde")]
 	pub r#body:Vec<u8>,
 }
 #[derive(Default,Clone,Debug,serde::Serialize,serde::Deserialize)]
-pub struct PathsMagnetPostRequestBodyContentApplicationJsonSchema{
+pub struct PathsVesselPostRequestBodyContentApplicationJsonSchema{
 	#[serde(with = "base64_serde")]
 	pub r#body:Vec<u8>,
 }
