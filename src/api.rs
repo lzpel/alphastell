@@ -69,14 +69,14 @@ impl ApiInterface for AlphaStellApi {
 
 impl openapi::ApiInterfaceAxum for AlphaStellApi {}
 
-/// 各 `Artifact` を `<name>.{step,stl,csv}` の 3 entries として 1 本の tar にまとめる。
+/// 各 `Artifact` を `<name>.{step,glb,csv}` の 3 entries として 1 本の tar にまとめる。
 fn artifacts_to_tar(arts: &[Artifact]) -> Result<Vec<u8>, String> {
 	let mut buf: Vec<u8> = Vec::new();
 	{
 		let mut builder = tar::Builder::new(&mut buf);
 		for a in arts {
 			append(&mut builder, &format!("{}.step", a.name), &a.step_bytes().map_err(|e| e.to_string())?)?;
-			append(&mut builder, &format!("{}.stl", a.name), &a.stl_bytes().map_err(|e| e.to_string())?)?;
+			append(&mut builder, &format!("{}.glb", a.name), &a.glb_bytes().map_err(|e| e.to_string())?)?;
 			append(&mut builder, &format!("{}.csv", a.name), &a.csv_bytes())?;
 		}
 		builder.finish().map_err(|e| format!("tar finish: {e}"))?;
