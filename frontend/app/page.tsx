@@ -64,34 +64,35 @@ export function Spinner() {
 
 type DownloadListProps = {
 	entries: Entry[];
-	onView?: (entry: Entry) => void;
-	activeUrl?: string | null;
+	onToggleView?: (entry: Entry) => void;
+	activeUrls?: string[];
 };
 
 export function DownloadList(props: DownloadListProps) {
+	const active = new Set(props.activeUrls ?? []);
 	return (
 		<ul>
 			{props.entries.map((e) => {
 				const isGlb = e.name.toLowerCase().endsWith('.glb');
-				const isActive = props.activeUrl === e.url;
+				const isActive = active.has(e.url);
 				return (
 					<li key={e.name}>
+						{isGlb && props.onToggleView && (
+							<>
+								<label style={{ marginRight: 6 }}>
+									<input
+										type="checkbox"
+										checked={isActive}
+										onChange={() => props.onToggleView!(e)}
+									/>{' '}
+									view
+								</label>
+							</>
+						)}
 						<a href={e.url} download={e.name}>
 							{e.name}
 						</a>{' '}
 						({e.size} bytes)
-						{isGlb && props.onView && (
-							<>
-								{' '}
-								<button
-									type="button"
-									onClick={() => props.onView!(e)}
-									disabled={isActive}
-								>
-									{isActive ? 'viewing' : 'view'}
-								</button>
-							</>
-						)}
 					</li>
 				);
 			})}
@@ -110,8 +111,13 @@ export default function Home() {
 	const [magnetEntries, setMagnetEntries] = useState<Entry[]>([]);
 	const [magnetStatus, setMagnetStatus] = useState<string>('');
 
-	// 現在ビュワーに表示している GLB の Blob URL (vessel/magnet 共通)。
-	const [viewUrl, setViewUrl] = useState<string | null>(null);
+	// 現在ビュワーに表示している GLB の Blob URL 群 (vessel/magnet 共通)。
+	const [viewUrls, setViewUrls] = useState<string[]>([]);
+	const toggleView = (e: Entry) => {
+		setViewUrls((prev) =>
+			prev.includes(e.url) ? prev.filter((u) => u !== e.url) : [...prev, e.url],
+		);
+	};
 
 	async function uploadVessel(f: File) {
 		setVesselEntries([]);
@@ -197,7 +203,7 @@ export default function Home() {
 						{vesselUploading && <Spinner />}
 						{vesselStatus}
 					</p>
-					<DownloadList entries={vesselEntries} onView={(e) => setViewUrl(e.url)} activeUrl={viewUrl} />
+					<DownloadList entries={vesselEntries} onToggleView={toggleView} activeUrls={viewUrls} />
 				</section>
 
 				<section>
@@ -228,12 +234,12 @@ export default function Home() {
 						{magnetUploading && <Spinner />}
 						{magnetStatus}
 					</p>
-					<DownloadList entries={magnetEntries} onView={(e) => setViewUrl(e.url)} activeUrl={viewUrl} />
+					<DownloadList entries={magnetEntries} onToggleView={toggleView} activeUrls={viewUrls} />
 				</section>
 			</aside>
 
 			<div style={{ flex: 1, minWidth: 0, height: '100%' }}>
-				<GlbViewer url={viewUrl} height="100%" />
+				<GlbViewer urls={viewUrls} height="100%" />
 			</div>
 		</main>
 	);
