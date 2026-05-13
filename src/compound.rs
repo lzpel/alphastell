@@ -80,7 +80,7 @@ pub fn run(
 			c.g,
 			c.b
 		);
-		let solids: Vec<Solid> = cadrum::read_step(&mut File::open(path)?)
+		let solids: Vec<Solid> = Solid::read_step(&mut File::open(path)?)
 			.map_err(|e| format!("read_step {}: {:?}", path.display(), e))?;
 		println!("  loaded {} solid(s)", solids.len());
 		for s in solids {
@@ -114,7 +114,7 @@ pub fn run(
 		all.len(),
 		n
 	);
-	cadrum::write_step(all.iter(), &mut File::create(output)?)
+	Solid::write_step(all.iter(), &mut File::create(output)?)
 		.map_err(|e| format!("write_step {}: {:?}", output.display(), e))?;
 
 	// 同名 SVG を書き出す。view=-Y (側面から)、up=+Z (stellarator の鉛直軸を画面上に)。
@@ -126,7 +126,7 @@ pub fn run(
 		svg_path.display(),
 		SVG_MESH_TOL
 	);
-	let mesh = cadrum::mesh(all.iter(), SVG_MESH_TOL)
+	let mesh = Solid::mesh(all.iter(), SVG_MESH_TOL)
 		.map_err(|e| format!("mesh failed: {:?}", e))?;
 	let mut svg_file = File::create(&svg_path)
 		.map_err(|e| format!("create {}: {}", svg_path.display(), e))?;

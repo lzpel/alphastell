@@ -29,6 +29,6 @@ pub fn run(inputs: &[PathBuf]) -> Result<()> {
 fn read_step_file(path: &Path) -> Result<Vec<cadrum::Solid>> {
 	let mut f = File::open(path)
 		.map_err(|e| format!("open {}: {}", path.display(), e))?;
-	cadrum::read_step(&mut f)
+	cadrum::Solid::read_step(&mut f)
 		.map_err(|e| format!("read_step {}: {:?}", path.display(), e).into())
 }

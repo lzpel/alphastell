@@ -261,10 +261,11 @@ checksum = "1e748733b7cbc798e1434b6ac524f0c1ff2ab456fe201501e6497c8417a4fc33"
 
 [[package]]
 name = "cadrum"
-version = "0.7.4"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36a7e5be97b13dd814cd500a503be03b492dc595933ea6b3713f37c87bbb5e6b"
+checksum = "fb84356897a740241eab06ead5019da559e7f934c4e5f9832a7807826f260ebc"
 dependencies = [
+ "cc",
  "cxx",
  "cxx-build",
  "glam",
