@@ -23,7 +23,7 @@ impl Artifact {
 	/// STEP バイナリを `Vec<u8>` で取得。
 	pub fn step_bytes(&self) -> Result<Vec<u8>> {
 		let mut buf = Vec::new();
-		cadrum::write_step(self.solids.iter(), &mut buf)
+		Solid::write_step(self.solids.iter(), &mut buf)
 			.map_err(|e| format!("write_step failed: {:?}", e))?;
 		Ok(buf)
 	}
@@ -31,7 +31,7 @@ impl Artifact {
 	/// GLB (glTF binary) を `Vec<u8>` で取得。`solids` を `MESH_TOL` で tessellate し、
 	/// 色グループ別 primitive + edge データ込みで GLB 化する。
 	pub fn glb_bytes(&self) -> Result<Vec<u8>> {
-		let mesh = cadrum::mesh(self.solids.iter(), MESH_TOL)
+		let mesh = Solid::mesh(self.solids.iter(), MESH_TOL)
 			.map_err(|e| format!("mesh failed: {:?}", e))?;
 		mesh_to_glb(&self.solids, &mesh).map_err(|e| format!("mesh_to_glb failed: {:?}", e).into())
 	}

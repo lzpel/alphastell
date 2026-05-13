@@ -83,6 +83,6 @@ pub fn run(a: &Path, b: &Path, max_ratio: u32, tol: f64, union: bool) -> Result<
 fn read_step_file(path: &Path) -> Result<Vec<Solid>> {
 	let mut f = File::open(path)
 		.map_err(|e| format!("open {}: {}", path.display(), e))?;
-	cadrum::read_step(&mut f)
+	Solid::read_step(&mut f)
 		.map_err(|e| format!("read_step {}: {:?}", path.display(), e).into())
 }

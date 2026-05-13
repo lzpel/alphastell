@@ -81,8 +81,8 @@ fn cut_solid(
 	];
 	let wedge = Solid::extrude(wire.iter(), DVec3::new(0.0, 0.0, z_hi - z_lo))?;
 	let result = match mode {
-		Mode::Intersect => solid.intersect([&wedge])?,
-		Mode::Subtract => solid.subtract([&wedge])?,
+		Mode::Intersect => Solid::boolean_intersect([solid], [&wedge])?,
+		Mode::Subtract => Solid::boolean_subtract([solid], [&wedge])?,
 	};
 	result
 		.into_iter()
@@ -101,7 +101,7 @@ pub fn run(input: &Path, output: &Path, start: f64, end: f64, mode: Mode) -> Res
 	}
 
 	println!("Loading STEP: {}", input.display());
-	let solids: Vec<Solid> = cadrum::read_step(&mut File::open(input)?)?;
+	let solids: Vec<Solid> = Solid::read_step(&mut File::open(input)?)?;
 	println!("  loaded {} solid(s)", solids.len());
 
 	let full_turn = (span - TAU).abs() < 1e-12;
@@ -151,7 +151,7 @@ pub fn run(input: &Path, output: &Path, start: f64, end: f64, mode: Mode) -> Res
 	}
 
 	println!("Writing STEP: {}", output.display());
-	cadrum::write_step(cut_solids.iter(), &mut File::create(output)?)?;
+	Solid::write_step(cut_solids.iter(), &mut File::create(output)?)?;
 	println!("Done.");
 	Ok(())
 }
