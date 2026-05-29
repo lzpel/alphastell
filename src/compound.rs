@@ -130,7 +130,8 @@ pub fn run(
 		.map_err(|e| format!("mesh failed: {:?}", e))?;
 	let mut svg_file = File::create(&svg_path)
 		.map_err(|e| format!("create {}: {}", svg_path.display(), e))?;
-	mesh.write_svg(DVec3::ONE, DVec3::Z, false, true, &mut svg_file)
+	mesh.scene(DVec3::ONE, DVec3::Z, false, true)
+		.write_svg(&mut svg_file)
 		.map_err(|e| format!("write_svg failed: {:?}", e))?;
 	let mut stl_file = File::create(&stl_path)
 		.map_err(|e| format!("create {}: {}", stl_path.display(), e))?;

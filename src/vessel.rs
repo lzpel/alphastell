@@ -128,7 +128,8 @@ impl<'a> VesselBuilder<'a> {
 			let solids: Vec<Solid> = if i == 0 {
 				vec![full_solids[0].clone()]
 			} else {
-				Solid::boolean_subtract([&full_solids[i]], [&full_solids[i - 1]])
+				(&full_solids[i] - &full_solids[i - 1])
+					.build_vec()
 					.map_err(|e| format!("subtract {}: {:?}", spec.name, e))?
 			};
 			if solids.is_empty() {

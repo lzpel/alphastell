@@ -11,7 +11,7 @@
 //!    10 分以上かかるため既定では off。形状の空間的な包含まで厳密に確認したい
 //!    ときだけ opt-in する。
 
-use cadrum::{Compound, Solid};
+use cadrum::{Boolean, Compound, Solid};
 use std::fs::File;
 use std::path::Path;
 
@@ -50,7 +50,11 @@ pub fn run(a: &Path, b: &Path, max_ratio: u32, tol: f64, union: bool) -> Result<
 	// --- 2. Union 体積の非膨張チェック (opt-in) ---
 	let within_union = if union {
 		println!("Running boolean_union (may take several minutes on large STEPs)...");
-		let union_solids = Solid::boolean_union(solids_a.iter(), solids_b.iter())
+		let union_solids = solids_a
+			.iter()
+			.chain(solids_b.iter())
+			.fold(Boolean::default(), |acc, s| acc + s)
+			.build_vec()
 			.map_err(|e| format!("boolean_union failed: {:?}", e))?;
 		let v_union = union_solids.volume();
 		let rel_err_union = ((v_union - large) / large).abs();
