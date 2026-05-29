@@ -81,8 +81,8 @@ fn cut_solid(
 	];
 	let wedge = Solid::extrude(wire.iter(), DVec3::new(0.0, 0.0, z_hi - z_lo))?;
 	let result = match mode {
-		Mode::Intersect => Solid::boolean_intersect([solid], [&wedge])?,
-		Mode::Subtract => Solid::boolean_subtract([solid], [&wedge])?,
+		Mode::Intersect => (solid * &wedge).build_vec()?,
+		Mode::Subtract => (solid - &wedge).build_vec()?,
 	};
 	result
 		.into_iter()
