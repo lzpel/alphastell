@@ -31,7 +31,7 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "alphastell"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "axum-reverse-proxy",
@@ -285,9 +285,9 @@ checksum = "1e748733b7cbc798e1434b6ac524f0c1ff2ab456fe201501e6497c8417a4fc33"
 
 [[package]]
 name = "cadrum"
-version = "0.8.3"
+version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58fd405a024dc1c60d3ec8395914fa4d94cf2caadea54e066801067dbb070758"
+checksum = "8b61a139e208c5beb66693702097ee3b657815bb5f8ce111fb680446d60627e1"
 dependencies = [
  "cc",
  "cxx",
