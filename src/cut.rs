@@ -15,7 +15,7 @@
 //!   boolean intersect / subtract する。
 //! - 扇柱の寸法は各入力 solid の `bounding_box()` から十分大きく取る。
 
-use cadrum::{Compound, DVec3, Edge, Solid};
+use cadrum::{DVec3, Edge, Solid};
 use regex::Regex;
 use std::f64::consts::TAU;
 use std::fs::File;
@@ -140,8 +140,8 @@ pub fn run(input: &Path, output: &Path, start: f64, end: f64, mode: Mode) -> Res
 	println!("  got {} solid(s) after boolean", cut_solids.len());
 	println!(
 		"  volume input vs output: {} -> {}",
-		solids.volume(),
-		cut_solids.volume()
+		solids.iter().map(|s| s.volume()).sum::<f64>(),
+		cut_solids.iter().map(|s| s.volume()).sum::<f64>()
 	);
 
 	if let Some(parent) = output.parent() {
