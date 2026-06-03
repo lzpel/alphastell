@@ -12,7 +12,7 @@
 //!    e. `Solid::sweep(profile, spine, ProfileOrient::Up(DVec3::Z))` で solid 化
 //! 3. 全コイルを集めて STEP 出力
 
-use cadrum::{BSplineEnd, DVec3, ProfileOrient, Solid, Wire};
+use cadrum::{BSplineEnd, DVec3, ProfileOrient, Solid};
 use std::io::Read;
 
 use crate::Result;
@@ -160,7 +160,12 @@ fn build_one(
     // aux_spine 方向 (= 外向き) と一致させて、sweep 開始点でフレームが
     // 再整列しないようにしておく。
     let outward = origin - com;
-    let profile = profile.align_z(tangent, outward).translate(origin);
+    // cadrum 0.8.4 で transform はコレクションに特殊実装されず Edge 単体の
+    // inherent method になったので、各 Edge に map で適用する。
+    let profile: Vec<cadrum::Edge> = profile
+        .into_iter()
+        .map(|e| e.align_z(tangent, outward).translate(origin))
+        .collect();
 
     // 可視化用ダンプ: profile 4 コーナー (各辺 Edge の start_point) + spine n 点。
     // すべて scale 倍済みワールド座標。`start_point` は Wire trait 経由で Edge に生えている。

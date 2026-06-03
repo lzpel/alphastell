@@ -2,7 +2,6 @@
 //! バウンディングボックスを `path x0 y0 z0 x1 y1 z1 dx dy dz` の形式で
 //! 1 行ずつ標準出力に書き出す。
 
-use cadrum::Compound;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
@@ -11,7 +10,8 @@ use crate::Result;
 pub fn run(inputs: &[PathBuf]) -> Result<()> {
 	for path in inputs {
 		let solids = read_step_file(path)?;
-		let [min, max] = solids.bounding_box();
+		// cadrum 0.8.4 で Compound::bounding_box が無くなったので各 Solid の bbox を畳み込む
+		let [min, max] = solids.iter().map(|v| v.bounding_box()).reduce(|a, b| [a[0].min(b[0]), a[1].max(b[1])]).ok_or("empty STEP: no solids")?;
 		let dx = max.x - min.x;
 		let dy = max.y - min.y;
 		let dz = max.z - min.z;
