@@ -33,7 +33,7 @@ exclude = [
 frontend-embed = ["rust-embed", "mime_guess"]
 
 [dependencies]
-cadrum = "^0.8.3"
+cadrum = "^0.8.4"
 netcdf3 = "^0.6"
 clap = { version = "^4", features = ["derive", "env"] }
 regex = "^1"
