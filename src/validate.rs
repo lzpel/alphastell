@@ -11,7 +11,7 @@
 //!    10 分以上かかるため既定では off。形状の空間的な包含まで厳密に確認したい
 //!    ときだけ opt-in する。
 
-use cadrum::{Boolean, Compound, Solid};
+use cadrum::{Boolean, Solid};
 use std::fs::File;
 use std::path::Path;
 
@@ -24,9 +24,9 @@ pub fn run(a: &Path, b: &Path, max_ratio: u32, tol: f64, union: bool) -> Result<
 	println!("Loading STEP: {}", b.display());
 	let solids_b = read_step_file(b)?;
 
-	// Vec<Solid> は Compound trait 経由で .volume() を持つ (複数ソリッドなら合算)
-	let v_a = solids_a.volume();
-	let v_b = solids_b.volume();
+	// cadrum 0.8.4 で Vec<Solid>::volume が無くなったため各 Solid を合算する
+	let v_a = solids_a.iter().map(|s| s.volume()).sum::<f64>();
+	let v_b = solids_b.iter().map(|s| s.volume()).sum::<f64>();
 	println!("V_A = {:.6e}, V_B = {:.6e}", v_a, v_b);
 
 	if v_a <= 0.0 || v_b <= 0.0 {
@@ -56,7 +56,7 @@ pub fn run(a: &Path, b: &Path, max_ratio: u32, tol: f64, union: bool) -> Result<
 			.fold(Boolean::default(), |acc, s| acc + s)
 			.build_vec()
 			.map_err(|e| format!("boolean_union failed: {:?}", e))?;
-		let v_union = union_solids.volume();
+		let v_union = union_solids.iter().map(|s| s.volume()).sum::<f64>();
 		let rel_err_union = ((v_union - large) / large).abs();
 		let ok = rel_err_union < tol;
 		println!(
