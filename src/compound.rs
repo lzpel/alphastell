@@ -11,7 +11,7 @@
 //! stellarator の鉛直軸 Z を画面の上方向に取り、-Y 方向から側面を見る構図。
 //! 隠線 off、shading on。
 
-use cadrum::{Color, DVec3, Solid};
+use cadrum::{Color, DVec3, SceneOption, Solid, Tessellation};
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
@@ -126,11 +126,23 @@ pub fn run(
 		svg_path.display(),
 		SVG_MESH_TOL
 	);
-	let mesh = Solid::mesh(all.iter(), SVG_MESH_TOL)
+	// cadrum 0.8.5: 絶対値 chord deflection で tessellate。
+	let tess = Tessellation {
+		deflection_linear: SVG_MESH_TOL,
+		relative_linear: false,
+		..Default::default()
+	};
+	let mesh = Solid::mesh(all.iter(), tess)
 		.map_err(|e| format!("mesh failed: {:?}", e))?;
 	let mut svg_file = File::create(&svg_path)
 		.map_err(|e| format!("create {}: {}", svg_path.display(), e))?;
-	mesh.scene(DVec3::ONE, DVec3::Z, false, true)
+	// view=DVec3::ONE (ISO)、up=+Z、隠線 off、shading on。
+	mesh.scene(SceneOption {
+		view: DVec3::ONE,
+		up: DVec3::Z,
+		hidden_edges: false,
+		shading: true,
+	})
 		.write_svg(&mut svg_file)
 		.map_err(|e| format!("write_svg failed: {:?}", e))?;
 	let mut stl_file = File::create(&stl_path)
