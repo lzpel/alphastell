@@ -33,7 +33,7 @@ exclude = [
 frontend-embed = ["rust-embed", "mime_guess"]
 
 [dependencies]
-cadrum = "^0.8.4"
+cadrum = "^0.8.5"
 netcdf3 = "^0.6"
 clap = { version = "^4", features = ["derive", "env"] }
 regex = "^1"
@@ -44,7 +44,6 @@ axum = { version = "^0", features = ["multipart"] }
 tokio = { version = "^1", features = ["rt", "rt-multi-thread", "macros", "signal", "net"] }
 http = "^1"
 tar = "^0.4"
-gltf-json = { version = "^1", features = ["names", "extras", "extensions", "KHR_materials_unlit"] }
 tower-http = { version = "^0.6", features = ["compression-gzip"] }
 # frontend 埋め込み用 (frontend-embed feature ON 時のみ)
 rust-embed = { version = "^8", optional=true }
