@@ -2,8 +2,8 @@ export MSYS_NO_PATHCONV := 1
 MAKE_RECURSIVE_DIRS := frontend/openapi frontend
 export MAKE_RECURSIVE = time printf '%s\n' $(MAKE_RECURSIVE_DIRS) | xargs -IX sh -c '$(MAKE) -C X $@ || exit 255'
 
-VMEC_IN  := parastell/examples/wout_vmec.nc
-COILS_IN := parastell/examples/coils.example
+VMEC_IN  := resource/wout_vmec.nc
+COILS_IN := resource/coils.example
 PARA_DIR := parastell/examples/alphastell_full
 OUT_DIR  := out
 
@@ -11,41 +11,43 @@ OUT_DIR  := out
 # chamber は parastell の plasma.step と概念的に対応 (ファイル名のみ別)。
 LAYERS := chamber first_wall breeder back_wall shield vacuum_vessel
 
+.DEFAULT_GOAL := help
+
+help: ## このヘルプを表示
+	@grep -hE '^[a-zA-Z0-9_-]+:.*?##' $(MAKEFILE_LIST) | sort | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
+
 # ============================================================
-# Submodule auto-init: parastell/ は git submodule。
-# `git clone --recurse-submodules` 忘れでも、$(VMEC_IN) が無ければ初回だけ
-# `git submodule update --init --recursive` を一回実行する。同 init で
-# $(COILS_IN) / $(PARA_DIR)/*.step も同時に揃うので、それらは $(VMEC_IN) を
-# 依存にぶら下げて連鎖取得させれば十分。init 済みなら recipe はスキップ。
+# submodule — parastell/ git submodule を init/update。
+#   validate / bbox の参照 .step ($(PARA_DIR)/*.step) はここで揃う。
+#   通常パイプライン (vessel/magnet) は resource/ を使うので不要。
 # ============================================================
-$(VMEC_IN):
+submodule: ## parastell submodule を init/update
 	git submodule update --init --recursive
 
-$(COILS_IN): $(VMEC_IN)
-
-run: vessel magnet
+run: vessel magnet ## vessel + magnet を一括生成
 
 # ============================================================
 # generate frontend
 # ============================================================
 
-frontend-generate:
+frontend-generate: ## wout_vmec.nc を strip して frontend を生成
 	cargo run -- strip-netcdf \
-      --input parastell/examples/wout_vmec.nc \
+      --input $(VMEC_IN) \
       --output frontend/public/wout_vmec.nc \
       --include xm --include xn --include rmnc --include zmns
 	find . -maxdepth 2 -name .gitignore | xargs -IX sed '/^#\s*EOF_DOCKERIGNORE.*/q' X > .dockerignore
 	bash -c "$${MAKE_RECURSIVE}"
-frontend-run-backend:
+frontend-run-backend: ## backend サーバを起動
 	cargo run -- server --port 7998 --port-frontend 7999
-frontend-run-frontend:
+frontend-run-frontend: ## frontend dev サーバを起動
 	PORT=7999 make -C frontend frontend-run
-frontend-run: frontend-run-backend frontend-run-frontend
+frontend-run: frontend-run-backend frontend-run-frontend ## backend + frontend を起動
 	# bash -c "$${MAKE_RECURSIVE}"
-frontend-deploy: frontend-generate
+frontend-deploy: frontend-generate ## frontend をビルド (embed release)
 	bash -c "$${MAKE_RECURSIVE}"
 	cargo build --features frontend-embed --release
-frontend-publish: frontend-deploy
+frontend-publish: frontend-deploy ## frontend を AWS へデプロイ
 	make -C aws deploy
 
 # ============================================================
@@ -53,13 +55,13 @@ frontend-publish: frontend-deploy
 #   出力: $(OUT_DIR)/{chamber,first_wall,breeder,back_wall,shield,vacuum_vessel}.step
 #   wall_s=1.08 を基準に mesh() + boolean_subtract で構築 (Solid::shell は使わない)。
 # ============================================================
-vessel: $(VMEC_IN)
+vessel: $(VMEC_IN) ## 6 層 in-vessel build を生成
 	cargo run --release -- vessel --scale 100 --input $(VMEC_IN) --output $(OUT_DIR)/
 
 # ============================================================
 # magnet — coils.example から長方形断面 sweep で magnet_set.step を生成 (m 単位)
 # ============================================================
-magnet: $(COILS_IN)
+magnet: $(COILS_IN) ## coils から magnet_set.step を生成
 	cargo run --release -- magnet --scale 100 --input $(COILS_IN) --output $(OUT_DIR)/
 
 # ============================================================
@@ -68,35 +70,35 @@ magnet: $(COILS_IN)
 #   他 5 層はファイル名が一致。
 #   tol=0.05 は s=1.08 外挿 + Planar 2D 法線近似に由来する数 % 程度のズレを許容。
 # ============================================================
-validate: $(addprefix validate-,$(LAYERS))
+validate: $(addprefix validate-,$(LAYERS)) ## 全層を parastell 参照と体積比較
 
 # 各 validate-LAYER は parastell/examples/alphastell_full/*.step (submodule 配下) を
-# 参照対象として読むので、$(VMEC_IN) sentinel に依存させて自動 init を効かせる。
-$(addprefix validate-,$(LAYERS)): $(VMEC_IN)
+# 参照対象として読むので、submodule ターゲットに依存させて init を効かせる。
+$(addprefix validate-,$(LAYERS)): submodule
 
-validate-chamber:
+validate-chamber: ## chamber を plasma.step と体積比較
 	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/chamber.step $(PARA_DIR)/plasma.step
 
-validate-first_wall:
+validate-first_wall: ## first_wall を体積比較
 	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/first_wall.step $(PARA_DIR)/first_wall.step
 
-validate-breeder:
+validate-breeder: ## breeder を体積比較
 	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/breeder.step $(PARA_DIR)/breeder.step
 
-validate-back_wall:
+validate-back_wall: ## back_wall を体積比較
 	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/back_wall.step $(PARA_DIR)/back_wall.step
 
-validate-shield:
+validate-shield: ## shield を体積比較
 	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/shield.step $(PARA_DIR)/shield.step
 
-validate-vacuum_vessel:
+validate-vacuum_vessel: ## vacuum_vessel を体積比較
 	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/vacuum_vessel.step $(PARA_DIR)/vacuum_vessel.step
 
 # ============================================================
 # bbox — parastell/examples/alphastell_full 下の全 *.step の bbox を列挙
 #   1 行 1 ファイル: path x0 y0 z0 x1 y1 z1 dx dy dz
 # ============================================================
-bbox:
+bbox: submodule ## out/ と parastell 参照の bbox を列挙
 	cargo run --release -- bbox $(wildcard $(OUT_DIR)/*.step)
 	cargo run --release -- bbox $(wildcard $(PARA_DIR)/*.step)
 
@@ -107,10 +109,10 @@ bbox:
 #   重ねて viewing してもそのまま整合する。
 #   環境変数 VIEW="azim,elev,roll" / OUTPUT=path で起動時の視点 / 保存先を指定可能。
 # ============================================================
-points: points-save
+points: points-save ## out/*.csv を 3D 散布表示
 	uv run tools/view_points.py ./$(OUT_DIR)
 
-points-save:
+points-save: ## out/*.csv を points.png に保存
 	OUTPUT=$(OUT_DIR)/points.png uv run tools/view_points.py ./$(OUT_DIR)
 
 # ============================================================
@@ -130,7 +132,7 @@ points-save:
 #   vessel 6 層 + magnet は compound::run が hsv(i*0.2/N, 1, 1) の穏やかな gradient で着色。
 #   同名 out/showcase.svg も自動生成 (-X 方向投影、隠線 + shading)。
 # ============================================================
-showcase: run
+showcase: run ## cutaway STEP/SVG を生成
 	mkdir -p $(OUT_DIR)/showcase
 	cargo run --release -- cut --union -i $(OUT_DIR)/first_wall.step    -o $(OUT_DIR)/showcase/first_wall.step    -s -1/36 -e 1/36
 	cargo run --release -- cut --union -i $(OUT_DIR)/breeder.step       -o $(OUT_DIR)/showcase/breeder.step       -s -1/18 -e 1/18
