@@ -3,6 +3,7 @@
 
 use cadrum::{DVec3, Solid, Tessellation};
 use std::io::Write;
+#[cfg(feature = "cli")]
 use std::path::Path;
 
 use crate::Result;
@@ -58,6 +59,7 @@ impl Artifact {
 	}
 
 	/// `<out_dir>/<name>.{step,glb,csv}` を書き出す。
+	#[cfg(feature = "cli")]
 	pub fn write(&self, out_dir: &Path, name: &str) -> Result<()> {
 		std::fs::create_dir_all(out_dir)
 			.map_err(|e| format!("create_dir_all {}: {}", out_dir.display(), e))?;
