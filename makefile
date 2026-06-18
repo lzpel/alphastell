@@ -1,11 +1,19 @@
 export MSYS_NO_PATHCONV := 1
-MAKE_RECURSIVE_DIRS := frontend/openapi frontend
-export MAKE_RECURSIVE = time printf '%s\n' $(MAKE_RECURSIVE_DIRS) | xargs -IX sh -c '$(MAKE) -C X $@ || exit 255'
 
 VMEC_IN  := resource/wout_vmec.nc
 COILS_IN := resource/coils.example
 PARA_DIR := parastell/examples/alphastell_full
 OUT_DIR  := out
+
+# ネイティブ CLI バイナリ。ワークスペース化に伴い -p alphastell で明示。
+CARGO_RUN := cargo run -p alphastell --release --
+
+# wasm (web/) は cadrum 同梱の OCCT を wasi-sdk でクロスビルドする必要があるため、
+# 公式クロスイメージ内で trunk を実行する。
+CROSS_IMG  := ghcr.io/lzpel/cross-wasm32-unknown-unknown:latest
+# 静的ホストの公開パス。既定はルート ("/") でローカル配信・任意の静的ホスト直下に対応。
+# GitHub Pages のプロジェクトページに置く場合は `make web-build PUBLIC_URL=/alphastell/`。
+PUBLIC_URL ?= /
 
 # Rust の vessel が一括出力する 6 層 (内側 → 外側)。
 # chamber は parastell の plasma.step と概念的に対応 (ファイル名のみ別)。
@@ -28,27 +36,26 @@ submodule: ## parastell submodule を init/update
 run: vessel magnet ## vessel + magnet を一括生成
 
 # ============================================================
-# generate frontend
+# web — ブラウザ内 (wasm) ステラレータ可視化 (Trunk)
+#   cadrum 0.8.13 同梱の wasm OCCT を使い、vessel/magnet をブラウザで実行して描画。
+#   出力は web/dist/ 以下の静的サイト。
 # ============================================================
+web-build: ## docker クロスイメージで web/ を Trunk リリースビルド (出力: web/dist)
+	MSYS_NO_PATHCONV=1 docker run --rm -v "$(CURDIR)":/src -w /src \
+		-e CARGO_TARGET_DIR=/tmp/target $(CROSS_IMG) make web-trunk
 
-frontend-generate: ## wout_vmec.nc を strip して frontend を生成
-	cargo run -- strip-netcdf \
-      --input $(VMEC_IN) \
-      --output frontend/public/wout_vmec.nc \
-      --include xm --include xn --include rmnc --include zmns
-	find . -maxdepth 2 -name .gitignore | xargs -IX sed '/^#\s*EOF_DOCKERIGNORE.*/q' X > .dockerignore
-	bash -c "$${MAKE_RECURSIVE}"
-frontend-run-backend: ## backend サーバを起動
-	cargo run -- server --port 7998 --port-frontend 7999
-frontend-run-frontend: ## frontend dev サーバを起動
-	PORT=7999 make -C frontend frontend-run
-frontend-run: frontend-run-backend frontend-run-frontend ## backend + frontend を起動
-	# bash -c "$${MAKE_RECURSIVE}"
-frontend-deploy: frontend-generate ## frontend をビルド (embed release)
-	bash -c "$${MAKE_RECURSIVE}"
-	cargo build --features frontend-embed --release
-frontend-publish: frontend-deploy ## frontend を AWS へデプロイ
-	make -C aws deploy
+# コンテナ内専用ターゲット。cross イメージは CARGO_BUILD_TARGET=wasm32-unknown-unknown
+# を設定済みのため、host 向けに動く trunk の install 時だけ unset する。
+# wasm-bindgen / wasm-opt は trunk が初回に自動取得する。
+web-trunk:
+	unset CARGO_BUILD_TARGET; cargo install --locked --root ./target trunk
+	cd web && ../target/bin/trunk build --release --public-url "$(PUBLIC_URL)"
+
+web-serve: ## ビルド済み web/dist を http://localhost:8000 で静的配信 (先に make web-build が必要)
+	uv run python -m http.server 8000 --directory web/dist
+
+web-deploy: web-build ## web/dist を静的ホストへ (例: gh-pages -d web/dist)
+	@echo "web/dist ready for static hosting"
 
 # ============================================================
 # vessel — 6 層 in-vessel build を一括生成
@@ -56,13 +63,13 @@ frontend-publish: frontend-deploy ## frontend を AWS へデプロイ
 #   wall_s=1.08 を基準に mesh() + boolean_subtract で構築 (Solid::shell は使わない)。
 # ============================================================
 vessel: $(VMEC_IN) ## 6 層 in-vessel build を生成
-	cargo run --release -- vessel --scale 100 --input $(VMEC_IN) --output $(OUT_DIR)/
+	$(CARGO_RUN) vessel --scale 100 --input $(VMEC_IN) --output $(OUT_DIR)/
 
 # ============================================================
 # magnet — coils.example から長方形断面 sweep で magnet_set.step を生成 (m 単位)
 # ============================================================
 magnet: $(COILS_IN) ## coils から magnet_set.step を生成
-	cargo run --release -- magnet --scale 100 --input $(COILS_IN) --output $(OUT_DIR)/
+	$(CARGO_RUN) magnet --scale 100 --input $(COILS_IN) --output $(OUT_DIR)/
 
 # ============================================================
 # validate — 各層を parastell 参照と体積比較
@@ -77,30 +84,30 @@ validate: $(addprefix validate-,$(LAYERS)) ## 全層を parastell 参照と体�
 $(addprefix validate-,$(LAYERS)): submodule
 
 validate-chamber: ## chamber を plasma.step と体積比較
-	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/chamber.step $(PARA_DIR)/plasma.step
+	$(CARGO_RUN) validate --tol 0.05 $(OUT_DIR)/chamber.step $(PARA_DIR)/plasma.step
 
 validate-first_wall: ## first_wall を体積比較
-	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/first_wall.step $(PARA_DIR)/first_wall.step
+	$(CARGO_RUN) validate --tol 0.05 $(OUT_DIR)/first_wall.step $(PARA_DIR)/first_wall.step
 
 validate-breeder: ## breeder を体積比較
-	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/breeder.step $(PARA_DIR)/breeder.step
+	$(CARGO_RUN) validate --tol 0.05 $(OUT_DIR)/breeder.step $(PARA_DIR)/breeder.step
 
 validate-back_wall: ## back_wall を体積比較
-	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/back_wall.step $(PARA_DIR)/back_wall.step
+	$(CARGO_RUN) validate --tol 0.05 $(OUT_DIR)/back_wall.step $(PARA_DIR)/back_wall.step
 
 validate-shield: ## shield を体積比較
-	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/shield.step $(PARA_DIR)/shield.step
+	$(CARGO_RUN) validate --tol 0.05 $(OUT_DIR)/shield.step $(PARA_DIR)/shield.step
 
 validate-vacuum_vessel: ## vacuum_vessel を体積比較
-	cargo run --release -- validate --tol 0.05 $(OUT_DIR)/vacuum_vessel.step $(PARA_DIR)/vacuum_vessel.step
+	$(CARGO_RUN) validate --tol 0.05 $(OUT_DIR)/vacuum_vessel.step $(PARA_DIR)/vacuum_vessel.step
 
 # ============================================================
 # bbox — parastell/examples/alphastell_full 下の全 *.step の bbox を列挙
 #   1 行 1 ファイル: path x0 y0 z0 x1 y1 z1 dx dy dz
 # ============================================================
 bbox: submodule ## out/ と parastell 参照の bbox を列挙
-	cargo run --release -- bbox $(wildcard $(OUT_DIR)/*.step)
-	cargo run --release -- bbox $(wildcard $(PARA_DIR)/*.step)
+	$(CARGO_RUN) bbox $(wildcard $(OUT_DIR)/*.step)
+	$(CARGO_RUN) bbox $(wildcard $(PARA_DIR)/*.step)
 
 # ============================================================
 # points — $(OUT_DIR) 下の *.csv をすべて matplotlib 3D 散布で重ね表示
@@ -134,12 +141,12 @@ points-save: ## out/*.csv を points.png に保存
 # ============================================================
 showcase: run ## cutaway STEP/SVG を生成
 	mkdir -p $(OUT_DIR)/showcase
-	cargo run --release -- cut --union -i $(OUT_DIR)/first_wall.step    -o $(OUT_DIR)/showcase/first_wall.step    -s -1/36 -e 1/36
-	cargo run --release -- cut --union -i $(OUT_DIR)/breeder.step       -o $(OUT_DIR)/showcase/breeder.step       -s -1/18 -e 1/18
-	cargo run --release -- cut --union -i $(OUT_DIR)/back_wall.step     -o $(OUT_DIR)/showcase/back_wall.step     -s -1/12 -e 1/12
-	cargo run --release -- cut --union -i $(OUT_DIR)/shield.step        -o $(OUT_DIR)/showcase/shield.step        -s -1/9  -e 1/9
-	cargo run --release -- cut --union -i $(OUT_DIR)/vacuum_vessel.step -o $(OUT_DIR)/showcase/vacuum_vessel.step -s -5/36 -e 5/36
-	cargo run --release -- compound \
+	$(CARGO_RUN) cut --union -i $(OUT_DIR)/first_wall.step    -o $(OUT_DIR)/showcase/first_wall.step    -s -1/36 -e 1/36
+	$(CARGO_RUN) cut --union -i $(OUT_DIR)/breeder.step       -o $(OUT_DIR)/showcase/breeder.step       -s -1/18 -e 1/18
+	$(CARGO_RUN) cut --union -i $(OUT_DIR)/back_wall.step     -o $(OUT_DIR)/showcase/back_wall.step     -s -1/12 -e 1/12
+	$(CARGO_RUN) cut --union -i $(OUT_DIR)/shield.step        -o $(OUT_DIR)/showcase/shield.step        -s -1/9  -e 1/9
+	$(CARGO_RUN) cut --union -i $(OUT_DIR)/vacuum_vessel.step -o $(OUT_DIR)/showcase/vacuum_vessel.step -s -5/36 -e 5/36
+	$(CARGO_RUN) compound \
 		-i $(OUT_DIR)/chamber.step \
 		-i $(OUT_DIR)/showcase/first_wall.step \
 		-i $(OUT_DIR)/showcase/breeder.step \
