@@ -1,0 +1,18 @@
+[package]
+name = "alphastell"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "CLI for stellarator CAD generation and validation (VMEC to STEP/SVG)."
+
+[[bin]]
+name = "alphastell"
+path = "src/main.rs"
+
+[dependencies]
+alphastell-core = { path = "../core", features = ["cli"] }
+clap = { workspace = true }
