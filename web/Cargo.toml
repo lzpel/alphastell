@@ -1,0 +1,44 @@
+[package]
+name = "alphastell-web"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "In-browser (wasm) stellarator + coil visualizer built on alphastell-core and cadrum."
+
+[[bin]]
+name = "alphastell-web"
+path = "src/main.rs"
+
+[dependencies]
+# default features のみ → clap も cli 専用モジュールも引かない
+alphastell-core = { path = "../core" }
+cadrum = { workspace = true }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+console_error_panic_hook = "0.1"
+
+[dependencies.web-sys]
+version = "0.3"
+features = [
+	"Document",
+	"Window",
+	"Element",
+	"HtmlElement",
+	"HtmlInputElement",
+	"HtmlButtonElement",
+	"HtmlLabelElement",
+	"Event",
+	"EventTarget",
+	"File",
+	"FileList",
+	"Blob",
+	"Url",
+	"Node",
+	"console",
+	"Response",
+]
