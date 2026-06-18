@@ -3,5 +3,5 @@ out/
 *.step
 *.svg
 out.*
-node_modules/
-frontend/client/
+dist/
+web/dist/
