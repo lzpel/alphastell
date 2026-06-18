@@ -6,7 +6,7 @@ A Rust CAD generator for stellarator fusion reactors, built on top of OpenCASCAD
 
 *Cutaway of the six in-vessel layers (chamber → vacuum vessel) with the 40-filament magnet coil set, produced by `make showcase`.*
 
-- See online demo here: https://d208cxcpnw2718.cloudfront.net/
+- Build the in-browser visualizer with `make web-build` (see [Web (WASM) visualizer](#web-wasm-visualizer)) and publish `web/dist/` to any static host.
 - See youtube video here: https://youtu.be/WwD3qL0VLBc
 
 ![Webdemo of alphastell](figure/screenshot.png)
@@ -130,44 +130,79 @@ Both are then normalized, scaled by $o$, added to $\mathbf p$, and the whole poi
 |---|---|---|
 | `vessel`   | 6 × `.step` + `.csv` | 6-layer in-vessel build from a VMEC `wout_*.nc` |
 | `magnet`   | `magnet_set.step` + `.csv` | Rectangular-cross-section sweep of 40 coil filaments |
-| `plasma`   | `plasma_M*_N*.step` | Diagnostic: LCFS (s=1.0) at several (M, N) resolutions |
 | `cut`      | 1 × `.step` | Sector-wedge boolean: `--cut` keeps the wedge, `--union` removes it |
 | `compound` | merged `.step` + `.svg` | Merge multiple STEP inputs (optionally plus an in-memory magnet sector) with chamber→vacuum-vessel gradient coloring, and write a projected SVG |
 | `validate` | stdout | Volume-ratio check (and optional boolean-Union volume) against a reference STEP |
 
-Run `cargo run --release -- <subcommand> --help` for the full flag set.
+Run `cargo run -p alphastell --release -- <subcommand> --help` for the full flag set.
 
-## Getting started
+## Web (WASM) visualizer
+
+The browser visualizer is a [Trunk](https://trunkrs.dev/) WASM app under `web/`. cadrum 0.8.13 ships a
+prebuilt OpenCASCADE compiled to `wasm32-unknown-unknown`, so the **same `vessel::run` / `magnet::run`
+geometry runs entirely in the browser** — no server. The 6 in-vessel layers and the coil set are each
+meshed to GLB and rendered with [three.js](https://threejs.org/) (loaded from a CDN via importmap — no
+npm, no bundler), with per-layer show/hide checkboxes. The bundled `resource/wout_vmec.nc` /
+`coils.example` are drawn on startup; you can also upload your own VMEC / coils file.
+
+```bash
+make web-build    # build web/dist via the cadrum wasm cross image (docker)
+make web-serve    # serve the built web/dist at http://localhost:8000 (via uv run python)
+make web-deploy   # build, then publish web/dist to a static host (e.g. gh-pages -d web/dist)
+```
+
+`make web-build` runs `trunk build --release` inside `ghcr.io/lzpel/cross-wasm32-unknown-unknown`
+(the wasi-sdk toolchain image that links cadrum's wasm OCCT) — trunk and the host wasm toolchain are
+**not** needed locally, only docker. The output is a static site in `web/dist/`. A current browser with
+WebAssembly exception-handling (`exnref`) support is required at runtime.
+
+`PUBLIC_URL` defaults to `/` (works at localhost root and any static host root). For a GitHub Pages
+**project** page under a sub-path, build with `make web-build PUBLIC_URL=/alphastell/`.
+
+## Getting started (CLI)
 
 ```bash
 git clone https://github.com/lzpel/alphastell
 cd alphastell
 
-cargo build --release
+cargo build --release          # builds the alphastell-core lib + alphastell CLI
 
-make run              # vessel + validate against the bundled parastell reference
+make run              # vessel + magnet
 make showcase         # reproduce figure/image.png as out/showcase.step + .svg
+make validate         # volume-check each layer against the bundled parastell reference
 make points           # 3D scatter of every out/*.csv (needs `uv`)
 ```
 
-Prerequisites: stable `rustc` with edition 2024 support, GNU `make`, and [`uv`](https://docs.astral.sh/uv/) for the Python viewer scripts under `tools/` (optional). OCCT is statically linked through the `cadrum` crate, so no separate install is required.
+Prerequisites: stable `rustc` with edition 2024 support, GNU `make`, [`docker`](https://www.docker.com/)
+for `make web-build`, and [`uv`](https://docs.astral.sh/uv/) for the Python viewer scripts under `tools/`
+(optional). OCCT is statically linked through the `cadrum` crate, so no separate install is required.
+
+## Workspace layout
+
+This repo is a Cargo workspace with three members:
+
+- `core/` — `alphastell-core` library: the wasm-safe geometry kernel (`vmec`, `coils`, `vessel`,
+  `magnet`, `artifact`). The native-only subcommands (`bbox`, `compound`, `cut`, `validate`,
+  `strip_netcdf`, and `Artifact::write`) sit behind the `cli` feature.
+- `cli/` — the `alphastell` binary (clap CLI), depends on `core` with `features = ["cli"]`.
+- `web/` — the `alphastell-web` Trunk WASM app, depends on `core` (default features only, so no clap /
+  no fs-CLI modules leak into the wasm build).
 
 ## Example usage
 
 ```bash
 # 6 in-vessel layers (parastell default: wall_s=1.08, scale=100 → cm output)
-cargo run --release -- vessel --input parastell/examples/wout_vmec.nc --output out/
+cargo run -p alphastell --release -- vessel --scale 100 --input resource/wout_vmec.nc --output out/
 
 # 40-coil magnet set
-cargo run --release -- magnet --input parastell/examples/coils.example --output out/magnet_set.step
+cargo run -p alphastell --release -- magnet --scale 100 --input resource/coils.example --output out/
 
 # Keep half the torus of first_wall (sector [-1/4, +1/4] of τ = [-90°, +90°])
-cargo run --release -- cut --cut -i out/first_wall.step -o out/fw_half.step -s -1/4 -e 1/4
+cargo run -p alphastell --release -- cut --cut -i out/first_wall.step -o out/fw_half.step -s -1/4 -e 1/4
 
-# Merge vessel layers + a magnet sector into one colored STEP + SVG
-cargo run --release -- compound \
+# Merge vessel layers into one colored STEP + SVG
+cargo run -p alphastell --release -- compound \
     -i out/chamber.step -i out/vacuum_vessel.step \
-    --input-magnet parastell/examples/coils.example \
     -o out/merged.step
 ```
 
@@ -176,19 +211,22 @@ The `make showcase` target wires this together: each vessel layer is cut with a 
 ## Repository layout
 
 ```
-src/             Rust source for each subcommand
+core/            alphastell-core lib: wasm-safe geometry kernel (vmec/coils/vessel/magnet/artifact)
+core/src/        + cli-feature modules (bbox/compound/cut/validate/strip_netcdf)
+cli/             alphastell binary (clap CLI)
+web/             alphastell-web Trunk WASM app (index.html, viewer.js, src/main.rs)
+resource/        Canonical CLI/web inputs: wout_vmec.nc, coils.example
 tools/           Python viewers (view_points.py, etc.)
 parastell/       Vendored parastell snapshot — reference algorithms and example data
 parastell/examples/    wout_vmec.nc, coils.example, alphastell_full/*.step
 figure/          Rendered showcase images
 notes/           Design notes (Japanese)
-examples/        Small cadrum usage examples (seam-dent repro etc.)
 ```
 
 ## Known limitations
 
 - **[cadrum#120](https://github.com/lzpel/cadrum/issues/120)** — the periodic B-spline seam in `Solid::bspline(grid, periodic=true)` leaves mm-scale dents on chamber-like surfaces; the grid is deliberately kept at M=128, N=48 to keep the artifact small.
-- **[cadrum#122](https://github.com/lzpel/cadrum/issues/122)** — round-tripping a multi-solid compound STEP (40 magnet coils) through `read_step` currently returns zero solids. `compound --input-magnet` bypasses this by building the coils in-memory.
+- **[cadrum#122](https://github.com/lzpel/cadrum/issues/122)** — round-tripping a multi-solid compound STEP (40 magnet coils) through `read_step` currently returns zero solids. The web visualizer sidesteps this by building the coils in-memory (it never reads them back from STEP).
 - The STEP header declares `SI_UNIT(.MILLI., .METRE.)`, but `vessel --scale` defaults to cm. Viewers therefore render everything at 1/10 of the intended physical size. Relative dimensions are still correct.
 
 ## Contact

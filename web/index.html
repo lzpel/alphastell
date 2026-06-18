@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>alphastell — in-browser stellarator CAD</title>
+
+		<!-- この crate を wasm にビルド。
+		     - data-wasm-opt="z": wasm-opt (binaryen) をサイズ最適化で実行。
+		     - data-wasm-opt-params="-all": OCCT/cadrum モジュールは wasm 例外処理
+		       (exnref)・reference-types・bulk-memory を使うため全機能を有効化しないと
+		       wasm-opt が try_table 等を弾く。
+		     - data-reference-types="true": モジュールが reference-types を有効化済みのため
+		       wasm-bindgen は Result<_, JsValue> の catch ラッパで externref テーブルを使う。 -->
+		<link
+			data-trunk
+			rel="rust"
+			href="Cargo.toml"
+			data-wasm-opt="z"
+			data-wasm-opt-params="-all"
+			data-reference-types="true"
+		/>
+
+		<!-- 同梱デモ入力 (起動時に自動 fetch + 描画)。 -->
+		<link data-trunk rel="copy-file" href="../resource/wout_vmec.nc" />
+		<link data-trunk rel="copy-file" href="../resource/coils.example" />
+
+		<!-- three.js を CDN から importmap で解決。npm / バンドラ不要。
+		     viewer.js は wasm-bindgen のローカルスニペットとして取り込まれ、ここで定義した
+		     bare specifier ("three", "three/addons/") をそのまま使う。 -->
+		<script type="importmap">
+			{
+				"imports": {
+					"three": "https://unpkg.com/three@0.169.0/build/three.module.js",
+					"three/addons/": "https://unpkg.com/three@0.169.0/examples/jsm/"
+				}
+			}
+		</script>
+
+		<style>
+			html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
+			#ui {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 16px;
+				align-items: center;
+				padding: 10px 14px;
+				background: #1b1b1b;
+				color: #eee;
+			}
+			#ui label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+			#layers { display: inline-flex; flex-wrap: wrap; gap: 12px; }
+			#layers .layer { text-transform: capitalize; }
+			#view { display: block; width: 100vw; height: calc(100vh - 56px); background: #111; }
+		</style>
+	</head>
+	<body>
+		<div id="ui"></div>
+		<canvas id="view"></canvas>
+	</body>
+</html>

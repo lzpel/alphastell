@@ -25,7 +25,7 @@ use std::sync::OnceLock;
 use crate::Result;
 
 /// `(+|-)?\d+(/\d+)?` 形式の τ-fraction をラジアンに。
-pub(crate) fn parse_tau_fraction(s: &str) -> std::result::Result<f64, String> {
+pub fn parse_tau_fraction(s: &str) -> std::result::Result<f64, String> {
 	const RE_STR: &str = r"^(?P<sign>[+-]?)(?P<num>\d+)(?:/(?P<den>\d+))?$";
 	static RE: OnceLock<Regex> = OnceLock::new();
 	let re = RE.get_or_init(|| Regex::new(RE_STR).unwrap());

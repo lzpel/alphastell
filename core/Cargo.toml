@@ -1,0 +1,24 @@
+[package]
+name = "alphastell-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Stellarator CAD geometry core: VMEC equilibria to STEP/GLB for in-vessel layers and modular coils."
+readme = "../README.md"
+keywords = ["stellarator", "fusion", "cad", "vmec", "nuclear"]
+categories = ["science", "simulation", "mathematics"]
+
+[features]
+default = []
+# std::fs / regex を使うネイティブ専用モジュール (compound/cut/validate/bbox/strip_netcdf,
+# および Artifact::write)。wasm ビルド (web クレート) では無効。
+cli = ["dep:regex"]
+
+[dependencies]
+cadrum = { workspace = true }
+netcdf3 = { workspace = true }
+regex = { workspace = true, optional = true }
