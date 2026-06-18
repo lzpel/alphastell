@@ -1,0 +1,47 @@
+name: Deploy web to GitHub Pages
+
+# web/ (Trunk wasm) をビルドして GitHub Pages に公開する。
+# ビルドは既存 makefile の web-build を再利用し、cadrum の wasm クロスイメージで実行する。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同時実行は 1 つに絞る (進行中のデプロイはキャンセルしない)。
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # PUBLIC_URL はリポジトリ名から動的に決める (プロジェクトページの /<repo>/ サブパス)。
+      # アプリ内の入力取得は相対 fetch なので、この接頭辞配下でも自動解決する。
+      - name: Build web/dist
+        run: make web-build PUBLIC_URL=/${{ github.event.repository.name }}/
+
+      # docker はコンテナ内 root で書き込むため、artifact 化前に所有者を runner に戻す。
+      - name: Fix ownership
+        run: sudo chown -R "$USER" web/dist
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
