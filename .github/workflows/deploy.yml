@@ -5,6 +5,8 @@ name: Deploy web to GitHub Pages
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -38,6 +40,8 @@ jobs:
 
   deploy:
     needs: build
+    # PR では build のみ検証し、デプロイは main push / 手動起動でのみ実行。
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
