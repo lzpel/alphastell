@@ -42,7 +42,7 @@ run: vessel magnet ## vessel + magnet を一括生成
 # ============================================================
 web-build: ## docker クロスイメージで web/ を Trunk リリースビルド (出力: web/dist)
 	MSYS_NO_PATHCONV=1 docker run --rm -v "$(CURDIR)":/src -w /src \
-		-e CARGO_TARGET_DIR=/tmp/target $(CROSS_IMG) make web-trunk
+		-e CARGO_TARGET_DIR=/tmp/target $(CROSS_IMG) make web-trunk PUBLIC_URL="$(PUBLIC_URL)"
 
 # コンテナ内専用ターゲット。cross イメージは CARGO_BUILD_TARGET=wasm32-unknown-unknown
 # を設定済みのため、host 向けに動く trunk の install 時だけ unset する。
