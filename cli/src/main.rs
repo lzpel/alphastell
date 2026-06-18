@@ -22,26 +22,10 @@
 //! - `vessel`   : vessel サブコマンド本体
 //! - `validate` : validate サブコマンド本体
 
-mod artifact;
-mod bbox;
-mod coils;
-mod compound;
-mod cut;
-mod magnet;
-mod strip_netcdf;
-mod validate;
-mod vessel;
-mod vmec;
-#[allow(dead_code, unused_imports, unused_variables, unexpected_cfgs)]
-mod openapi;
-mod api;
+use alphastell_core::{bbox, compound, cut, magnet, strip_netcdf, validate, vessel, Result};
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-
-/// 本クレート共通の Result 型。`Box<dyn Error>` なので !Send なエラー
-/// (例: netcdf3 の ReadError) もそのまま保持できる。
-pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[derive(Parser, Debug)]
 #[command(about = "alphastell — VMEC 由来の CAD 生成と検証")]
@@ -143,14 +127,6 @@ enum Command {
 		#[arg(long, default_value_t = false)]
 		union: bool,
 	},
-	Server{
-        /// Port to listen on (or set PORT env var)
-        #[arg(long, env = "PORT", default_value = "8080")]
-        port: u16,
-        /// Port to listen on (or set PORT env var)
-        #[arg(long, env = "PORT_FRONTEND", default_value = "8070")]
-        port_frontend: u16,
-	},
 	/// 各 STEP ファイルの軸並行バウンディングボックスを
 	/// `path x0 y0 z0 x1 y1 z1 dx dy dz` 形式で 1 行ずつ出力する。
 	Bbox {
@@ -234,13 +210,6 @@ fn main() -> Result<()> {
 			tol,
 			union,
 		} => validate::run(&a, &b, max_ratio, tol, union),
-		Command::Server {
-			port,
-			port_frontend,
-		} => {
-			api::run(port, port_frontend);
-			Ok(())
-		}
 		Command::Bbox { inputs } => bbox::run(&inputs),
 		Command::StripNetcdf { input, output, include } => {
 			strip_netcdf::run(&input, &output, &include)
