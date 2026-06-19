@@ -6,7 +6,7 @@ A Rust CAD generator for stellarator fusion reactors, built on top of OpenCASCAD
 
 *Cutaway of the six in-vessel layers (chamber → vacuum vessel) with the 40-filament magnet coil set, produced by `make showcase`.*
 
-- Build the in-browser visualizer with `make web-build` (see [Web (WASM) visualizer](#web-wasm-visualizer)) and publish `web/dist/` to any static host.
+- **🔭 Live demo (in-browser, runs OCCT in WASM): https://lzpel.github.io/alphastell/**
 - See youtube video here: https://youtu.be/WwD3qL0VLBc
 
 ![Webdemo of alphastell](figure/screenshot.png)
@@ -131,12 +131,14 @@ Both are then normalized, scaled by $o$, added to $\mathbf p$, and the whole poi
 | `vessel`   | 6 × `.step` + `.csv` | 6-layer in-vessel build from a VMEC `wout_*.nc` |
 | `magnet`   | `magnet_set.step` + `.csv` | Rectangular-cross-section sweep of 40 coil filaments |
 | `cut`      | 1 × `.step` | Sector-wedge boolean: `--cut` keeps the wedge, `--union` removes it |
-| `compound` | merged `.step` + `.svg` | Merge multiple STEP inputs (optionally plus an in-memory magnet sector) with chamber→vacuum-vessel gradient coloring, and write a projected SVG |
+| `compound` | merged `.step` + `.svg` | Merge multiple STEP inputs with chamber→vacuum-vessel gradient coloring, and write a projected SVG |
 | `validate` | stdout | Volume-ratio check (and optional boolean-Union volume) against a reference STEP |
 
 Run `cargo run -p alphastell --release -- <subcommand> --help` for the full flag set.
 
 ## Web (WASM) visualizer
+
+**Live:** https://lzpel.github.io/alphastell/
 
 The browser visualizer is a [Trunk](https://trunkrs.dev/) WASM app under `web/`. cadrum 0.8.13 ships a
 prebuilt OpenCASCADE compiled to `wasm32-unknown-unknown`, so the **same `vessel::run` / `magnet::run`
@@ -158,6 +160,10 @@ WebAssembly exception-handling (`exnref`) support is required at runtime.
 
 `PUBLIC_URL` defaults to `/` (works at localhost root and any static host root). For a GitHub Pages
 **project** page under a sub-path, build with `make web-build PUBLIC_URL=/alphastell/`.
+
+A push to `main` automatically builds and publishes `web/dist` to GitHub Pages via
+[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) (built with `PUBLIC_URL=/<repo>/`) — the
+live site above is produced by that workflow, so `make web-deploy` is only needed for other hosts.
 
 ## Getting started (CLI)
 
@@ -206,7 +212,7 @@ cargo run -p alphastell --release -- compound \
     -o out/merged.step
 ```
 
-The `make showcase` target wires this together: each vessel layer is cut with a progressively wider window (`i · τ/36` half-span, i = 0..6), then all six layers and the `−τ/6..τ/6`-complementary coil set are compounded. Vessel layers get a linear RGB gradient from `#EE7800` (chamber) to `#FFFFFF` (vacuum vessel); coils keep their per-filament rainbow color from `magnet::build_sector`.
+The `make showcase` target wires this together: each vessel layer is cut with a progressively wider window (`i · τ/36` half-span, i = 0..6), then all six layers and the `−τ/6..τ/6`-complementary coil set are compounded. Vessel layers get a linear RGB gradient from `#EE7800` (chamber) to `#FFFFFF` (vacuum vessel); coils keep their per-filament rainbow color assigned in `magnet.rs`.
 
 ## Repository layout
 
