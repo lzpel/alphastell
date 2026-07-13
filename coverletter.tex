@@ -1,0 +1,78 @@
+% 2>/dev/null; MSYS_NO_PATHCONV=1 exec docker run --rm -v .:/work -w /work texlive/texlive:latest latexmk -pdf -interaction=nonstopmode -outdir="${0%.tex}" "$0"
+% 就活用: Proxima Fusion "Computational Physicist" (Stellarator Design, Munich, L3) の
+% 応募フォーム Cover Letter 欄に貼る motivation letter。学会・ジャーナル用ではない。
+\documentclass[11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{hyperref}
+\usepackage{parskip}
+
+\pagestyle{empty}
+
+\begin{document}
+
+\begin{flushright}
+% TODO: 実名・所在地・電話に差し替える
+lzpel \\
+misumi3104@gmail.com \\
+\url{https://github.com/lzpel} \\
+Tokyo, Japan \\
+\today
+\end{flushright}
+
+\textbf{Application for Computational Physicist --- Stellarator Design, Proxima Fusion (Munich)}
+
+Dear Proxima Fusion team,
+
+I am applying for the Computational Physicist role because it describes, almost
+verbatim, the work I have chosen to do on my own time: building simulation tools
+from governing equations to validated results, rather than running existing codes.
+I am a software engineer, not a fusion physicist by training --- I want to be
+upfront about that --- and I believe the fastest way to demonstrate that I can
+contribute to Stellaris-class design work is to show the tools I have already
+built and the one I am building now.
+
+My current project, \texttt{mhd-tbr-stell}
+(\url{https://github.com/lzpel/mhd-tbr-stell}), is an open-source pipeline that
+takes a VMEC equilibrium (\texttt{wout.nc}), generates liquid-metal flow channels
+conforming to offset magnetic surfaces, and returns the plant-level feasibility
+figures of a breeding blanket: the tritium breeding ratio via OpenMC on CAD
+geometry, and the MHD pressure drop and pumping-power fraction via a
+correlation-based duct network anchored by resolved OpenFOAM (epotFoam) MHD
+simulations. The validation plan is deliberately classical --- Hartmann, Shercliff,
+and Hunt flows reproduced before any stellarator geometry is touched --- because I
+take the view that a fast, lightweight model is only as credible as the
+high-fidelity anchor behind it. A preprint is in preparation; the repository
+documents the design and the three-month execution plan.
+
+The foundation underneath it is \texttt{cadrum}
+(\url{https://github.com/lzpel/cadrum}), a Rust CAD library I wrote and published
+on crates.io: a headless, statically linked OpenCASCADE kernel that builds
+parametric B-rep solids (sweeps along twisted spines, lofted magnetic-surface-like
+bodies, thin-walled shells), reads and writes STEP with per-solid material
+colouring, and runs both natively and in the browser via WebAssembly. Shipping it
+required owning everything the role's software half implies: numerical geometry,
+C++/Rust interop, cross-platform CI, reproducible Docker toolchains, and
+documentation good enough for strangers to build on.
+
+On the LLM requirement: agentic LLM tooling is my daily development environment,
+and I design for it rather than merely with it --- \texttt{cadrum} ships a
+fixed-layout multiview rendering intended specifically as a state snapshot for
+LLM-driven design loops. Working this way every day has also taught me its failure
+modes, which is why every generated change in my projects lands behind
+deterministic verification: analytic benchmarks, reference-file comparisons, and
+round-trip tests.
+
+What I would bring to Munich is tool-building velocity with numerical honesty; what
+I would ask from Proxima is the plasma-physics depth I do not yet have. I learn
+fastest by shipping into review, and I would be glad to walk through any of the
+code above in a technical panel.
+
+Thank you for your consideration.
+
+Sincerely, \\
+lzpel % TODO: 実名に差し替える
+
+\end{document}
