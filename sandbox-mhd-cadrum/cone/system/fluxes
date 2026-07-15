@@ -1,0 +1,41 @@
+// 質量保存の検証: 入口・出口パッチの体積流束 (phi の面積分) と入口平均圧力。
+// 出力: postProcessing/<name>/0/surfaceFieldValue.dat
+
+fluxInlet
+{
+    type            surfaceFieldValue;
+    libs            (fieldFunctionObjects);
+    writeControl    writeTime;
+    log             false;
+    writeFields     false;
+    regionType      patch;
+    name            inlet;
+    operation       sum;
+    fields          (phi);
+}
+
+fluxOutlet
+{
+    type            surfaceFieldValue;
+    libs            (fieldFunctionObjects);
+    writeControl    writeTime;
+    log             false;
+    writeFields     false;
+    regionType      patch;
+    name            outlet;
+    operation       sum;
+    fields          (phi);
+}
+
+pInlet
+{
+    type            surfaceFieldValue;
+    libs            (fieldFunctionObjects);
+    writeControl    writeTime;
+    log             false;
+    writeFields     false;
+    regionType      patch;
+    name            inlet;
+    operation       areaAverage;
+    fields          (p);
+}

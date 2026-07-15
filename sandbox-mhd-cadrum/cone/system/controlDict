@@ -1,0 +1,57 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2412                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      controlDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+application     epotFoam;
+
+startFrom       startTime;
+
+startTime       0;
+
+stopAt          endTime;
+
+// 透過時間 ~L/ū_min = 5。t=3 と 6 の書き出しを比較して定常性を確認する
+endTime         6;
+
+// 陽的 Lorentz 項の安定則 dt ≲ 0.08/Ha² (Ha=5 → 3.2e-3)。
+// 出口バルク速度 ≈ 3.4 (面積比) で対流 Courant ≈ 0.11
+deltaT          0.0032;
+
+writeControl    runTime;
+
+writeInterval   3;
+
+purgeWrite      0;
+
+writeFormat     ascii;
+
+writePrecision  8;
+
+writeCompression off;
+
+timeFormat      general;
+
+timePrecision   6;
+
+runTimeModifiable true;
+
+functions
+{
+    #include "sample"
+    #include "fluxes"
+}
+
+
+// ************************************************************************* //
