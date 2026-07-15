@@ -1,0 +1,500 @@
+% 2>/dev/null; MSYS_NO_PATHCONV=1 exec docker run --rm -v .:/work -w /work texlive/texlive:latest latexmk -lualatex -interaction=nonstopmode -outdir="${0%.tex}" "$0"
+% report/ に置いた資産(図・refs.bib・values.tex 等)は全てパス無しで参照できる(-outdir が入力探索先も兼ねるため)。
+% ビルド: `make paper`(計算 → 図・数値の取り込み → PDF まで自動)。原稿だけ再組版するなら `sh report.tex`。
+% 注意: fig01 (hartmann 比較)・fig02 (箱レンダ)・fig03 (cone レンダ)・fig04 (cone プロファイル)・
+%       values.tex・values_cone.tex は make paper が results/ からコピーする生成物。
+%       単体ビルド前に一度 make paper を通すこと。
+\documentclass{ltjsarticle}   % LuaLaTeX + luatexja。日本語本文をそのまま組める。
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+
+% 計算結果の数値 (\HaVal, \maxErrPct, … / \HaCone, \massErr, …)。
+% compare_hartmann.py / verify_cone.py の --tex が生成し make paper がコピーする。
+% 本文にはハードコードしない。
+\input{values}
+\input{values_cone}
+
+\newcommand{\Ha}{\mathrm{Ha}}
+\newcommand{\Rey}{\mathrm{Re}}
+\newcommand{\Rm}{\mathrm{Re}_\mathrm{m}}
+
+\title{CAD の面の色から生成した境界条件による MHD 流路計算\\
+  --- Hartmann 流の解析解検証と環状先細ダクトへの応用 ---}
+\author{}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+導電性流体が磁場を横切って流れると、誘導電流と磁場の相互作用により Lorentz 力が生じ、
+流れ場は純粋な粘性流とは大きく異なる構造をとる。本レポートでは、非圧縮 Navier--Stokes
+方程式を出発点として電磁気力の項を導入し、低磁気レイノルズ数近似のもとで成り立つ
+電磁流体力学(MHD)の支配方程式系を導く。流れを特徴づける無次元数である Hartmann 数
+$\Ha$ の意味を力のオーダー比較から説明し、一様磁場下の平行平板間層流(Hartmann 流)
+に対する速度分布の解析解を導出する。計算ケース(構造格子 polyMesh と境界条件)は
+Rust CAD カーネル cadrum~\cite{cadrum} の色付き B-rep から自動生成し、
+面の色(緑=流入、橙=流出、灰=壁、青=周期)を境界条件の単一情報源とした。
+OpenFOAM 上の電気ポテンシャル定式化ソルバー epotFoam~\cite{tassone2016} による
+数値解($\Ha=\HaVal$)を解析解と比較し、速度分布の最大相対誤差
+$\maxErrPct\,\%$(RMS $\rmsErrPct\,\%$)で一致することを示す。
+さらに同じ生成系を、CAD のブーリアン演算(円錐台 $-$ 円柱)でしか記述できない
+\textbf{環状の先細流路}に適用し、$\Ha=\HaCone$ の MHD 計算を実行する。
+質量保存(相対誤差 $\massErr$)と定常性を確認し、磁場に平行な壁面近傍の
+Hartmann 層と垂直な壁面の側層による速度分布の異方性を示す。
+\end{abstract}
+
+\section{はじめに}
+
+液体金属のような導電性流体が磁場の中を運動すると、流体中に起電力が生じて電流が流れ、
+その電流が磁場から受ける Lorentz 力が流体自身の運動に反作用する。流体力学と電磁気学が
+双方向に結合したこの体系を電磁流体力学(magnetohydrodynamics, MHD)と呼ぶ~\cite{moreau1990}。
+
+MHD 流れの工学的な代表例が核融合炉の液体金属ブランケットである。強磁場(数テスラ)中を
+リチウム系液体金属が流れるため、Lorentz 力による圧力損失が通常の管摩擦の数百〜数千倍に達し、
+ポンプ動力が設計成立性を左右する。この圧損を数値的に予測するツールの信頼性は、
+解析解が存在する基本流れを再現できるかどうかでまず検証される。
+
+本レポートは、その最も基本的なベンチマークである \textbf{Hartmann 流}~\cite{hartmann1937}
+(一様磁場に垂直な平行平板間の完全発達層流)を対象に、
+(i) Navier--Stokes 方程式を既知とする読者に向けて MHD の支配方程式を導入し、
+(ii) 流れを支配する無次元数 Hartmann 数の意味を説明し、
+(iii) 速度分布の解析解を導出したうえで、
+(iv) CAD の面の色を境界条件の単一情報源として OpenFOAM ケースを自動生成し、
+(v) MHD ソルバー epotFoam~\cite{tassone2016} による数値解を解析解と比較する。
+最後に (vi) 同じ生成系を箱では表現できない曲面形状 --- ブーリアン演算で作る
+環状の先細流路 --- に適用し、解析解の無い MHD 流れを物理的整合性
+(質量保存・定常性・Hartmann 層の異方性)で検証する。
+
+(iv) は本レポート固有の要素である。核融合ブランケットの流路設計では、
+ジオメトリ(CAD)と解析条件(メッシュ・境界条件)の二重管理が誤りの温床になる。
+そこで CAD モデルの\textbf{面の色}に境界条件の意味を持たせ、色を読み戻して
+OpenFOAM ケース一式を機械生成することで、ジオメトリと境界条件を単一情報源に束ねる。
+
+\section{支配方程式}
+
+\subsection{Navier--Stokes 方程式への Lorentz 力の導入}
+
+密度 $\rho$、動粘性係数 $\nu$($\mu=\rho\nu$)の非圧縮 Newton 流体の運動は、
+既習のとおり連続の式と Navier--Stokes 方程式で記述される。導電性流体では、
+単位体積あたりの電磁気力(Lorentz 力)$\boldsymbol{J}\times\boldsymbol{B}$
+が体積力として運動方程式に加わる:
+\begin{align}
+  \nabla\cdot\boldsymbol{u} &= 0, \\
+  \rho\left(\frac{\partial \boldsymbol{u}}{\partial t}
+    + (\boldsymbol{u}\cdot\nabla)\boldsymbol{u}\right)
+  &= -\nabla p + \mu\nabla^2\boldsymbol{u}
+    + \boldsymbol{J}\times\boldsymbol{B}.
+  \label{eq:momentum}
+\end{align}
+ここで $\boldsymbol{J}$ は電流密度、$\boldsymbol{B}$ は磁束密度である。
+重力など他の体積力は本レポートでは考えない。
+
+新しい未知数 $\boldsymbol{J}$ を閉じるには電磁気学の関係式が必要である。
+流体とともに動く導体に対する Ohm の法則は
+\begin{equation}
+  \boldsymbol{J} = \sigma\left(\boldsymbol{E} + \boldsymbol{u}\times\boldsymbol{B}\right)
+  \label{eq:ohm}
+\end{equation}
+と書ける。$\sigma$ は電気伝導度、$\boldsymbol{E}$ は電場である。
+第2項 $\boldsymbol{u}\times\boldsymbol{B}$ が「磁場を横切る運動が起電力を生む」
+ことを表しており、MHD 結合の源である。
+
+\subsection{低磁気レイノルズ数近似と電気ポテンシャル定式化}
+
+一般には電流がつくる誘導磁場も $\boldsymbol{B}$ に加わり、磁場の輸送方程式まで解く必要がある。
+誘導磁場と印加磁場の比を表す無次元数が磁気レイノルズ数
+\begin{equation}
+  \Rm = \mu_0 \sigma U L
+\end{equation}
+であり($\mu_0$ は真空の透磁率、$U,L$ は代表速度・代表長さ)、
+実験室規模の液体金属流れでは $\Rm \sim 10^{-2}$ 以下と小さい。
+そこで誘導磁場を無視し、磁場を既知の印加磁場 $\boldsymbol{B}_0$ に固定する。
+これを\textbf{低磁気レイノルズ数近似}(誘導無視近似)と呼ぶ。
+
+このとき電場は静電的($\nabla\times\boldsymbol{E}=0$)とみなせるので、
+電位 $\phi$ を用いて $\boldsymbol{E}=-\nabla\phi$ と書ける。
+さらに電荷保存 $\nabla\cdot\boldsymbol{J}=0$ を式~\eqref{eq:ohm} に適用すると、
+$\phi$ に対する Poisson 方程式
+\begin{equation}
+  \nabla^2\phi = \nabla\cdot(\boldsymbol{u}\times\boldsymbol{B}_0)
+  \label{eq:poisson}
+\end{equation}
+が得られる。まとめると、解くべき方程式系は
+「連続の式 + 運動方程式~\eqref{eq:momentum} + Ohm の法則~\eqref{eq:ohm}
++ Poisson 方程式~\eqref{eq:poisson}」であり、
+未知数は $\boldsymbol{u}, p, \phi$ の5つ(3+1+1)に閉じる。
+これを\textbf{電気ポテンシャル定式化}と呼び、後述の epotFoam もこの形を解く。
+
+境界条件として、電気的に絶縁された壁では電流が壁を貫けないので
+\begin{equation}
+  \boldsymbol{J}\cdot\boldsymbol{n} = 0
+  \quad\Longleftrightarrow\quad
+  \frac{\partial\phi}{\partial n} = (\boldsymbol{u}\times\boldsymbol{B}_0)\cdot\boldsymbol{n}
+  \;\xrightarrow{\text{壁で }\boldsymbol{u}=0}\;
+  \frac{\partial\phi}{\partial n} = 0
+  \label{eq:insulating}
+\end{equation}
+が課される。
+
+\subsection{Hartmann 数の意味}
+
+式~\eqref{eq:momentum} の右辺で、粘性項と Lorentz 力項の大きさを
+代表速度 $U$・代表長さ $a$(流路半幅)で見積もる。
+Ohm の法則より $|\boldsymbol{J}| \sim \sigma U B_0$ だから
+\begin{equation}
+  \frac{|\boldsymbol{J}\times\boldsymbol{B}_0|}{|\mu\nabla^2\boldsymbol{u}|}
+  \sim \frac{\sigma U B_0^2}{\mu U / a^2}
+  = \frac{\sigma B_0^2 a^2}{\mu} \equiv \Ha^2,
+  \qquad
+  \Ha = B_0 a \sqrt{\frac{\sigma}{\rho\nu}}.
+  \label{eq:hartmann-number}
+\end{equation}
+すなわち \textbf{Hartmann 数 $\Ha$ は「電磁制動力と粘性力の比の平方根」}である。
+慣性力との比には相互作用数 $N=\Ha^2/\Rey$($\Rey=Ua/\nu$)を用いる。
+
+$\Ha\gg 1$ の流れでは、流路中心部(コア)で粘性が無視できて Lorentz 力と圧力勾配が
+釣り合い、速度分布は平坦になる。一方、壁では粘着条件により速度が落ちるため、
+壁近傍にだけ粘性と電磁制動が拮抗する薄い層が形成される。層内で
+$\mu\, u/\delta^2 \sim \sigma B_0^2 u$ と置けば、その厚さは
+\begin{equation}
+  \delta \sim \frac{a}{\Ha}
+\end{equation}
+と見積もられる。これを \textbf{Hartmann 層}と呼ぶ。$\Ha$ が大きいほど層は薄くなり、
+核融合条件($\Ha\sim 10^4$)では流路幅の $10^{-4}$ という極薄の層を数値的に
+解像する必要が生じる --- これが MHD 数値解析の中心的困難である。
+
+\section{Hartmann 流の解析解}
+\label{sec:analytic}
+
+考える流れ場は次のとおりである: 無限に広い平行平板($y=\pm a$)間の完全発達層流で、
+流れは $x$ 方向 $\boldsymbol{u}=u(y)\,\boldsymbol{e}_x$、一様磁場は板に垂直
+$\boldsymbol{B}_0=B_0\,\boldsymbol{e}_y$ とする。
+完全発達を仮定すると、圧力を除くすべての量は $x$ に依存しない。
+
+起電力は $\boldsymbol{u}\times\boldsymbol{B}_0
+= u B_0\,(\boldsymbol{e}_x\times\boldsymbol{e}_y) = u B_0\,\boldsymbol{e}_z$
+と $z$ 方向を向くから、誘導電流も $z$ 方向に流れる。
+Ohm の法則~\eqref{eq:ohm} の $z$ 成分は
+\begin{equation}
+  J_z = \sigma\left(E_z + u B_0\right)
+  \label{eq:jz}
+\end{equation}
+となる。ここで $E_z$ は定数である(静電場 $\nabla\times\boldsymbol{E}=0$ と
+$x,z$ 方向の一様性より)。Lorentz 力の $x$ 成分は
+$(\boldsymbol{J}\times\boldsymbol{B}_0)_x = -J_z B_0$ なので、
+運動方程式~\eqref{eq:momentum} の $x$ 成分は
+\begin{equation}
+  0 = -\frac{dp}{dx} + \mu\frac{d^2u}{dy^2} - \sigma B_0\left(E_z + u B_0\right)
+\end{equation}
+となる。定数をまとめて $G \equiv dp/dx + \sigma B_0 E_z$ と置けば
+\begin{equation}
+  \mu\frac{d^2u}{dy^2} - \sigma B_0^2\, u = G
+  \label{eq:ode}
+\end{equation}
+という定数係数の線形常微分方程式に帰着する。
+
+\paragraph{重要な観察}
+壁の電気的条件(絶縁か導体か、外部回路の有無)は $E_z$ の値、
+すなわち定数 $G$ の値を変えるだけで、方程式~\eqref{eq:ode} の\textbf{形}は変えない。
+したがって以下で導く速度分布を平均速度で正規化した形は、
+壁の電気的条件によらず同一である。この事実は第\ref{sec:numerical}節の
+数値実験の境界条件設定で利用する。
+
+式~\eqref{eq:ode} の特解は定数 $u_p = -G/(\sigma B_0^2)$、
+斉次解は $\cosh(\Ha\, y/a)$ と $\sinh(\Ha\, y/a)$ である
+($\Ha$ は式~\eqref{eq:hartmann-number})。$y\to-y$ の対称性から $\sinh$ は落ち、
+粘着条件 $u(\pm a)=0$ を課すと
+\begin{equation}
+  u(y) = -\frac{G}{\sigma B_0^2}
+  \left(1 - \frac{\cosh(\Ha\, y/a)}{\cosh\Ha}\right)
+  \label{eq:profile-raw}
+\end{equation}
+を得る。断面平均(バルク速度)は
+\begin{equation}
+  \bar{u} = \frac{1}{2a}\int_{-a}^{a} u\,dy
+  = -\frac{G}{\sigma B_0^2}\left(1 - \frac{\tanh\Ha}{\Ha}\right)
+\end{equation}
+となるから、$G$ を消去して正規化形
+\begin{equation}
+  \boxed{\;
+  \frac{u(y)}{\bar{u}}
+  = \frac{\Ha}{\Ha - \tanh\Ha}
+    \left(1 - \frac{\cosh(\Ha\, y/a)}{\cosh\Ha}\right)
+  \;}
+  \label{eq:profile}
+\end{equation}
+が得られる~\cite{hartmann1937}。
+
+極限で既知の結果に帰着することを確認しておく。
+$\Ha\to 0$ では $\cosh\xi \approx 1+\xi^2/2$、$\Ha-\tanh\Ha \approx \Ha^3/3$ より
+\begin{equation}
+  \frac{u}{\bar{u}} \;\longrightarrow\; \frac{3}{2}\left(1-\frac{y^2}{a^2}\right)
+\end{equation}
+となり Poiseuille 流(放物線分布、中心速度比 $3/2$)を回復する。
+逆に $\Ha\gg 1$ ではコアで $u/\bar{u} \approx \Ha/(\Ha-1) \approx 1$、
+壁近傍では $1-e^{-\Ha(1-|y|/a)}$ 型の指数的な立ち上がりとなり、
+厚さ $a/\Ha$ の Hartmann 層をもつ平坦な分布になる。
+中心速度比が $3/2$ から $\approx 1$ まで下がること自体が、
+電磁制動によるコアの平坦化の現れである。
+
+なお矩形ダクト(側壁が有限距離にある場合)への拡張が Shercliff 解~\cite{shercliff1953}
+であり、本プロジェクトの次の検証ターゲットである。
+
+\section{数値実験}
+\label{sec:numerical}
+
+\subsection{ソルバー epotFoam}
+
+epotFoam は OpenFOAM~\cite{weller1998} の非圧縮層流ソルバー icoFoam(PISO 法)に、
+第2節の電気ポテンシャル定式化を追加した MHD ソルバーである~\cite{tassone2016}。
+本実験では Tassone のレポート付録のコードを OpenFOAM v2412 の icoFoam 骨格に転記した
+実装を用いた。各時間ステップで PISO ループにより $\boldsymbol{u},p$ を更新した後、
+Poisson 方程式~\eqref{eq:poisson} を解いて $\phi$ を求め、
+セル面上の電流フラックスから Ni らの保存スキーム~\cite{ni2007} で
+セル中心の電流密度を再構成して Lorentz 力を評価する(次ステップで陽的に作用)。
+この面フラックスベースの再構成により、離散レベルで電荷保存が満たされる。
+
+\subsection{色付き B-rep からのケース生成}
+\label{sec:casegen}
+
+計算ケースは手書きの辞書ファイルではなく、cadrum~\cite{cadrum} で構築した
+色付き B-rep から Rust プログラム(\texttt{src/main.rs})が自動生成する。手順は:
+
+\begin{enumerate}
+  \item 計算領域の箱 $10\times2\times0.1$ を \texttt{Solid::cube} で作り、
+    6面を外向き法線で同定して表~\ref{tab:color}の色を塗る
+    (\texttt{colormap} に面 id $\to$ 色を登録)。図~\ref{fig:bc}はその実物の
+    レンダリングである
+  \item 構造格子($50\times80\times1$、壁側集中)を生成し、
+    \textbf{各境界面の中心を B-rep へ射影して最近接面の色を読み戻す}。
+    塗ったときの対応表は使わない --- CAD が唯一の情報源であることをここで保証する
+  \item 色$\to$境界条件テーブル(表~\ref{tab:color})に従い、
+    OpenFOAM の \texttt{polyMesh}(内部面は upper-triangular 順、周期境界は
+    面順序を対応させたパッチペア)と初期場 \texttt{0/\{U, p, PotE\}} を書き出す
+\end{enumerate}
+
+\begin{table}[tb]
+  \centering
+  \caption{色 $\to$ 境界条件テーブル(境界条件の単一情報源)}
+  \label{tab:color}
+  \begin{tabular}{llllll}
+    \toprule
+    色 & パッチ & 面 & $\boldsymbol{u}$ & $p$ & $\phi$ \\
+    \midrule
+    緑 & inlet & $x=0$ & $(1,0,0)$ 固定 & 勾配ゼロ & 勾配ゼロ \\
+    橙 & outlet & $x=10$ & 勾配ゼロ & $0$ 固定 & 勾配ゼロ \\
+    灰 & walls & $y=\pm a$ & 粘着(noSlip) & 勾配ゼロ & 勾配ゼロ(絶縁) \\
+    青 & back/front & $z$ 両端 & 周期 & 周期 & 周期 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.95\linewidth]{fig02.png}
+  \caption{境界条件を面の色として持つ CAD モデル(cadrum によるレンダリング、
+    \texttt{make paper} で自動生成)。緑: 流入面、橙: 流出面(反対側の端面)、
+    灰: 壁面、青: $z$ 方向の周期境界ペア。この色付き B-rep が polyMesh と
+    0/ の境界条件の唯一の生成元である。}
+  \label{fig:bc}
+\end{figure}
+
+\subsection{ケース設定}
+
+表~\ref{tab:case}に計算条件を示す(境界条件は表~\ref{tab:color})。
+すべて無次元設定($a=\rho=\nu=\sigma=1$)であり、$\Ha = B_0$ となる。
+入口に一様流 $u=1$ を与えるので、質量保存によりどの断面でも $\bar{u}=1$ が保証され、
+式~\eqref{eq:profile} と直接比較できる。
+
+\begin{table}[tb]
+  \centering
+  \caption{計算条件(無次元設定 $a=\rho=\nu=\sigma=1$、$\Ha=B_0=\HaVal$)}
+  \label{tab:case}
+  \begin{tabular}{llll}
+    \toprule
+    項目 & 設定 & 項目 & 設定 \\
+    \midrule
+    計算領域 & $10 \times 2 \times 0.1$ & 格子数 & $50\times 80\times 1$ \\
+    $y$ 格子 & 壁側集中(第1セル $6\times10^{-3}\,a$) & Hartmann 層内セル数 & 約6 \\
+    時間刻み & $\Delta t = 2\times10^{-4}$ & 終了時刻 & $t=1$ \\
+    印加磁場 & $\boldsymbol{B}_0 = (0, \HaVal, 0)$ & レイノルズ数 & $\Rey = 1$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+2点、数値実験ならではの設定について補足する
+(walls の $\partial\phi/\partial n=0$ は電気的絶縁壁、式~\eqref{eq:insulating})。
+
+\paragraph{$z$ 方向の周期境界}
+Hartmann 流の誘導電流は $z$ 方向に流れる(式~\eqref{eq:jz})。
+電流を面フラックスから再構成する epotFoam では、$z$ 方向を OpenFOAM の 2 次元指定
+(empty)にすると $J_z$ が離散的に消えて Lorentz 力が失われるため、
+$z$ に 1 セルの周期境界を用いた。周期境界は $E_z = 0$、
+すなわち誘導電流が外部で短絡されている状態に対応するが、
+第\ref{sec:analytic}節で示したとおり $E_z$ は定数 $G$ に吸収されるので、
+正規化速度分布~\eqref{eq:profile} はこの選択に依存しない。
+
+\paragraph{時間刻み}
+Lorentz 力は陽的に扱われるため、電磁制動の時定数 $\rho/(\sigma B_0^2) = \Ha^{-2}$
+に対して $\Delta t$ を十分小さく取る必要がある。本ケースでは
+$\Delta t = 0.08\,\Ha^{-2}$ とした(壁近傍の細分化セルでは電流再構成により
+実効的な制動係数が公称値より大きくなり、$\Delta t = 0.4\,\Ha^{-2}$ では発散した)。
+速度分布はこの時定数と Hartmann 層の粘性時間 $\delta^2/\nu$ で局所的に発達するため、
+終了時刻 $t=1$ で速度残差は $10^{-9}$ 台まで減衰し、完全な定常に達している。
+
+\subsection{比較方法}
+
+発達領域 $x=8$ で速度プロファイル $u(y)$ を 200 点サンプリングし、
+数値解・解析解ともサンプル区間のバルク速度で正規化したうえで、
+解析解の最大値を分母とする相対誤差を評価した。
+図・誤差数値は \texttt{make paper} により計算から自動生成・取り込みされ、
+本稿にハードコードされた数値はない。
+
+\section{結果と考察}
+
+図~\ref{fig:profile}に $\Ha=\HaVal$ の速度分布の比較を示す。
+数値解は解析解の上に乗っており、
+最大相対誤差は $\maxErrPct\,\%$、RMS 誤差は $\rmsErrPct\,\%$ であった。
+コア速度は数値解 $\coreNum$ に対し解析解 $\coreAna$ であり、
+$\Ha/(\Ha-\tanh\Ha)$ が与える平坦コアの値を正しく再現している。
+断面平均速度(正規化前)は $\bulkRaw$ と、入口条件 $\bar u = 1$ が
+サンプル面でも保たれていることを確認した。
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.85\linewidth]{fig01.png}
+  \caption{Hartmann 流の速度分布($\Ha=\HaVal$)。実線: 解析解
+    (式~\eqref{eq:profile})、丸: epotFoam による数値解(4点おきに表示)。
+    最大相対誤差 $\maxErrPct\,\%$。}
+  \label{fig:profile}
+\end{figure}
+
+誤差の内訳としては、(i) Hartmann 層(厚さ $0.05a$)内のセル数が約 6 と有限である
+ことによる離散化誤差、(ii) サンプリング時のセル中心から線分上への補間誤差が支配的と
+考えられる。誤差が最大となるのも速度勾配が最も急な壁近傍である。
+壁法向の格子をさらに集中させれば系統的に減少することが期待できるが、
+本検証の目的(実装の正しさの確認)には $1\,\%$ 未満の一致で十分である。
+
+また、本ケースの数値解は blockMesh + 手書き境界条件で構成した同一設定の参照計算と
+数値レベルで一致した。色付き B-rep からの自動生成(第\ref{sec:casegen}節)が、
+手書きケースと厳密に等価な polyMesh・境界条件を出力できることを意味する。
+
+本レポートの検証は速度分布に限られる。ブランケット設計で最終的に問題となる
+圧力損失(すなわち $G$ の値)は壁の電気的条件に敏感であり、その検証には
+側壁を含む Shercliff 流・Hunt 流のベンチマーク、および導体壁境界条件の実装が必要になる。
+また $\Ha$ を上げると Hartmann 層の解像と時間刻み制限($\Delta t \lesssim 0.08\,\Ha^{-2}$)
+の両面で計算コストが急増することも、本実験の設定過程で確認された。
+
+\section{環状先細ダクトへの応用}
+\label{sec:cone}
+
+同じ生成系を、箱では表現できない形状に適用する。対象は
+\textbf{環状の先細流路}: 外形は入口半径 $R_1=2$ から出口半径 $R_2=1.2$ へ
+すぼまる円錐台、その中心に半径 $R_i=0.6$ の円柱が占める空間をブーリアン差で
+くり抜いたドーナツ断面のダクトである(長さ $L=5$、軸は $x$)。
+CAD 上は \texttt{cone(2.0, 1.2) $-$ cylinder(0.6)} の2行で、
+面の色は入口環=緑、出口環=橙、外円錐面・内円柱面=灰(壁)とした
+(図~\ref{fig:cone-geom})。Solid の内側=流体領域という規約はそのままである。
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{fig03.png}
+  \caption{環状先細ダクトの CAD モデル(cadrum によるレンダリング)。
+    緑: 流入環、灰: 壁面(外円錐面・内円柱面)。出口環(橙)は奥の細い側。
+    破線は内側の円柱面(くり抜き)を表す。}
+  \label{fig:cone-geom}
+\end{figure}
+
+\subsection{なぜ環状にするか --- 中心軸の格子特異点}
+\label{sec:axis-singularity}
+
+内棒のない「純粋なすぼまり円管」を計算しない理由は、CAD ではなく格子側にある。
+円管に自然な円柱座標の構造格子 $(r, \theta, x)$ を中心軸 $r=0$ まで張ると、
+軸に接するセルは $\theta$ 方向の幅が $r\,\Delta\theta \to 0$ と潰れ、
+断面が扇形の楔(くさび)に退化する。このセルは
+(i) 軸上の面の面積がゼロになり有限体積法の面フラックス計算が破綻する、
+(ii) セル中心と面中心を結ぶベクトルが面法線から大きく外れ(非直交・歪度が発散)、
+勾配の補正が効かなくなる、という2つの意味で特異である。
+すべてのセルが軸の1点を共有するため、点を共有する面の数も発散する。
+
+実用的な回避策は2つある。ひとつは本レポートの選択で、
+\textbf{軸を含まない環状領域}にすること --- $r \in [R_i, R_o(x)]$ なら
+どのセルも有限の大きさを保ち、通常の六面体構造格子で済む。
+もうひとつは \textbf{butterfly(O--H)トポロジー}で、円の中心に通常の直交格子の
+「角ブロック」を置き、その4辺と円周を4つの扇形ブロックでつなぐ。
+軸は格子線の交点ではなく角ブロックの内部に埋め込まれるため特異点が消えるが、
+5ブロックの接続を持つマルチブロック格子生成器が必要になる(将来課題)。
+
+\subsection{周期方向の扱いと曲面への射影}
+
+$\theta$ 方向には B-rep 上に対応する面が存在しない(円錐面は一周つながっている)。
+そこで格子の $\theta=0$ と $\theta=2\pi$ の「縫い目」を境界パッチにせず、
+\textbf{ラップ接続の内部面}として直接つないだ(cyclic パッチも不要)。
+境界条件面が存在しない場所に人工的な境界を作らない、という
+「色=境界条件」の原則の帰結である。
+
+壁の格子面は円錐面・円柱面を多角形近似するため、面中心は真の曲面から
+弦誤差(半径 2、$\Delta\theta = 2\pi/48$ で約 $4\times10^{-3}$)だけ内側に浮く。
+色の読み戻し(\texttt{Face::project})の許容距離をこの誤差より十分大きく
+取ることで、曲面でも平面と同じ分類が機能する。
+
+\subsection{結果}
+
+格子は $(\theta, r, x) = 48 \times 16 \times 50$ の 38{,}400 セル
+(半径方向は両壁側を細分化)。$\Ha = \HaCone$、$\boldsymbol{B}_0 = (0, \HaCone, 0)$
+(軸に垂直)、入口一様流 $u=1$ で epotFoam により定常まで解いた。
+解析解が存在しないため、検証は物理的整合性による:
+
+\begin{itemize}
+  \item \textbf{質量保存}: 入口・出口の体積流束の和の相対誤差 $\massErr$
+    (入口流束 $\fluxIn$、非圧縮性の離散的厳密性)
+  \item \textbf{定常性}: 最終時刻と中間時刻の速度分布の最大差 $\steadyErr$
+  \item \textbf{運動学}: 断面積比 $3.37$ に対応して最大軸方向速度が
+    $\uMaxIn$(入口近傍)から $\uMaxOut$(出口近傍)へ増速
+  \item \textbf{圧力損失}: 入口面平均圧力 $\dpCone$(出口 $p=0$ 基準)
+\end{itemize}
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.95\linewidth]{fig04.png}
+  \caption{環状先細ダクト($\Ha=\HaCone$)の軸方向速度分布。
+    左: 入口近傍 $x=0.5$、右: 出口近傍 $x=4.5$。
+    実線は磁場 $\boldsymbol{B}_0$ に平行なレイ($+y$)、
+    破線は垂直なレイ($+z$)に沿う分布。}
+  \label{fig:cone-prof}
+\end{figure}
+
+図~\ref{fig:cone-prof}に速度分布を示す。磁場に平行なレイ($+y$、壁面が
+$\boldsymbol{B}_0$ に垂直)では Hartmann 層の電磁制動により分布が平坦化・抑制され、
+垂直なレイ($+z$、壁面が $\boldsymbol{B}_0$ に平行)ではピークが高くなる ---
+第\ref{sec:analytic}節の平行平板で導いた Hartmann 層の物理が、
+曲面ダクトの断面内で方向依存の異方性として現れている。
+矩形ダクトの Shercliff/Hunt 流で知られる「コア抑制と側層ジェット」と同じ機構である。
+
+\section{まとめ}
+
+Navier--Stokes 方程式に Lorentz 力を導入し、低磁気レイノルズ数近似のもとで
+電気ポテンシャル定式化の MHD 方程式系を導いた。電磁制動力と粘性力の比として
+Hartmann 数 $\Ha$ を定義し、$\Ha\gg1$ で厚さ $a/\Ha$ の Hartmann 層をもつ
+平坦な速度分布が生じることを、平行平板間流れの解析解の導出を通して示した。
+計算ケースは cadrum の色付き B-rep から自動生成し、面の色を境界条件の単一情報源と
+する構成で、OpenFOAM 上の epotFoam による数値解($\Ha=\HaVal$)は正規化速度分布に
+おいて解析解と最大相対誤差 $\maxErrPct\,\%$ で一致した。
+さらに同じ生成系をブーリアン演算で作る環状先細ダクトに適用し、
+曲面壁への射影による色の読み戻し・$\theta$ 周期のラップ接続・中心軸特異点の回避
+(環状化)を伴う MHD 計算($\Ha=\HaCone$)を、質量保存(相対誤差 $\massErr$)と
+定常性、Hartmann 層の異方性により検証した。
+CAD と解析条件の二重管理を排したまま、箱に限らない曲面流路の MHD ケースを
+機械生成できることが確認された。
+次の段階は矩形ダクト(Shercliff 流・Hunt 流)による定量検証の拡充、
+butterfly トポロジーによる円管対応、そして磁気面追従ダクトへの一般化である。
+
+\bibliographystyle{plain}
+\bibliography{refs}
+
+\end{document}

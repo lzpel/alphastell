@@ -1,0 +1,26 @@
+# `-outdir` 出力（sh report.tex による latexmk 生成物）を git 管理外に。
+# 図(*.png 等)・*.sty・*.bib などの原資産はここに置いても追跡される。
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.brf
+*.pdf
+*.synctex.gz
+*.toc
+*.lof
+*.lot
+*.bbl
+*.blg
+*.nav
+*.snm
+*.vrb
+*.xdv
+# make paper が results/ からコピーしてくる生成アセット（計算のたびに変わる）
+fig01.png
+fig02.png
+fig03.png
+fig04.png
+values.tex
+values_cone.tex

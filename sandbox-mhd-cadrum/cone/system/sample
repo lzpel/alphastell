@@ -1,0 +1,49 @@
+// 入口近傍 (x=0.5) と出口近傍 (x=4.5) で、磁場に平行なレイ (+y, B∥) と
+// 垂直なレイ (+z, B⊥) の速度プロファイル u(r) を抽出する。
+// Hartmann 層 (B に垂直な壁) と側層 (B に平行な壁) の異方性を見る。
+// 出力: postProcessing/sample/<time>/<name>_U.xy (列: 距離 Ux Uy Uz)
+
+sample
+{
+    type                sets;
+    libs                (sampling);
+    writeControl        writeTime;
+    interpolationScheme cellPoint;
+    setFormat           raw;
+    fields              (U);
+    sets
+    (
+        inletParaB
+        {
+            type    uniform;
+            axis    distance;
+            start   (0.5 0.605 0.02);
+            end     (0.5 1.915 0.02);
+            nPoints 120;
+        }
+        inletPerpB
+        {
+            type    uniform;
+            axis    distance;
+            start   (0.5 0.02 0.605);
+            end     (0.5 0.02 1.915);
+            nPoints 120;
+        }
+        outletParaB
+        {
+            type    uniform;
+            axis    distance;
+            start   (4.5 0.605 0.02);
+            end     (4.5 1.275 0.02);
+            nPoints 120;
+        }
+        outletPerpB
+        {
+            type    uniform;
+            axis    distance;
+            start   (4.5 0.02 0.605);
+            end     (4.5 0.02 1.275);
+            nPoints 120;
+        }
+    );
+}

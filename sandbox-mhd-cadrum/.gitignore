@@ -1,0 +1,16 @@
+target/
+results/
+hartmann/0/
+hartmann/log.*
+hartmann/postProcessing/
+hartmann/constant/polyMesh/
+hartmann/constant/electromagneticProperties
+hartmann/[1-9]*
+hartmann/0.[0-9]*
+cone/0/
+cone/log.*
+cone/postProcessing/
+cone/constant/polyMesh/
+cone/constant/electromagneticProperties
+cone/[1-9]*
+cone/0.[0-9]*
