@@ -1,0 +1,60 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2412                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      PotE;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// 電気ポテンシャル [V]
+dimensions      [1 2 -3 0 0 -1 0];
+
+internalField   uniform 0;
+
+// 電気的絶縁壁: ∂φ/∂n = 0 (壁法線方向の電流ゼロ)。
+// Hartmann 解析解 (Hartmann 1937) は非導体壁を仮定するため全パッチ zeroGradient。
+// 全境界が zeroGradient なので fvSolution の PISO 辞書で参照点 (PotERefCell/
+// PotERefValue) を固定する。
+boundaryField
+{
+    inlet
+    {
+        type            zeroGradient;
+    }
+
+    outlet
+    {
+        type            zeroGradient;
+    }
+
+    lowerWall
+    {
+        type            zeroGradient;
+    }
+
+    upperWall
+    {
+        type            zeroGradient;
+    }
+
+    back
+    {
+        type            cyclic;
+    }
+
+    front
+    {
+        type            cyclic;
+    }
+}
+
+
+// ************************************************************************* //

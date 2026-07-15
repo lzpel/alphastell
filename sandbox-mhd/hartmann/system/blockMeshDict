@@ -1,0 +1,111 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2412                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      blockMeshDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// 平行平板チャネル: x ∈ [0,10] (流れ方向), y ∈ [-1,1] (半幅 a=1)。
+// z (電流方向) は 1 セル + cyclic。empty にすると epotFoam の面フラックス電流
+// 再構成で J_z が消え Lorentz 力がゼロになる (Tassone レポート 5.2 節も
+// epotFoam 系チュートリアルでは empty を除去して 3D 化している)。
+// cyclic は E_z = 0 (短絡) 条件に相当し、圧力勾配は絶縁条件と定数分ずれるが
+// 正規化速度分布 u(y)/ū は解析解と厳密に同形。
+// y は両側マルチグレーディングで壁を細分化。第1セル高さ ≈ 0.0074 なので
+// Hartmann 層 δ = a/Ha (Ha=20 で 0.05) 内に約6セル入る。
+// Ha ≳ 60 では層内セル数が3を切るため、y セル数か拡大率を上げること。
+// Re=1 では入口発達長が O(1) と短いため流路長 10 (透過時間 10) で十分。
+
+scale   1;
+
+vertices
+(
+    (0 -1 0)
+    (10 -1 0)
+    (10 1 0)
+    (0 1 0)
+    (0 -1 0.1)
+    (10 -1 0.1)
+    (10 1 0.1)
+    (0 1 0.1)
+);
+
+blocks
+(
+    hex (0 1 2 3 4 5 6 7) (50 80 1)
+    simpleGrading
+    (
+        1
+        (
+            (0.5 0.5 8)        // 下壁→中心: セル幅を8倍まで拡大
+            (0.5 0.5 0.125)    // 中心→上壁: セル幅を1/8まで縮小
+        )
+        1
+    )
+);
+
+boundary
+(
+    inlet
+    {
+        type patch;
+        faces
+        (
+            (0 4 7 3)
+        );
+    }
+    outlet
+    {
+        type patch;
+        faces
+        (
+            (2 6 5 1)
+        );
+    }
+    lowerWall
+    {
+        type wall;
+        faces
+        (
+            (1 5 4 0)
+        );
+    }
+    upperWall
+    {
+        type wall;
+        faces
+        (
+            (3 7 6 2)
+        );
+    }
+    back
+    {
+        type cyclic;
+        neighbourPatch front;
+        faces
+        (
+            (0 3 2 1)
+        );
+    }
+    front
+    {
+        type cyclic;
+        neighbourPatch back;
+        faces
+        (
+            (4 5 6 7)
+        );
+    }
+);
+
+
+// ************************************************************************* //
