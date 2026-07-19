@@ -1,0 +1,5 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<cross_sections>
+  <library materials="Li6" path="Li6.h5" type="neutron"/>
+  <library materials="Li7" path="Li7.h5" type="neutron"/>
+</cross_sections>
