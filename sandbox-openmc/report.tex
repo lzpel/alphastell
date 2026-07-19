@@ -1,0 +1,239 @@
+% 2>/dev/null; MSYS_NO_PATHCONV=1 exec docker run --rm -v .:/work -w /work texlive/texlive:latest latexmk -lualatex -interaction=nonstopmode -outdir="${0%.tex}" "$0"
+% report/ に置いた資産(図・refs.bib・values.tex 等)は全てパス無しで参照できる(-outdir が入力探索先も兼ねるため)。
+% ビルド: `make paper`(計算 → 図・数値の取り込み → PDF まで自動)。原稿だけ再組版するなら `sh report.tex`。
+% 注意: fig01.png と values.tex は make paper が results/ からコピーする生成物。単体ビルド前に一度 make paper を通すこと。
+\documentclass{ltjsarticle}   % LuaLaTeX + luatexja。日本語本文をそのまま組める。
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+
+% 計算結果の数値 (\SigmaT, \maxErrPct, \tbrVal, ...)。
+% compare_attenuation.py --tex が生成し make paper がコピーする。本文にはハードコードしない。
+\input{values}
+
+\newcommand{\Sigmat}{\Sigma_\mathrm{t}}
+
+\title{中心点線源を持つリチウム球の 14.1\,MeV 中性子輸送\\
+  --- 未衝突中性子束の減衰による OpenMC の解析解検証 ---}
+\author{}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+核融合ブランケットの成立性を左右するトリチウム増殖比(TBR)は、モンテカルロ中性子
+輸送コード OpenMC で評価される。本レポートでは、その輸送計算の土台の正しさを、
+解析解が厳密に存在する最も基本的な体系 --- 一様媒質中を進む\textbf{未衝突中性子}の
+指数減衰 --- で検証する。中心に $14.1\,\mathrm{MeV}$ の等方点線源を置いた半径
+$\radiusCm\,\mathrm{cm}$ のリチウム球を CSG(構成立体幾何)で構築し、CAD を用いずに
+未衝突中性子束の空間分布を球シェルでタリーした。数値解は、輸送方程式の未衝突成分の
+厳密解 $\phi(r)=S\,e^{-\Sigmat r}/(4\pi r^2)$ と、全球面平均で最大相対誤差
+$\maxErrPct\,\%$(RMS $\rmsErrPct\,\%$)で一致し、$\nSigma\sigma$ を超える統計的外れ値を
+持つシェルは $\nOutlier$ 個であった。あわせて TBR を参考値として
+$\tbrVal\pm\tbrUnc$ と算出し、本番(PbLi ブリーダー・DAGMC 幾何)への橋渡しとする。
+\end{abstract}
+
+\section{はじめに}
+
+液体金属ブランケットの3つのプラント判定スカラー(TBR・MHD 圧損・最高壁温)のうち、
+\textbf{トリチウム増殖比}(tritium breeding ratio, TBR)は燃料サイクルが閉じるか否かを
+決める。重水素--三重水素(DT)核融合は $14.1\,\mathrm{MeV}$ の中性子を放出し、これが
+ブランケット中のリチウムに吸収されて三重水素を生む:
+\begin{align}
+  {}^{6}\mathrm{Li} + n &\to {}^{4}\mathrm{He} + \mathrm{T} + 4.78\,\mathrm{MeV}, \\
+  {}^{7}\mathrm{Li} + n &\to {}^{4}\mathrm{He} + \mathrm{T} + n' - 2.47\,\mathrm{MeV}.
+\end{align}
+消費した三重水素より多くを増殖できねば(TBR $\gtrsim 1.1$)炉は自立しない。TBR は
+中性子がどこでどれだけ反応するかで決まり、その予測にはモンテカルロ中性子輸送を用いる。
+
+本プロジェクトは OpenMC~\cite{romano2015} を配管して用いる(ソルバーは自作しない)。
+配管する以上、その輸送計算が正しく走ることを既知解で先に確かめておく必要がある。
+最終的な体系(ステラレータ磁気面に追従する PbLi 流路)は複雑な3次元 CAD 幾何を要するが、
+本レポートはその前段として、\textbf{CAD を一切用いず}、解析解が厳密に書ける体系だけで
+輸送の土台を検証する。これは MHD 側で Hartmann 流(解析解のある平行平板流)を
+epotFoam の検証に用いたのと同じ思想である。
+
+\section{中性子輸送方程式と未衝突束}
+
+\subsection{定常輸送方程式}
+
+位置 $\boldsymbol{r}$・方向 $\boldsymbol{\Omega}$・エネルギー $E$ における角中性子束
+$\psi(\boldsymbol{r},\boldsymbol{\Omega},E)$ は、定常の線形ボルツマン方程式(中性子輸送方程式)
+\begin{multline}
+  \boldsymbol{\Omega}\cdot\nabla\psi + \Sigmat\,\psi
+  = \int\!\!\int \Sigma_s(\boldsymbol{\Omega}'\!\to\boldsymbol{\Omega},E'\!\to E)\,
+      \psi(\boldsymbol{r},\boldsymbol{\Omega}',E')\,d\boldsymbol{\Omega}'dE' \\
+   + S(\boldsymbol{r},\boldsymbol{\Omega},E)
+  \label{eq:transport}
+\end{multline}
+に従う~\cite{lewis1993}。$\Sigmat$ は巨視的全断面積(単位長さあたりの反応確率)、
+右辺第1項は散乱による流入、$S$ は線源である。
+
+\paragraph{中性子は磁場を受けない}
+式~\eqref{eq:transport} に磁場は現れない。中性子は電荷を持たないため Lorentz 力を
+受けず、その輸送は\textbf{媒質の形状と材料(断面積)だけ}で決まる。これは MHD 側
+(荷電した液体金属が磁場から Lorentz 力を受ける)との決定的な違いであり、
+VMEC 平衡 \texttt{wout.nc} が磁場と磁気面形状の両方を持つうち、中性子輸送が使うのは
+\textbf{形状だけ}であることを意味する。
+
+\subsection{未衝突束の厳密解}
+\label{sec:analytic}
+
+散乱源(右辺第1項)を含む一般解は数値的にしか得られないが、\textbf{一度も衝突していない}
+中性子(未衝突成分)だけを取り出すと、右辺の散乱流入が定義上ゼロになり、方程式は
+線源からの直進減衰だけになる。中心 $r=0$ に置いた強度 $S$ の等方点線源から出た
+未衝突中性子は、球対称性よりまっすぐ外向きに進み、距離 $r$ を走る間に $e^{-\Sigmat r}$ に
+減衰する。単位面積を通過する未衝突中性子束は、幾何的な $1/(4\pi r^2)$ の希釈と
+指数減衰の積として
+\begin{equation}
+  \boxed{\;
+  \phi(r) = \frac{S\,e^{-\Sigmat r}}{4\pi r^2}
+  \;}
+  \label{eq:flux}
+\end{equation}
+となる。未衝突中性子はエネルギーを変えない($14.1\,\mathrm{MeV}$ のまま)ので、
+$\Sigmat$ はその1エネルギーでの値(単一の定数)であり、式~\eqref{eq:flux} は
+\textbf{近似ではなく厳密解}である。
+
+この体系からは、同じく厳密な補助量が2つ得られる。半径 $R$ の球表面から未衝突のまま
+漏れ出る割合(表面漏洩)は
+\begin{equation}
+  L = e^{-\Sigmat R},
+  \label{eq:leak}
+\end{equation}
+球内で少なくとも一度衝突する割合(初回衝突総数)は
+\begin{equation}
+  C = 1 - e^{-\Sigmat R}
+  \label{eq:coll}
+\end{equation}
+である($S=1$ で規格化)。
+
+\subsection{シェル体積平均}
+
+数値計算では束を有限体積のシェルでタリーするため、点値 $\phi(r)$ ではなく
+シェル $[r_1,r_2]$ の体積平均と比較する。式~\eqref{eq:flux} を体積積分すると
+$4\pi r^2$ が相殺して
+\begin{equation}
+  \langle\phi\rangle_{[r_1,r_2]}
+  = \frac{1}{V}\!\int_{r_1}^{r_2}\!\frac{S\,e^{-\Sigmat r}}{4\pi r^2}\,4\pi r^2\,dr
+  = \frac{S\left(e^{-\Sigmat r_1}-e^{-\Sigmat r_2}\right)}{\Sigmat\,V},
+  \quad V=\frac{4\pi}{3}\!\left(r_2^3-r_1^3\right)
+  \label{eq:shellavg}
+\end{equation}
+となり、これもまた厳密である。比較スクリプトはこの式で解析解を評価する。
+
+\section{数値実験}
+\label{sec:numerical}
+
+\subsection{モンテカルロ法と OpenMC}
+
+OpenMC~\cite{romano2015} は個々の中性子の履歴(線源で生まれ、飛行し、衝突し、消滅する)を
+乱数で多数追跡し、その統計平均として束や反応率を推定するモンテカルロコードである。
+決定論の epotFoam と違い、結果は統計誤差 $\sigma$ を伴う。飛行距離は $-\ln\xi/\Sigmat$
+($\xi$ は一様乱数)で標本化され、これが式~\eqref{eq:flux} の指数減衰を微視的に再現する。
+本実験の未衝突束は、飛跡長推定(track-length estimator)に\textbf{衝突回数フィルタ}
+(\texttt{CollisionFilter}, 衝突回数 $=0$)と\textbf{線源エネルギー窓}をかけて取り出した。
+後者が必要なのは、$14.1\,\mathrm{MeV}$ では ${}^{7}\mathrm{Li}(n,2n)$ 反応が二次中性子を
+生み、これが新粒子として衝突回数 $0$ から始まるため衝突回数フィルタだけでは未衝突束に
+混入し、外側シェルほど過大評価される(実測で約 $7\,\%$)。未衝突の源中性子は厳密に
+$14.1\,\mathrm{MeV}$ のままだが二次中性子は $7\,\mathrm{MeV}$ 以下なので、線源エネルギーの
+$\pm 0.1\,\%$ の窓で二次中性子を除ける。
+
+\subsection{体系設定}
+
+計算体系を図~\ref{fig:cond}に、条件を表~\ref{tab:case}に示す。中心に $14.1\,\mathrm{MeV}$ の
+等方点線源を置いた半径 $\radiusCm\,\mathrm{cm}$ のリチウム球(天然組成)を、CSG の
+同心球セルだけで構成した。CAD もメッシュも用いていない。未衝突束の空間分布は、
+$[0,R]$ を\textbf{等体積}に分割した $\shellsN$ 枚の球シェルでタリーした
+(等体積にすると各シェルの統計がそろう)。
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.62\linewidth]{fig02.png}
+  \caption{検証体系の模式図。中心の $14.1\,\mathrm{MeV}$ 等方点線源(星)から出た
+    未衝突中性子は直進し、$\phi(r)=S\,e^{-\Sigmat r}/(4\pi r^2)$ で減衰する。
+    破線は等体積タリーシェル。中性子は磁場を受けないため、輸送に要るのは
+    球の形状と材料だけである。\texttt{visualize\_condition.py} が \texttt{make paper}
+    で自動生成。}
+  \label{fig:cond}
+\end{figure}
+
+\begin{table}[tb]
+  \centering
+  \caption{計算条件。$\Sigmat$ は $14.1\,\mathrm{MeV}$ での巨視的全断面積で、
+    数値解・解析解ともに同じ断面積ライブラリから読む(データではなく輸送を検証するため)。}
+  \label{tab:case}
+  \begin{tabular}{llll}
+    \toprule
+    項目 & 設定 & 項目 & 設定 \\
+    \midrule
+    幾何 & CSG リチウム球(天然組成) & 半径 $R$ & $\radiusCm\,\mathrm{cm}$ \\
+    線源 & 中心・等方・$14.1\,\mathrm{MeV}$ & 全断面積 $\Sigmat$ & $\SigmaT\,\mathrm{cm^{-1}}$ \\
+    平均自由行程 & $\meanFreePath\,\mathrm{cm}$ & タリーシェル数 & $\shellsN$(等体積)\\
+    ヒストリ数 & $\particlesN$/バッチ & 未衝突抽出 & \texttt{CollisionFilter}$=0$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{断面積ライブラリ}
+検証には Li6/Li7 の2核種だけの軽量ライブラリ(ENDF/B-VIII.0~\cite{endfb80} を
+NJOY で $293.6\,\mathrm{K}$ に処理)を用い、実行時に \texttt{OPENMC\_CROSS\_SECTIONS} で
+マウントした。解析解の $\Sigmat$ もこの同じ HDF5 から $14.1\,\mathrm{MeV}$ の値を読む。
+
+\subsection{比較方法}
+
+各シェルの数値解(シェル平均束)を、式~\eqref{eq:shellavg} の厳密解と比較し、
+解析解を分母とする相対誤差の最大値・RMS を評価した。モンテカルロは統計誤差を持つため、
+決定論の Hartmann 検証(相対誤差 $2\,\%$ 閾値のみ)と違い、\textbf{相対誤差 $<\thresholdPct\,\%$}
+に加えて\textbf{各シェルの偏差が $\nSigma\sigma$ 以内}であることを併せて合格条件とした。
+図・数値は \texttt{make paper} が計算から自動生成・取り込みし、本稿にハードコードした
+数値はない。
+
+\section{結果と考察}
+
+図~\ref{fig:atten}に未衝突束の減衰を示す。右図は $4\pi r^2\phi = S\,e^{-\Sigmat r}$ を
+片対数で描いたもので、解析解は傾き $-\Sigmat$ の直線になる。数値解はこの直線に乗り、
+全シェルの最大相対誤差は $\maxErrPct\,\%$、RMS 誤差は $\rmsErrPct\,\%$ であった。
+$\nSigma\sigma$ を超える統計的外れ値を持つシェルは $\nOutlier$ 個であり、
+数値解と厳密解の差は統計誤差の範囲で説明できる。
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.95\linewidth]{fig01.png}
+  \caption{未衝突中性子束の減衰($R=\radiusCm\,\mathrm{cm}$)。左: 束 $\phi(r)$(両対数)。
+    右: $4\pi r^2\phi(r)$(片対数、傾き $-\Sigmat$ の直線)。実線: 解析解
+    (式~\eqref{eq:flux})、丸: OpenMC(誤差棒は $1\sigma$)。最大相対誤差
+    $\maxErrPct\,\%$。}
+  \label{fig:atten}
+\end{figure}
+
+半径 $R=\radiusCm\,\mathrm{cm}$ での未衝突表面漏洩は式~\eqref{eq:leak} より
+$L=\leakAna$、初回衝突総数は式~\eqref{eq:coll} より $C=\collAna$(線源中性子あたり)である。
+$R$ を増やせば $e^{-\Sigmat R}$ に従って漏洩が指数的に落ちることも、パラメータを変えた
+再実行で確認できる。
+
+\paragraph{TBR(参考値)}
+同じ計算から、Li6(n,t) と Li7(n,n$'$t) を合わせた三重水素生成反応率、すなわち
+\textbf{TBR を参考値として} $\tbrVal\pm\tbrUnc$ と得た。ただしこれは解析解のない量であり、
+本レポートの検証対象ではない。純リチウム球という非現実的な体系の値であって、実機の
+TBR ではない点に注意する。TBR の定量は、PbLi ブリーダー組成・中性子増倍材・
+現実的な壁厚を含む DAGMC 幾何の下で W7 以降に本格化する。
+
+\section{まとめ}
+
+中性子輸送方程式の未衝突成分が厳密な指数減衰
+$\phi(r)=S\,e^{-\Sigmat r}/(4\pi r^2)$ を持つことを用い、CAD を使わない CSG リチウム球
++ 中心点線源の体系で OpenMC の輸送計算を検証した。未衝突束のシェル平均は厳密解と
+最大相対誤差 $\maxErrPct\,\%$(統計的外れ $\nOutlier$ シェル)で一致し、
+モンテカルロ輸送の土台が正しく走ることを確認した。これは Hartmann 流による epotFoam の
+検証に対応する、中性子側の最小の錨である。次段は STEP $\to$ DAGMC $\to$ OpenMC の
+CAD 幾何経路と、PbLi 組成での現実的な TBR 計算である。
+
+\bibliographystyle{plain}
+\bibliography{refs}
+
+\end{document}
