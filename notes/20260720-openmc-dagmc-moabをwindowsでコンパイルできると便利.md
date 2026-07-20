@@ -129,6 +129,28 @@ UW-Madison CNERG (ParaStell / DAGMC / Svalinn) ではない。系統が違う。
 予定の 9/8–10/5 に対し **W1 時点で前倒し着手できた**。MinGW ビルドの副産物。
 本来の W12 は W7 で DAGMC 経路に入るときに回収する。
 
+## 配布戦略: 非公式 pip パッケージを踏み台にする
+
+上流の Windows 対応は [issue #1243](https://github.com/openmc-dev/openmc/issues/1243) が
+**7年 open**、[PR #2919](https://github.com/openmc-dev/openmc/pull/2919) が **2年停滞**。
+待っていても始まらないので、非公式 pip パッケージ (`openmc-win64` 等、`opencv-python` と
+同じ「上流名 + 修飾語」の命名) を先に出し、そこで得た知見を小さな PR で上流に積み、
+Windows サポートの下地を作る。上流がサポートしたら deprecated を宣言して畳む。
+
+追い風が2つある。**PyPI に `openmc` は存在せず** (404)、上流には wheel をビルドする CI が
+そもそも無い (`runs-on` は ubuntu のみ)。加えて **`cad_to_dagmc` 0.11.9 が pymoab 依存を捨てた**
+(`cad-to-dagmc-mesher` に置換、`win_amd64` wheel あり)。CAD→h5m 側は既に pip で完結しており、
+欠けているピースは OpenMC 本体だけ。
+
+注意点3つ。**(1)** 畳む条件を README の冒頭に最初から書き、スコープを「ビルドを置くだけ」に
+限定する。機能を足すと畳めなくなり、狭い業界で「放棄した人」として記憶される。
+**(2)** #2919 の停滞を見るに、想定より長く生きる前提で設計する。CI を最初から組む。
+**(3)** 公開したら #1243 と #2919 に報告する。**7年間 Windows 難民が辿り着き続けている場所**で、
+非公式フォークを「スレッドへの貢献」として提示できる唯一の機会。先行者への敬意も示せる。
+
+なお **CI の workflow 自体が上流への最良の PR になり得る**。メンテナが Windows PR を
+通せない根本原因はコードでなく「壊れていないことを確認する手段が無い」ことだから。
+
 ## 次: DAGMC + MOAB (第二弾)
 
 当初は `-DPULL_INSTALL_MOAB=<version>` を試す想定だったが、調査の結果**採らない**。
