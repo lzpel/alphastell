@@ -4,7 +4,12 @@
 #
 #   make -C sandbox-openmc-source           # (デフォルト) ビルドし、環境設定ラッパーのパスを stdout に印字
 #   make -C sandbox-openmc-source hdf5      # 段1: HDF5 (静的、C + HL)
+#   make -C sandbox-openmc-source moab      # 段1.5: MOAB (静的、DAGMC=1 のときのみ)
+#   make -C sandbox-openmc-source dagmc     # 段1.6: DAGMC (静的、DAGMC=1 のときのみ)
 #   make -C sandbox-openmc-source openmc    # 段2: openmc.exe
+#
+#   make -C sandbox-openmc-source DAGMC=0   # CSG 専用構成に戻す (退路)
+#   make -C sandbox-openmc-source OPENMP=OFF # 並列を切る
 #   make -C sandbox-openmc-source venv      # 段3: uv 管理の python + openmc パッケージ
 #   make -C sandbox-openmc-source check     # 実行環境の確認 (sandbox-openmc の env 相当)
 #   make -C sandbox-openmc-source clean     # src/ build/ prefix/ venv/ を全削除
@@ -25,7 +30,23 @@
 export MSYS_NO_PATHCONV=1
 
 HDF5_VER   ?= 2.1.1
+MOAB_VER   ?= 5.6.0
+DAGMC_REF  ?= v3.2.4
 OPENMC_REF ?= develop
+
+# DAGMC (CAD 由来の .h5m ジオメトリ) を有効にするか。0 にすると第一弾と同じ CSG 専用構成に
+# 戻る。MOAB は Windows でビルドした前例が無く、壊れたときに退路が要るのでスイッチを残す。
+DAGMC ?= 1
+
+# 共有メモリ並列。MinGW の libgomp は成熟しており静的版 (libgomp.a) も揃っている。
+# 切り分け用に OFF にも戻せるようスイッチにしておく。
+OPENMP ?= ON
+
+# CMake の FindOpenMP は libgomp を「インポートライブラリの絶対パス」
+# (.../libgomp.dll.a) として渡してくる。絶対パス指定は -static では覆せないので、
+# そのままだと openmc.exe が libgomp-1.dll に動的リンクしてスタンドアローン性が壊れる
+# (実測: objdump に libgomp-1.dll が出る)。静的版を名指しして上書きする。
+OPENMP_LIB ?= $(shell $(CXX) -print-file-name=libgomp.a)
 PYTHON_VER ?= 3.12
 JOBS       ?= 8
 
@@ -69,18 +90,35 @@ OPENMC_EXE_LDFLAGS ?= -static
 # patches/*.patch を全部当てる。適用済みなら黙って飛ばす (.PHONY なので毎回このレシピに
 # 入るため、--reverse --check が通る = すでに当たっている、という判定にする)。
 # cmake の configure より前に当てる必要がある (CMakeLists.txt を書き換えるため)。
-PATCHES = $(sort $(wildcard $(CURDIR)/patches/*.patch))
-APPLY_PATCHES = for p in $(PATCHES); do \
-	  if git -C $(SRC)/openmc apply --reverse --check "$$p" 2>/dev/null; then \
-	    echo "$$(basename $$p): already applied" >&2; \
+# $(1)=patches/ 配下のサブディレクトリ名, $(2)=当て先のソースツリー。
+# git 管理下かどうかで手段が変わる: openmc は clone なので git apply、moab は tarball 展開で
+# git 管理外なので patch(1) を使う。どちらも「逆当てが通る = 既に当たっている」で冪等にする。
+APPLY_PATCHES = for p in $$(ls $(CURDIR)/patches/$(1)/*.patch 2>/dev/null | sort); do \
+	  if patch -p1 -d $(2) -R --dry-run -s -f < "$$p" >/dev/null 2>&1; then \
+	    echo "$(1)/$$(basename $$p): already applied" >&2; \
 	  else \
-	    git -C $(SRC)/openmc apply "$$p" $(E) || exit 1; \
-	    echo "$$(basename $$p): applied" >&2; \
+	    patch -p1 -d $(2) < "$$p" $(E) || exit 1; \
+	    echo "$(1)/$$(basename $$p): applied" >&2; \
 	  fi; \
 	done
 
 HDF5_URL   = https://github.com/HDFGroup/hdf5/releases/download/$(HDF5_VER)/hdf5-$(HDF5_VER).tar.gz
+# tarball ではなく git を使う。配布 tarball は autotools の `make dist` 産物で、
+# CMake 用の config/{logging,dist,distcheck}.cmake が EXTRA_DIST から漏れており
+# 「include could not find requested file: config/logging.cmake」で configure が落ちる
+# (実測。3ファイルとも git 側には存在する = 同梱漏れ)。
+MOAB_URL   = https://bitbucket.org/fathomteam/moab.git
+DAGMC_URL  = https://github.com/svalinn/DAGMC.git
 OPENMC_URL = https://github.com/openmc-dev/openmc.git
+
+# DAGMC=1 のときだけ moab/dagmc を建て、OpenMC に渡すフラグを足す。
+ifeq ($(DAGMC),1)
+  OPENMC_DEPS      = dagmc
+  OPENMC_DAGMC_ARG = -DOPENMC_USE_DAGMC=ON -DOPENMC_USE_UWUW=OFF -DCMAKE_PREFIX_PATH=$(PREFIX)
+else
+  OPENMC_DEPS      =
+  OPENMC_DAGMC_ARG = -DOPENMC_USE_DAGMC=OFF
+endif
 
 OPENMC_EXE = $(PREFIX)/bin/openmc.exe
 
@@ -100,7 +138,7 @@ CMAKE_COMMON = $(CMAKE_GENERATOR_ARG) \
 # ラッパーのパスだけを出す必要があるため (sandbox-mhd/epotFoam:36 と同じ理由)。
 E = 1>&2
 
-.PHONY: openmc-env hdf5 openmc venv check clean
+.PHONY: openmc-env hdf5 moab dagmc openmc venv check clean
 
 # ---- デフォルト: ビルドし、環境を設定して exec するラッパーの *パス* を stdout に出す ----
 #
@@ -150,11 +188,64 @@ hdf5:
 	cmake --build $(BUILD)/hdf5 -j $(JOBS) $(E)
 	cmake --install $(BUILD)/hdf5 $(E)
 
+# ================= 段1.5: MOAB (DAGMC=1 のときのみ) =================
+# .h5m は MOAB のファイル形式そのもので、DAGMC は MOAB のメッシュ DB + BVH レイトレーシングの
+# 上に薄い層を被せたもの。DAGMC without MOAB という構成は存在しない。
+#
+# 静的 (BUILD_SHARED_LIBS=OFF) にするのが肝。共有だと CMakeLists の
+#   if (BUILD_SHARED_LIBS) / if (WIN32) → add_definitions(/DMOAB_DLL)
+# という MSVC 構文のフラグが GCC に渡り、GCC はこれをファイルパスと解釈して落ちる。
+# 静的ならこのブロックごと通らないので問題が構造的に消える。
+#
+# 既定値のままだと落ちるものを明示的に切る:
+#   ENABLE_BLASLAPACK (既定 ON) → FIND_PACKAGE(BLAS REQUIRED) で即死
+#   ENABLE_FORTRAN    (既定 ON) → Fortran コンパイラを要求
+#   ENABLE_TESTING    (既定 ON) → テスト一式
+# Eigen3 は不要 (ENABLE_EIGEN3 は既定 OFF で、BLASLAPACK と TempestRemap を切れば要求されない)。
+moab:
+	@mkdir -p $(SRC)
+	@test -d $(SRC)/moab/.git \
+	  || git clone --branch $(MOAB_VER) --depth 1 $(MOAB_URL) $(SRC)/moab $(E)
+	@$(call APPLY_PATCHES,moab,$(SRC)/moab)
+	cmake -S $(SRC)/moab -B $(BUILD)/moab $(CMAKE_COMMON) \
+	  -DBUILD_SHARED_LIBS=OFF \
+	  -DENABLE_HDF5=ON -DHDF5_ROOT=$(PREFIX) \
+	  -DENABLE_BLASLAPACK=OFF -DENABLE_FORTRAN=OFF -DENABLE_TESTING=OFF \
+	  -DENABLE_PYMOAB=OFF -DENABLE_NETCDF=OFF -DENABLE_MPI=OFF \
+	  -DENABLE_METIS=OFF -DENABLE_ZOLTAN=OFF -DENABLE_PARMETIS=OFF \
+	  -DENABLE_TEMPESTREMAP=OFF -DENABLE_CGNS=OFF -DENABLE_CPM=OFF $(E)
+	cmake --build $(BUILD)/moab -j $(JOBS) $(E)
+	cmake --install $(BUILD)/moab $(E)
+
+# ================= 段1.6: DAGMC (DAGMC=1 のときのみ) =================
+# タグ付きリリースを使う。develop の差分は PULL_INSTALL_MOAB だけで、それは使わない
+# (未リリース、MOAB を共有に強制、MinGW で壊れたパスを組む、変数名バグ2件)。
+#
+# MOAB_DIR は install prefix を渡す (FindMOAB が ${MOAB_DIR}/lib*/cmake/MOAB を glob する)。
+# UWUW と TALLY は既定 ON だが OpenMC は使わない。UWUW は PyNE を引き込むので特に切る。
+# DAGMCConfig.cmake は @CMAKE_INSTALL_PREFIX@ を焼き込むので再配置不可 → 最終的な場所に直接入れる。
+dagmc: moab
+	@mkdir -p $(SRC)
+	@test -d $(SRC)/dagmc/.git \
+	  || git clone --recurse-submodules --branch $(DAGMC_REF) --depth 1 \
+	       $(DAGMC_URL) $(SRC)/dagmc $(E)
+	@$(call APPLY_PATCHES,dagmc,$(SRC)/dagmc)
+	cmake -S $(SRC)/dagmc -B $(BUILD)/dagmc $(CMAKE_COMMON) \
+	  -DMOAB_DIR=$(PREFIX) -DHDF5_ROOT=$(PREFIX) \
+	  -DBUILD_STATIC_LIBS=ON -DBUILD_SHARED_LIBS=OFF \
+	  -DBUILD_UWUW=OFF -DBUILD_TALLY=OFF \
+	  -DBUILD_BUILD_OBB=OFF -DBUILD_MAKE_WATERTIGHT=OFF -DBUILD_OVERLAP_CHECK=OFF \
+	  -DBUILD_TESTS=OFF -DBUILD_CI_TESTS=OFF \
+	  -DBUILD_EXE=OFF -DBUILD_STATIC_EXE=OFF -DBUILD_RPATH=OFF \
+	  -DDOUBLE_DOWN=OFF -DPULL_INSTALL_MOAB=OFF $(E)
+	cmake --build $(BUILD)/dagmc -j $(JOBS) $(E)
+	cmake --install $(BUILD)/dagmc $(E)
+
 # ================= 段2: OpenMC =================
 # 必須外部依存は HDF5 だけ。vendor/ の submodule は pugixml/fmt/Catch2 の3つ。
 # OPENMC_FORCE_VENDORED_LIBS=ON で野良 pugixml/fmt の ABI 不一致を避ける。
 # OpenMP はまず OFF で通してから ON にする (MinGW の libgomp は成熟しているので後で戻せる)。
-openmc: hdf5
+openmc: hdf5 $(OPENMC_DEPS)
 	@mkdir -p $(SRC)
 	@# clone 済みなら取り直さない (.PHONY なので毎回このレシピに入る)。
 	@# --depth 1 だけだとタグが無く git describe が失敗し、CMake の GetVersionFromGit が
@@ -165,13 +256,15 @@ openmc: hdf5
 	  || (git clone --recurse-submodules --branch $(OPENMC_REF) --depth 1 \
 	        $(OPENMC_URL) $(SRC)/openmc $(E) \
 	      && git -C $(SRC)/openmc fetch --tags --deepen=2000 origin $(OPENMC_REF) $(E))
-	@$(APPLY_PATCHES)
+	@$(call APPLY_PATCHES,openmc,$(SRC)/openmc)
 	cmake -S $(SRC)/openmc -B $(BUILD)/openmc $(CMAKE_COMMON) \
 	  -DHDF5_ROOT=$(PREFIX) -DHDF5_PREFER_PARALLEL=FALSE \
-	  -DOPENMC_USE_OPENMP=OFF -DOPENMC_BUILD_TESTS=OFF \
+	  -DOPENMC_USE_OPENMP=$(OPENMP) -DOPENMC_BUILD_TESTS=OFF \
+	  -DOpenMP_CXX_LIB_NAMES=gomp -DOpenMP_gomp_LIBRARY="$(OPENMP_LIB)" \
+	  -DOpenMP_C_LIB_NAMES=gomp \
 	  -DOPENMC_FORCE_VENDORED_LIBS=ON \
-	  -DOPENMC_USE_DAGMC=OFF -DOPENMC_USE_MPI=OFF \
-	  -DOPENMC_USE_LIBMESH=OFF -DOPENMC_USE_UWUW=OFF \
+	  -DOPENMC_USE_MPI=OFF -DOPENMC_USE_LIBMESH=OFF \
+	  $(OPENMC_DAGMC_ARG) \
 	  -DCMAKE_CXX_FLAGS="$(OPENMC_CXX_FLAGS)" \
 	  -DCMAKE_EXE_LINKER_FLAGS="$(OPENMC_EXE_LDFLAGS)" $(E)
 	cmake --build $(BUILD)/openmc -j $(JOBS) $(E)
@@ -201,6 +294,17 @@ check: venv
 	@echo "-- cross sections --"; test -f "$(XS)" \
 	  && echo "  found: $(XS)" \
 	  || echo "  missing: $(XS)  (run 'make data' in sandbox-openmc via Docker, or use LIB=full)"
+	@# DAGMC の煙感知器。上流の legacy テストモデルを h5py で読み、トポロジが期待どおりか見る。
+	@# DAGMCUniverse.n_cells / n_surfaces は h5m を直接読むので openmc.lib を必要としない
+	@# (openmc.lib は共有ライブラリが無いこの構成では読めない)。
+	@if [ "$(DAGMC)" = "1" ]; then \
+	  echo "-- dagmc geometry --"; \
+	  "$(VENV)/Scripts/python.exe" -c "import openmc,sys; \
+u=openmc.DAGMCUniverse(r'$(SRC)/openmc/tests/regression_tests/dagmc/legacy/dagmc.h5m'); \
+print('  legacy model: n_cells=%d n_surfaces=%d' % (u.n_cells, u.n_surfaces)); \
+sys.exit(0 if (u.n_cells,u.n_surfaces)==(5,21) else 1)" \
+	    && echo "  OK (expected 5 / 21)" || echo "  MISMATCH"; \
+	fi
 
 clean:
 	rm -rf $(SRC) $(BUILD) $(PREFIX) $(VENV)

@@ -1,0 +1,11 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -533,7 +533,7 @@
+ 
+ if(OPENMC_USE_DAGMC)
+   target_compile_definitions(libopenmc PUBLIC OPENMC_DAGMC_ENABLED)
+-  target_link_libraries(libopenmc dagmc-shared)
++  target_link_libraries(libopenmc dagmc-static)
+ 
+   if(OPENMC_USE_UWUW)
+     target_compile_definitions(libopenmc PRIVATE OPENMC_UWUW_ENABLED)

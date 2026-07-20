@@ -1,14 +1,16 @@
 # sandbox-openmc-source — OpenMC を Windows ネイティブ (MinGW-w64) でビルドするサンドボックス
 
-OpenMC と依存の HDF5 をソースから **MinGW-w64 でビルド**し、[sandbox-openmc](../sandbox-openmc) の
-未衝突中性子減衰の解析解検証を **Docker なしで**完走させる。ビルド設定・中間物・成果物は
-すべてこのディレクトリ内に閉じる。動機は
+OpenMC と依存の HDF5 / MOAB / DAGMC をソースから **MinGW-w64 でビルド**し、
+[sandbox-openmc](../sandbox-openmc) の未衝突中性子減衰の解析解検証を **Docker なしで**
+完走させる。ビルド設定・中間物・成果物はすべてこのディレクトリ内に閉じる。動機は
 [notes/20260720-openmc-dagmc-moabをwindowsでコンパイルできると便利.md](../notes/20260720-openmc-dagmc-moabをwindowsでコンパイルできると便利.md)
 — Docker 不要、Python/Rust バインディングへの道、OpenMC 内部の理解。
 
 **結果: 通った。** MinGW ネイティブビルドの `openmc.exe` で sandbox-openmc の検証が PASS し
 (最大相対誤差 0.115%、閾値 2%)、Docker (Linux/GCC) 版の出力との差は **最大 7.3e-10**
-(統計誤差より8桁小さい) だった。OpenMC 公式は Windows ネイティブを未サポートで
+(統計誤差より8桁小さい) だった。**DAGMC (CAD 由来の .h5m ジオメトリ) も有効**で
+(`DAGMC support: yes`)、MOAB・DAGMC・HDF5・libopenmc すべて静的なので
+`openmc.exe` は非システム DLL に一切依存しない。OpenMC 公式は Windows ネイティブを未サポートで
 ([issue #1243](https://github.com/openmc-dev/openmc/issues/1243) は MSVC 前提、
 [PR #2919](https://github.com/openmc-dev/openmc/pull/2919) は draft のまま)、
 MinGW での前例は探した範囲では見つからなかった。
@@ -20,9 +22,11 @@ MinGW での前例は探した範囲では見つからなかった。
 CMake が PATH に無い場合は `make CMAKE=/path/to/cmake ...` で指定できる。
 
 ```sh
-make -C sandbox-openmc-source build     # 段1〜3 を通してビルド (初回は 15〜30 分)
-make -C sandbox-openmc-source check     # openmc --version / import openmc / 断面積の確認
-make -C sandbox-openmc-source clean     # build/ prefix/ venv/ を削除 (src/ は残す)
+make -C sandbox-openmc-source           # (デフォルト) 全段ビルドし、環境設定ラッパーのパスを印字
+make -C sandbox-openmc-source check     # openmc --version / import openmc / DAGMC / 断面積の確認
+make -C sandbox-openmc-source DAGMC=0   # CSG 専用構成 (MOAB/DAGMC を建てない)
+make -C sandbox-openmc-source OPENMP=OFF  # 並列を切る
+make -C sandbox-openmc-source clean     # src/ build/ prefix/ venv/ を全削除
 ```
 
 sandbox-openmc をこのビルドで回す (`epotFoam` と同じ「サブ makefile が toolchain を所有し、
@@ -39,9 +43,13 @@ make compare OPENMC="$(make -s --no-print-directory -C ../sandbox-openmc-source 
 ## ビルドの段
 
 ```
-段1  HDF5 2.1.1 (静的、C + HL、圧縮フィルタ無し)  → prefix/lib/libhdf5.a
-段2  OpenMC (develop, CSG のみ / DAGMC なし)   → prefix/bin/openmc.exe + libopenmc.dll
-段3  uv venv + openmc python パッケージ         → venv/
+段1    HDF5 2.1.1 (静的、C + HL、圧縮フィルタ無し) → prefix/lib/libhdf5.a
+段1.5  MOAB 5.6.0  (静的)                        → prefix/lib/libMOAB.a
+段1.6  DAGMC v3.2.4 (静的)                       → prefix/lib/libdagmc.a
+段2    OpenMC (develop, DAGMC + OpenMP 有効)     → prefix/bin/openmc.exe (14.7 MB, 全静的)
+段3    uv venv + openmc python パッケージ         → venv/
+
+DAGMC=0 を渡すと段1.5/1.6 を飛ばして CSG 専用構成に戻る (退路)。
 ```
 
 ## 設計判断と根拠
@@ -53,9 +61,11 @@ make compare OPENMC="$(make -s --no-print-directory -C ../sandbox-openmc-source 
 | HDF5 の版 | 2.1.1 | 2.x は autotools 廃止で CMake のみ。かつ `H5detect`/`H5make_libsettings` (ビルド時実行バイナリ) が 1.14 系で削除済みで、歴史的な最大の移植障壁が消えている |
 | HDF5 のリンク形態 | 静的 (`BUILD_SHARED_LIBS=OFF`) | Windows の DLL シンボル export 問題を丸ごと回避する。OpenMC は C API と HL しか使わない (`COMPONENTS C HL`) ので C++ API は不要 |
 | zlib (deflate フィルタ) | **無効** (`HDF5_ENABLE_ZLIB_SUPPORT=OFF`、HDF5 2.x の既定と同じ) | 実測で不要と確認したため (下記「zlib を無効にした根拠」)。有効にすると zlib の取得・ビルドに加え、静的 HDF5 の未解決シンボルを潰すリンク順の細工まで必要になる |
-| OpenMP | まず OFF | 段階的に切り分けるため。MinGW の libgomp は成熟しているので後から ON にできる (MSVC 路線が `/openmp:llvm` で苦労したのとは対照的) |
+| OpenMP | **有効** (`OPENMP=ON`) | MinGW の libgomp は成熟しており `-fopenmp` がそのまま通る (MSVC 路線が `/openmp:llvm` で苦労したのとは対照的)。実測で 1→8 スレッド 4.8 倍。`OPENMP=OFF` で切れる |
 | 断面積 | sandbox-openmc の既存 `data/` を再利用 | `build_xs.py` が `njoy_exec="njoy"` とハードコードしており、NJOY21 (Fortran 2008) の MinGW ビルドは別プロジェクト。既存データがあれば第一弾には不要 |
-| DAGMC/MOAB | 第一弾では扱わない | CSG のみの sandbox-openmc には不要。第二弾の方針は下記 |
+| DAGMC/MOAB のリンク形態 | 静的 | 共有にすると MOAB の `if (BUILD_SHARED_LIBS AND WIN32)` が `add_definitions(/DMOAB_DLL)` という **MSVC 構文のフラグを GCC に渡す** (GCC はファイルパスと解釈して落ちる)。静的ならこのブロックごと通らず問題が構造的に消える |
+| MOAB の入手 | **git clone** (tarball 不可) | 配布 tarball は autotools の `make dist` 産物で `config/{logging,dist,distcheck}.cmake` が同梱漏れ。CMake の configure が `include could not find requested file` で即死する (実測。3ファイルとも git 側には存在) |
+| `PULL_INSTALL_MOAB` | **使わない** | 未リリース (v3.2.4 に無い)、MOAB を共有に強制、MinGW で壊れたリンクパスを組む、変数名バグ2件。詳細は下記 |
 
 ## 詰まった点と対処 (すべて実測)
 
@@ -85,11 +95,24 @@ make compare OPENMC="$(make -s --no-print-directory -C ../sandbox-openmc-source 
    防げない。**空白を含まないラッパーのパス1個**を渡す形にした
    (`epotFoam` が `openfoam.sh` を渡しているのと同じ形)。
 6. **`openmc.lib` は「使わなければ関係ない」ものではない** — `Model.run()` が
-   `is_initialized` 経由で無条件に import する。`openmc/lib/__init__.py` は共有ライブラリの
-   拡張子を darwin なら `dylib`、それ以外は `so` と決め打ちで `win32` 分岐が無いので
-   パッチを当てる。さらに Python 3.8 以降の `ctypes.CDLL` は PATH を DLL 検索に使わないため、
-   `libopenmc.dll` と MinGW ランタイム DLL を `site-packages/openmc/lib/` に**隣接配置**する
-   (絶対パス指定時は `LOAD_WITH_ALTERED_SEARCH_PATH` で DLL 自身のディレクトリが探索される)。
+   `is_initialized` 経由で無条件に import する。共有ライブラリを作らない構成では
+   `ctypes.CDLL` が `FileNotFoundError` を投げるが、上流の `try/except` は `ImportError`
+   しか捕まえないので素通りできない。上流は明らかに `openmc.lib` を任意扱いする意図で
+   書いているので、`patches/openmc/lib-optional.patch` で `except (ImportError, OSError)`
+   に広げる。これが DLL 無し構成を成立させている。
+7. **MOAB の配布 tarball では CMake ビルドが成立しない** — `moab-5.6.0.tar.gz` は autotools の
+   `make dist` 産物で、`config/{logging,dist,distcheck}.cmake` が同梱漏れしている。configure が
+   `include could not find requested file: config/logging.cmake` で即死する。3ファイルとも
+   git 側には存在するので、**git clone に切り替える**のが解。
+8. **`-static` でも libgomp だけ動的に残る** — CMake の `FindOpenMP` は libgomp を
+   **インポートライブラリの絶対パス** (`.../libgomp.dll.a`) として渡してくる。絶対パス指定は
+   `-static` では覆せないので `openmc.exe` が `libgomp-1.dll` に依存してしまう
+   (実測: `objdump -p` に現れる)。`OpenMP_gomp_LIBRARY` を静的版 `libgomp.a` に上書きして解決。
+9. **DAGMC が静的 HDF5 を見つけられない** — `cmake/FindMOAB.cmake` は
+   `CMAKE_FIND_LIBRARY_SUFFIXES` を共有側に固定して `find_package(HDF5 REQUIRED)` を呼び、
+   静的パスは**文字列置換で導出**する。共有 HDF5 の存在が暗黙の前提なので、静的のみだと
+   `Could NOT find HDF5 (missing: HDF5_LIBRARIES)` になる。探索する拡張子を
+   `BUILD_SHARED_LIBS` に応じて切り替えるのが `patches/dagmc/static-hdf5.patch`。
 
 ## zlib を無効にした根拠
 
@@ -131,31 +154,60 @@ GNU ld は静的ライブラリを左から右に一度しか走査しないの�
   (実測: C++ 側 `0.15.4-dev211` / Python 側 `0.15.4.dev211+g05d01274a`)。
   なお `version.h` は CMake のキャッシュ経由で生成されるため、後から履歴を深くしても
   `build/openmc` を消さないと版が更新されない。
-- **OpenMP は無効**。段階的な切り分けのため OFF にしてある。
-- **DAGMC 無効** (`DAGMC support: no`)。CSG のみ。
+- **DAGMC の輸送計算は未検証**。`DAGMC support: yes` になり `.h5m` のパースと
+  トポロジ読み出し (`n_cells` / `n_surfaces`) までは確認済みだが、実際に粒子を飛ばす
+  検証は核データ (U235 / H1 / O16 + `c_H_in_H2O`) 未取得のため未実施。
+- **OpenMC 付属の DAGMC 回帰テストは使えない**。`tests/regression_tests/dagmc/*/test.py` が
+  module 直下で `import openmc.lib` を呼ぶため、共有ライブラリを作らないこの構成では
+  skip ではなく **collection エラー**になる。自前のテストで代替する必要がある。
+- **`libMOAB.a` のアーカイブ作成が一度 `file truncated` で落ちた**。オブジェクトもコマンド長も
+  健全で、再実行すると通った。原因は未特定 (一過性と判断)。
 - `develop` を追うので上流の変更でいつ壊れてもおかしくない。壊れたら
   `OPENMC_REF` を効いていたコミットに固定する。
 
-## 第二弾 (DAGMC + MOAB) の方針
+## DAGMC / MOAB について
 
-当初案の `-DPULL_INSTALL_MOAB=<version>` は**採らない**。調査の結果:
+`PULL_INSTALL_MOAB` は**使わない**。ソースを読んだ結果、この環境では原理的に動かない。
 
-- [PR #969](https://github.com/svalinn/DAGMC/pull/969) のマージ (2025-02-06) は最新リリース
-  v3.2.4 (2025-01-07) より後で、**どのタグ付きリリースにも入っていない develop 限定機能**
-- `cmake/MOAB_PullAndMake.cmake` は静的ライブラリと併用すると `FATAL_ERROR` で落ち、
-  MOAB に `BUILD_SHARED_LIBS=ON` を強制する。一方 MOAB の MinGW 唯一の成功報告
-  ([Bitbucket #127](https://bitbucket.org/fathomteam/moab/issues/127/moab-and-mingw64-msys2), MOAB 5.2.1) は**静的ビルド**で、共有ビルドは
-  `__imp__ZN4moab...` の未定義参照で失敗している。**両者はほぼ排他**
-- 同ファイルはリンク先を `libMOAB${CMAKE_SHARED_LIBRARY_SUFFIX}` とハードコードしており、
-  MinGW では `libMOAB.dll.a` にリンクする必要があるためこの経路自体が壊れている
+- **未リリース**。最新タグ v3.2.4 (2025-01-07) に `cmake/MOAB_PullAndMake.cmake` が存在しない
+  ([PR #969](https://github.com/svalinn/DAGMC/pull/969) のマージは 2025-02-06 で、それ以降タグが無い)
+- **MOAB を共有に強制**。`-DBUILD_SHARED_LIBS:BOOL=ON` がハードコードで逃げ道が無い
+- **MinGW で壊れたパスを組む**。`libMOAB${CMAKE_SHARED_LIBRARY_SUFFIX}` は `lib/libMOAB.dll` を
+  指すが、MinGW がリンクするのはインポートライブラリ `lib/libMOAB.dll.a` で DLL は `bin/` に入る
+- **変数名バグ2件**。静的ビルド禁止のガードが `DAGMC_BUILD_STATIC_LIBS` (実際の option 名は
+  `BUILD_STATIC_LIBS`) を見ているので発火せず、後段のリンクで不可解に落ちる。
+  `IF (DEFINED ${EIGEN3_DIR})` も参照外し済みの値を見るので `EIGEN3_DIR` 指定が効かない
 
-→ **MOAB を静的に自前ビルドし、DAGMC に `-DMOAB_DIR=` で渡す**。撤退基準は
-[3カ月計画](../notes/20260714-3カ月で作り上げる計画.md)のリスク欄に従い、MOAB に2週を超えて
-詰まったら WSL2 + conda-forge (`openmc=*=dagmc_nompi_*`, ParaStell と同一構成) に退避する。
-第一弾の成果はそれとは独立に残る。
+代わりに **MOAB と DAGMC を静的に自前ビルドし、`-DMOAB_DIR=` で渡す**。
+
+### 全静的にした代償
+
+OpenMC は `target_link_libraries(libopenmc dagmc-shared)` と**共有ライブラリ名を直書き**して
+おり `dagmc-static` 分岐が無い。静的のみで建てると configure が「target が無い」で落ちる。
+`patches/openmc/dagmc-static.patch` で1語だけ書き換えている。
+
+共有にすれば OpenMC は無改造で通るが、MOAB を共有にする必要があり `/DMOAB_DLL` の
+MSVC 構文フラグ問題に正面から当たる。加えて `libdagmc.dll` + `libMOAB.dll` を同梱すること
+になり、スタンドアローン性を失う。**上流パッチ1枚の方が安い**と判断した。
+
+### Eigen3 は不要
+
+`ENABLE_EIGEN3` は既定 OFF で、`ENABLE_BLASLAPACK=OFF` と `ENABLE_TEMPESTREMAP=OFF` に
+すれば要求されない。DAGMC の `moab_autobuild_check_deps` は Eigen3 を必須にしているが、
+それは `PULL_INSTALL_MOAB` の経路だけなので、MOAB を単独で建てれば回避できる。
+
+### 誰も Windows で MOAB を建てていない
+
+conda-forge の moab-feedstock は `skip: win` を明示しパッチも無い (しかも CMake ではなく
+autotools でビルドしている)。vcpkg にポートも無い。上流自身が
+`# Need further work to prepare for windows` と書いている。実際に踏んだのは
+`tools/` のガードと tarball の同梱漏れの2点だけだったが、前例が無い以上ここは
+壊れやすいと見ておくべき。
 
 ## 出典
 
 - [OpenMC](https://github.com/openmc-dev/openmc) — MIT License
 - [HDF5](https://github.com/HDFGroup/hdf5) — BSD-style (HDF Group)
+- [MOAB](https://bitbucket.org/fathomteam/moab) — LGPL v3
+- [DAGMC](https://github.com/svalinn/DAGMC) — BSD 3-Clause
 - [CMake](https://cmake.org/) — システム導入済みのものを使う (取得しない)
