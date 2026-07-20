@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "allow": [
+      "Bash(docker --version)",
+      "Bash(uv --version)",
+      "Bash(make --version)",
+      "PowerShell(\\(Get-Command uv -ErrorAction SilentlyContinue\\).Source; \\(Get-Command docker\\).Source)",
+      "Read(//c/Users/smith/.local/bin/**)",
+      "Bash(wsl --list --quiet)",
+      "Bash(curl -sIL -o /dev/null -w \"%{url_effective} %{size_download} %{http_code}\\\\n\" \"https://anl.box.com/shared/static/uhbxlrx7hvxqw27psymfbhi7bx7s6u6a.xz\")",
+      "Bash(curl -sL \"https://openmc.org/official-data-libraries/\" -o /dev/null -w \"%{http_code}\\\\n\")",
+      "Bash(curl -sL \"https://openmc.org/data/\")",
+      "Bash(docker manifest *)",
+      "Bash(curl -s \"https://hub.docker.com/v2/repositories/openmc/openmc/tags?page_size=25\")",
+      "Bash(curl -s \"https://api.github.com/repos/openmc-dev/data/contents/\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/openmc-dev/data/master/README.md\")",
+      "Bash(curl -sL -A \"Mozilla/5.0\" https://openmc.org/official-data-libraries/ -o /tmp/od.html)",
+      "Read(//tmp/**)",
+      "Bash(curl -s \"https://api.github.com/repos/openmc-dev/openmc/contents/tests/regression_tests\")",
+      "Bash(sed 's/\"name\": //')",
+      "Bash(curl -s \"https://api.github.com/search/code?q=CollisionFilter+repo:openmc-dev/openmc\" -H \"Accept: application/vnd.github+json\")",
+      "Bash(curl -s \"https://docs.openmc.org/en/stable/pythonapi/generated/openmc.CollisionFilter.html\")",
+      "Bash(gh issue *)",
+      "Bash(git log *)",
+      "Bash(gcc --version)",
+      "Bash(g++ --version)",
+      "Bash(cmake --version)",
+      "Bash(ninja --version)",
+      "Bash(git --version)",
+      "Bash(gh auth *)",
+      "Bash(gh search *)"
+    ]
+  }
+}
