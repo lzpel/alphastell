@@ -1,0 +1,13 @@
+diff --git a/openmc/lib/__init__.py b/openmc/lib/__init__.py
+index 9b135370f..60a0fca25 100644
+--- a/openmc/lib/__init__.py
++++ b/openmc/lib/__init__.py
+@@ -21,6 +21,8 @@ import sys
+ # Determine shared-library suffix
+ if sys.platform == 'darwin':
+     _suffix = 'dylib'
++elif sys.platform == 'win32':
++    _suffix = 'dll'
+ else:
+     _suffix = 'so'
+ 
