@@ -19,6 +19,13 @@ make clean                               # 生成物を削除 (out/ の wout は
 make PATH_WMEC=/path/to/wout.nc test     # 別の wout で回す
 ```
 
+### Python バインディング (issue #5)
+
+feature `python` を立てると pyo3 の拡張モジュールになる (`pyproject.toml` の maturin が
+これを立てて cdylib をビルドする)。通常の `cargo test` は feature が切れているので
+pyo3 に依存しない。リポジトリルートの pyproject.toml が path 依存でこの crate を指しており、
+ルートで `uv run examples/hello.py` すると uv → maturin → cargo の順で自動ビルドされる。
+
 リポジトリルートからは `make -C stellarator` で呼べる。
 `make test` は無ければ release `resource-v1` から `wout_vmec.nc` を curl で `out/` に取得し、
 環境変数 `PATH_WMEC` を設定して `cargo test` を回し、点群 CSV を出し、

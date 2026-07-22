@@ -12,3 +12,14 @@ pub mod vmec;
 /// `netcdf3::ReadError` は内部に `Rc` を持つため `!Send`。そのまま
 /// `Box<dyn Error>` に載せられないので、各所で文字列化してから載せている。
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+// python バインディングは python.rs に隔離。feature ゲートが必要な理由は
+// コードの隔離ではなく依存の隔離: pyo3 を通常依存にすると cargo test のたびに
+// pyo3 の build script が Python インタプリタを要求して落ちる (実測)。
+// optional 依存 + feature が pyo3 をビルド対象から外せる唯一の Cargo 機構。
+#[cfg(feature = "python")]
+mod python;
+
+pub fn hello(){
+	println!("Hello, stellarator!");
+}
