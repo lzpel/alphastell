@@ -1,0 +1,13 @@
+# stellarator の python バインディング (issue #5)。maturin が feature "python" で
+# cdylib をビルドして wheel 化する。root の pyproject.toml が path 依存でこれを指す。
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "stellarator"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+[tool.maturin]
+features = ["python"]
