@@ -1,9 +1,14 @@
-"""Mock figures for the draft preprint. Every dataset here is synthetic.
+"""Mock figures for the draft preprint.
+
+fig01 (pressure-drop map) and fig03 (TBR-pumping Pareto) are still synthetic.
+fig02 (Hartmann validation) is NO LONGER mock -- it is a real epotFoam run at
+Ha=1000 (max relative error 0.385%), produced in sandbox-openfoam and copied to
+paper/fig02.png. This script does NOT regenerate fig02; see the guard in
+__main__. Replace fig01/fig03 with production data before submission.
 
 Run from the paper/ directory:
     docker run --rm -v .:/work -w /work python:3.12-slim \
         sh -c "pip install matplotlib numpy && python figures.py"
-Replace with production data extraction before submission.
 """
 
 import matplotlib
@@ -92,6 +97,10 @@ def fig03_pareto():
 
 if __name__ == "__main__":
     fig01_dp_map()
-    fig02_hartmann()
+    # fig02 (Hartmann validation) is NO LONGER a mock. It is a real epotFoam run
+    # at Ha=1000 produced by `make -C sandbox-openfoam HA=1000 ...` (see
+    # sandbox-openfoam and paper fig02). Regenerating it here would overwrite the
+    # real figure with synthetic markers, so fig02_hartmann() is intentionally
+    # not called. The function is kept only as a record of the former mock.
     fig03_pareto()
-    print("wrote fig01.png fig02.png fig03.png")
+    print("wrote fig01.png fig03.png (fig02 is a real run; not regenerated here)")

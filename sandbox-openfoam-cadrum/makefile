@@ -1,4 +1,4 @@
-# sandbox-mhd-cadrum: cadrum の色付き B-rep から2ケースを生成・解算し、
+# sandbox-openfoam-cadrum: cadrum の色付き B-rep から2ケースを生成・解算し、
 # 統合レポート PDF を出す
 #   1. hartmann: 箱 (解析解による検証, 既定 HA=20)
 #   2. cone:     環状先細ダクト (cone−cylinder の boolean, MHD デモ, 既定 HA_CONE=5)
@@ -55,9 +55,9 @@ solve-cone: cone/constant/polyMesh/points cone/constant/electromagneticPropertie
 	docker run --rm -v $(CURDIR):/work -w /work \
 	  ghcr.io/lzpel/openfoam epotFoam -case cone > cone/log.epotFoam
 
-# ---- 検証 (スクリプトは hartmann のみ sandbox-mhd と共有) ----
+# ---- 検証 (スクリプトは hartmann のみ sandbox-openfoam と共有) ----
 compare: solve-hartmann
-	$(UV) run --with numpy --with matplotlib ../sandbox-mhd/scripts/compare_hartmann.py \
+	$(UV) run --with numpy --with matplotlib ../sandbox-openfoam/scripts/compare_hartmann.py \
 	  --ha $(HA) \
 	  --profile "$$(ls -d hartmann/postProcessing/sample/*/ | sort -V | tail -1)centreProfile_U.xy" \
 	  --plot results/hartmann_Ha$(HA).png --report results/report_Ha$(HA).txt \

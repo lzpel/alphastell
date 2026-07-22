@@ -1,4 +1,4 @@
-# sandbox-mhd: Docker 内 OpenFOAM + epotFoam で Hartmann 流を計算し解析解と比較する
+# sandbox-openfoam: Docker 内 OpenFOAM + epotFoam で Hartmann 流を計算し解析解と比較する
 #
 #   make (paper)      # ビルド → メッシュ → 解算 → 解析解比較 → レポート PDF (既定 Ha=20)
 #   make HA=10 paper  # Hartmann 数を変えて実行 (deltaT ≲ 1/Ha² に注意, controlDict 参照)
@@ -32,11 +32,11 @@ $(CASE)/constant/electromagneticProperties: FORCE
 	if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv $@.tmp $@; echo "HA=$(HA) -> $@"; fi
 
 $(CASE)/constant/polyMesh/points: $(CASE)/system/blockMeshDict
-	$$($(MAKE) -s --no-print-directory -C epotFoam) blockMesh -case $(CASE) > $(CASE)/log.blockMesh
+	MSYS_NO_PATHCONV=1 $$($(MAKE) -s --no-print-directory -C epotFoam) blockMesh -case $(CASE) > $(CASE)/log.blockMesh
 
 solve: $(CASE)/constant/polyMesh/points $(CASE)/constant/electromagneticProperties
 	rm -rf $(CASE)/postProcessing $(CASE)/[1-9]* $(CASE)/0.[0-9]*
-	$$($(MAKE) -s --no-print-directory -C epotFoam) epotFoam -case $(CASE) > $(CASE)/log.epotFoam
+	MSYS_NO_PATHCONV=1 $$($(MAKE) -s --no-print-directory -C epotFoam) epotFoam -case $(CASE) > $(CASE)/log.epotFoam
 
 compare: solve
 	mkdir -p results

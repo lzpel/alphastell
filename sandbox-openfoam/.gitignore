@@ -1,0 +1,17 @@
+results/
+epotFoam/epotFoam
+epotFoam/Make/linux*
+hartmann/log.*
+hartmann/postProcessing/
+hartmann/constant/polyMesh/
+hartmann/constant/electromagneticProperties
+hartmann/[1-9]*
+hartmann/0.[0-9]*
+# hartmann_hi (Ha=1000): makefile を通さず直接回すケース。生成物は同じく除外するが、
+# electromagneticProperties は Ha=1000 を手で固定した入力なので追跡する (template から
+# 自動生成される hartmann/ とは扱いが違う)。
+hartmann_hi/log.*
+hartmann_hi/postProcessing/
+hartmann_hi/constant/polyMesh/
+hartmann_hi/[1-9]*
+hartmann_hi/0.[0-9]*

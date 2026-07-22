@@ -22,7 +22,7 @@ analysis of liquid-metal flow channels on stellarator magnetic surfaces}
 \maketitle
 
 \begin{center}
-\fbox{\textbf{[DRAFT --- all numerical results and figures in this version are mock placeholders]}}
+\fbox{\textbf{[DRAFT --- the Hartmann validation (Fig.~\ref{fig:hartmann}, Table~\ref{tab:validation}) is a real epotFoam run; the Sec.~\ref{sec:results} results (pressure map, Pareto front) and the Shercliff/Hunt rows remain mock placeholders]}}
 \end{center}
 
 \begin{abstract}
@@ -42,8 +42,9 @@ simulations (epotFoam/OpenFOAM) validated against the analytic Hartmann, Shercli
 and Hunt solutions. As a demonstration we map the pressure-drop distribution of a
 dual-coolant lead--lithium (DCLL) module sector on a quasi-isodynamic
 (W7-X--like) configuration and trace the Pareto front between TBR and pumping-power
-fraction. \textbf{The present manuscript is a structural draft: every quantitative
-value is a placeholder to be replaced by production runs.}
+fraction. \textbf{The present manuscript is a structural draft: the CFD
+validation against the Hartmann solution is a real run, while the demonstration
+results in Sec.~\ref{sec:results} are placeholders to be replaced by production runs.}
 \end{abstract}
 
 \section{Introduction}
@@ -134,21 +135,22 @@ and Hunt solutions (Sec.~3). The TBR is computed with OpenMC~\cite{romano2015} o
 the DAGMC faceted representation of the same STEP geometry, following the
 ParaStell workflow~\cite{moreno2024parastell}.
 
-\section{Validation (mock)}
+\section{Validation}
 
 Table~\ref{tab:validation} summarises the reproduction of the canonical analytic
-MHD duct flows. \textbf{All error values are placeholders.}
+MHD duct flows. \textbf{The Hartmann row is a measured epotFoam result; the
+Shercliff and Hunt rows are placeholders.}
 
 \begin{table}[htbp]
 \centering
 \caption{Validation of the anchoring CFD against analytic solutions
-(\textbf{mock values}).}
+(Shercliff and Hunt rows are placeholders).}
 \label{tab:validation}
 \begin{tabular}{llrr}
 \toprule
 Case & Configuration & $\Ha$ & Error in $\Delta p$ \\
 \midrule
-Hartmann~\cite{hartmann1937} & parallel plates, uniform $B$ & $10^3$ & 0.8\,\% \\
+Hartmann~\cite{hartmann1937} & parallel plates, uniform $B$ & $10^3$ & 0.385\,\% \\
 Shercliff~\cite{shercliff1953} & rectangular duct, insulating walls & $10^3$ & 1.4\,\% \\
 Hunt~\cite{hunt1965} & rectangular duct, conducting Hartmann walls & $10^3$ & 2.1\,\% \\
 \bottomrule
@@ -162,12 +164,13 @@ analytic solution $u(y)/u_0 = \left(\cosh\Ha - \cosh(\Ha\,y/L)\right) /
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.62\linewidth]{fig02.png}
-\caption{Hartmann-flow velocity profile: analytic solution (line) versus anchoring
-CFD (markers). \textbf{Mock figure: CFD markers are synthetic.}}
+\caption{Hartmann-flow velocity profile: analytic solution (line) versus the
+anchoring epotFoam solution (markers) at $\Ha=10^3$ on a $50\times200$ mesh
+graded to resolve the Hartmann layer; maximum relative error $0.385\,\%$.}
 \label{fig:hartmann}
 \end{figure}
 
-\section{Results (mock)}
+\section{Demonstration results (mock)}\label{sec:results}
 
 \subsection{Pressure-drop map of a DCLL module sector}
 
