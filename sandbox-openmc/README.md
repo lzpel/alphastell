@@ -4,7 +4,7 @@ OpenMC(Docker)で 14.1 MeV 等方点線源 + リチウム球の中性子輸送�
 空間分布を輸送方程式の厳密解 φ(r)=S·exp(−Σt·r)/(4πr²) と比較する。**CAD もメッシュも使わず**、
 CSG(構成立体幾何)の同心球だけで体系を組む。3カ月計画 W7「OpenMC 経路(STEP→DAGMC→TBR)」の
 前哨であり、DAGMC・PbLi・STEP という重い依存に進む前にモンテカルロ輸送の土台を先に固める素振り場。
-sandbox-mhd が Hartmann 流で epotFoam を検証したのと同じ「解析解の錨」の中性子版。
+sandbox-openfoam が Hartmann 流で epotFoam を検証したのと同じ「解析解の錨」の中性子版。
 背景は [notes/20260718-ncから中性子輸送まで.md](../notes/20260718-ncから中性子輸送まで.md)。
 
 ## 使い方
@@ -69,10 +69,10 @@ OpenMC の未衝突束(`CollisionFilter=0`)を等体積シェルでタリーし�
 | 断面積ライブラリ | 既定 lite(Li6/Li7 の2核種、数MB)。`LIB=full` で ENDF/B-VIII.0 フル(数GB) | 純リチウム球の検証に必要な核種は2つだけ。軽量ライブラリはマウント機構(`-v` と `OPENMC_CROSS_SECTIONS`)を検証する。フルライブラリの取得経路は別で、切り替えを1変数に閉じ込めた。W7 の PbLi+構造材では full が要る |
 | ライブラリ生成 | IAEA の核種 zip → ENDF → `from_njoy` → HDF5 | IAEA-NDS ミラーは核種ごとの zip(`n_0325_3-Li-6.zip` 等)で配布。既定 UA を弾くのでブラウザ風 UA を付ける。中の ENDF を NJOY で処理して HDF5 化する |
 | データの置き場 | `sandbox-openmc/data/`(gitignore、clean で消さない) | 断面積は大きく git 管理外。実行時に `-v` でマウント(issue #4 の「断面積は実行時マウント」方針)。`make clean` でも残し再DLを避ける。サンドボックス内で自己完結 |
-| docker 呼び出し | makefile から直接 `docker run`(sandbox-mhd-cadrum 方式) | 自前イメージをビルドしないので sandbox-mhd の入れ子 make プレフィックス方式は不要。docker 起動を `OPENMC` 変数1箇所に集約 |
+| docker 呼び出し | makefile から直接 `docker run`(sandbox-openfoam-cadrum 方式) | 自前イメージをビルドしないので sandbox-openfoam の入れ子 make プレフィックス方式は不要。docker 起動を `OPENMC` 変数1箇所に集約 |
 | Windows パス変換 | `MSYS_NO_PATHCONV=1` + `USERSPEC` 変数 | Git Bash が `-w /work` を Windows パスへ変換するのを止める(report.tex と同じ対処、実測で必要だった)。Windows のバインドマウントは Unix 所有権を課さないので `make USERSPEC=` で `--user` を外す |
-| パラメータ注入 | model.py の CLI 引数 + params.stamp | OpenMC は Python API でモデルを組むのが自然で、XML を sed するのは退化。R/PARTICLES を stamp ファイルに記録し、値が変われば tally.json が再生成される(sandbox-mhd の .template+cmp と同じ「変わったときだけ再実行」) |
-| 実験レポート | `report.tex`(自己ビルド式・LuaLaTeX 日本語)+ `make paper` | ルート paper.tex / sandbox-mhd と同じ「`sh report.tex` でビルドできる polyglot + 出力先 report/」規約。図(fig01: 減衰プロット、fig02: 体系模式図)と数値(values.tex マクロ、compare_attenuation.py --tex が生成)は make paper が results/ からコピーし本文にハードコードしない |
+| パラメータ注入 | model.py の CLI 引数 + params.stamp | OpenMC は Python API でモデルを組むのが自然で、XML を sed するのは退化。R/PARTICLES を stamp ファイルに記録し、値が変われば tally.json が再生成される(sandbox-openfoam の .template+cmp と同じ「変わったときだけ再実行」) |
+| 実験レポート | `report.tex`(自己ビルド式・LuaLaTeX 日本語)+ `make paper` | ルート paper.tex / sandbox-openfoam と同じ「`sh report.tex` でビルドできる polyglot + 出力先 report/」規約。図(fig01: 減衰プロット、fig02: 体系模式図)と数値(values.tex マクロ、compare_attenuation.py --tex が生成)は make paper が results/ からコピーし本文にハードコードしない |
 | docker_openmc の要否 | **今は作らない。ただし W7(DAGMC)では必要** | issue #4 の前提「標準イメージで回るなら docker_openmc は作らない」。`make env` の実測(下記)で、本サンドボックス(CSG のみ)は標準イメージで回ると確認。一方、標準イメージは **DAGMC 非対応**なので、STEP→DAGMC 経路(W7)では docker_openmc が要ると判明した |
 
 ### `make env` の実測(2026-07-18、docker_openmc 要否の判断根拠)

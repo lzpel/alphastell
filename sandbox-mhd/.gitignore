@@ -1,9 +1,0 @@
-results/
-epotFoam/epotFoam
-epotFoam/Make/linux*
-hartmann/log.*
-hartmann/postProcessing/
-hartmann/constant/polyMesh/
-hartmann/constant/electromagneticProperties
-hartmann/[1-9]*
-hartmann/0.[0-9]*

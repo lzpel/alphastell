@@ -62,7 +62,7 @@ make -C sandbox-cad2dagmc clean
 | 変換ライブラリ | `cad_to_dagmc` | 唯一 pymoab 非依存の経路を持つ。[PR #168](https://github.com/fusion-energy/cad_to_dagmc/pull/168) (2026-01-30、ブランチ名 `h5py-instead-of-moab`) で **h5py が既定バックエンド**になった。`_vertices_to_h5m_h5py` が `CATEGORY` / `GEOM_DIMENSION` / `GLOBAL_ID` / `NAME` / `GEOM_SENSE_2` / `FACETING_TOLERANCE` を手書きで組み立てる |
 | `h5m_backend` | `"h5py"` を**明示** | 既定値ではあるが、上流が既定を戻したら即座に気づけるように明示する。pymoab を使わないことがこの検証の要点なので、暗黙に頼らない |
 | 代替を採らない理由 | `CAD_to_OpenMC` は不可 | PyPI のメタデータには現れないが `src/CAD_to_OpenMC/assembly.py` が**トップレベルで `from pymoab import core, types`** しており、import 時点で落ちる。`vertices_to_h5m` も純 pymoab で同様 |
-| テスト形状 | CadQuery で自作 | `sandbox-mhd-cadrum` は色付き STEP を出すが `results/` が gitignore されており**コミット済みの STEP が無い**。Rust/cadrum 依存を持ち込むより、既に依存に入っている CadQuery で作る方が安い。実形状との接続は W7 本番の課題として分離する |
+| テスト形状 | CadQuery で自作 | `sandbox-openfoam-cadrum` は色付き STEP を出すが `results/` が gitignore されており**コミット済みの STEP が無い**。Rust/cadrum 依存を持ち込むより、既に依存に入っている CadQuery で作る方が安い。実形状との接続は W7 本番の課題として分離する |
 | STEP を経由するか | 経由する | CadQuery オブジェクトを直接渡す API もあるが、それでは**STEP リーダを検証できない**。本番 (cadrum が吐く色付き STEP) と同じ入口を踏む |
 | 既知良品との比較 | 上流の `legacy/dagmc.h5m` と突き合わせ | h5py 経路は約450行の手書き HDF5 スキーマで、上流 CI は ubuntu のみ。Linux + pymoab 生成の既知良品が `sandbox-openmc-source/src/openmc/tests/` に同梱されているので、必須タグの取りこぼしを検出できる |
 | OpenMC の呼び出し | venv の python を直接叩く | `make -C ../sandbox-openmc-source` を呼ばない。あちらは `.PHONY` のチェーンなので、呼ぶと**現在の makefile の設定で建て直してしまう**。DAGMC 有効ビルドを壊す事故を避ける |

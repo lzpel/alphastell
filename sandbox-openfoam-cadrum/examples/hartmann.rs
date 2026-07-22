@@ -16,7 +16,7 @@ use hartmann_case::{
 };
 use std::fs;
 
-// ---- 領域と格子 (sandbox-mhd の blockMeshDict と同一) ----
+// ---- 領域と格子 (sandbox-openfoam の blockMeshDict と同一) ----
 const X: [f64; 2] = [0.0, 10.0];
 const Y: [f64; 2] = [-1.0, 1.0];
 const Z: [f64; 2] = [0.0, 0.1];

@@ -14,7 +14,7 @@
 #   make -C sandbox-openmc-source check     # 実行環境の確認 (sandbox-openmc の env 相当)
 #   make -C sandbox-openmc-source clean     # src/ build/ prefix/ venv/ を全削除
 #
-# 親からの使い方 (sandbox-mhd/epotFoam と同じイディオム: サブ makefile が toolchain を所有し、
+# 親からの使い方 (sandbox-openfoam/epotFoam と同じイディオム: サブ makefile が toolchain を所有し、
 # 親にはラッパーのパスを stdout で渡す)。ビルド出力は 1>&2 に流すので stdout は汚れない:
 #
 #   make -C sandbox-openmc compare \
@@ -135,7 +135,7 @@ CMAKE_COMMON = $(CMAKE_GENERATOR_ARG) \
                -DCMAKE_INSTALL_PREFIX=$(PREFIX)
 
 # 全ビルド出力を 1>&2 に流すのは、デフォルトターゲット openmc-env が stdout に
-# ラッパーのパスだけを出す必要があるため (sandbox-mhd/epotFoam:36 と同じ理由)。
+# ラッパーのパスだけを出す必要があるため (sandbox-openfoam/epotFoam:36 と同じ理由)。
 E = 1>&2
 
 .PHONY: openmc-env hdf5 moab dagmc openmc venv check clean

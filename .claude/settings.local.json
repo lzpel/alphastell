@@ -1,6 +1,5 @@
 {
   "permissions": {
-    "defaultMode": "bypassPermissions",
     "allow": [
       "Bash(docker --version)",
       "Bash(uv --version)",
@@ -29,7 +28,9 @@
       "Bash(ninja --version)",
       "Bash(git --version)",
       "Bash(gh auth *)",
-      "Bash(gh search *)"
-    ]
+      "Bash(gh search *)",
+      "Bash(xargs echo \" 外部からの参照数:\")"
+    ],
+    "defaultMode": "bypassPermissions"
   }
 }

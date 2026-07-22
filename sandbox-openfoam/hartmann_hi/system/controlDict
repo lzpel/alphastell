@@ -1,0 +1,61 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2412                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      controlDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+application     epotFoam;
+
+startFrom       startTime;
+
+startTime       0;
+
+stopAt          endTime;
+
+// 速度分布は磁気制動時間 rho/(sigma·B0²) = 1/Ha² と Hartmann 層の粘性時間
+// δ²/ν で局所的に発達するため (Re=1 では移流を待つ必要がない)、endTime は
+// 短くてよい。実測では t≈0.2 で残差 ~1e-9 の完全定常。t=0.5 と 1.0 の
+// 書き出しを比較して定常性を確認する。
+endTime         0.0002;
+
+// Lorentz 力は陽解法。名目の安定限界は dt < 2·rho/(sigma·B0²) = 2/Ha² だが、
+// 壁近傍の細分化セルでは電流再構成により実効係数が数倍大きく、dt=1e-3
+// (0.4/Ha²) で発散した。dt ≈ 0.08/Ha² なら安定 (Ha=20 → 2e-4, 実測確認済)。
+// Ha を上げる場合は deltaT ≲ 0.08/Ha² に下げること。
+deltaT          1.5e-8;
+
+writeControl    runTime;
+
+writeInterval   0.0001;
+
+purgeWrite      0;
+
+writeFormat     ascii;
+
+writePrecision  8;
+
+writeCompression off;
+
+timeFormat      general;
+
+timePrecision   6;
+
+runTimeModifiable true;
+
+functions
+{
+    #include "sample"
+}
+
+
+// ************************************************************************* //

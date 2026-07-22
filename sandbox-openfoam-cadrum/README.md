@@ -1,9 +1,9 @@
-# sandbox-mhd-cadrum — CAD の面の色から MHD ケースを生成する検証サンドボックス
+# sandbox-openfoam-cadrum — CAD の面の色から MHD ケースを生成する検証サンドボックス
 
 **境界条件の単一情報源を cadrum(Rust CAD カーネル)の色付き B-rep に置く**構成で、
 2つのケースを生成・計算する:
 
-1. **hartmann**(`examples/hartmann.rs`): 箱。[sandbox-mhd](../sandbox-mhd/) と同一設定で
+1. **hartmann**(`examples/hartmann.rs`): 箱。[sandbox-openfoam](../sandbox-openfoam/) と同一設定で
    解析解により定量検証(最大相対誤差 0.127% で手書きケースと数値一致)
 2. **cone**(`examples/cone.rs`): `Solid::cone − Solid::cylinder` のブーリアン差で作る
    **環状の先細流路**の MHD 計算。曲面壁への射影分類・θ 周期のラップ接続・
@@ -26,7 +26,7 @@ make verify-cone      # cone の質量保存・定常性検証まで (超過で�
 make clean            # 生成物を全削除
 ```
 
-リポジトリルートからは `make -C sandbox-mhd-cadrum` で呼べる。
+リポジトリルートからは `make -C sandbox-openfoam-cadrum` で呼べる。
 
 ## パイプライン
 
@@ -39,7 +39,7 @@ cargo run --release --example hartmann        cargo run --release --example cone
   └─ hartmann/0/{U,p,PotE}                      └─ cone/0/{U,p,PotE}
         │                                             │
         └── epotFoam (ghcr.io/lzpel/openfoam) ────────┘
-              ├─ hartmann → 解析解比較 (../sandbox-mhd/scripts/compare_hartmann.py)
+              ├─ hartmann → 解析解比較 (../sandbox-openfoam/scripts/compare_hartmann.py)
               └─ cone     → 質量保存・定常性・異方性 (scripts/verify_cone.py)
                     → report.tex (両結果を統合、sh report.tex で PDF)
 ```
@@ -54,14 +54,14 @@ cargo run --release --example hartmann        cargo run --release --example cone
 | cone を環状にした理由 | 軸を含まない r∈[R_in, R_out(x)] の環状領域(boolean 差) | 円柱座標の構造格子を軸 r=0 まで張るとセルが楔形に退化する(面積ゼロ面・歪度発散 = **中心軸特異点**)。環状なら全セルが健全な六面体。軸まで含む円管は butterfly (O-H) マルチブロックが必要で将来課題(詳説はレポート §環状先細ダクト) |
 | θ 方向の扱い | 縫い目を境界にせず**ラップ接続の内部面**(cyclic パッチ不要) | B-rep に対応する面が無い場所に人工境界を作らない。「色=境界条件」の原則の帰結 |
 | cadrum 既知問題の回避 | `Face::project` は最近点がトリム境界に落ちると panic(0.8.15)→ catch して候補から除外 | 最近接面(分類対象)への射影は必ず成功するため、他面の失敗は無害。cadrum 側の修正候補として要報告 |
-| 格子・数値設定 | sandbox-mhd と同一(50×80×1、dt=2e-4、endTime=1) | 差分を「ケース生成方法だけ」に絞り、結果の完全一致で polyMesh writer の等価性を証明する(実測: 最大相対誤差 0.127% で数値レベル一致) |
+| 格子・数値設定 | sandbox-openfoam と同一(50×80×1、dt=2e-4、endTime=1) | 差分を「ケース生成方法だけ」に絞り、結果の完全一致で polyMesh writer の等価性を証明する(実測: 最大相対誤差 0.127% で数値レベル一致) |
 | ソルバー | 焼き込み済みイメージ **ghcr.io/lzpel/openfoam**([../docker_openfoam](../docker_openfoam/) でビルド、未取得なら ghcr から自動 pull) | `docker run … epotFoam -case <case>` の1行で起動でき、wmake・環境設定・マウント合成の知識が利用側から消える。ローカルビルドは `make -C ../docker_openfoam` |
-| 比較スクリプト | `../sandbox-mhd/scripts/compare_hartmann.py` を共有 | 判定基準の重複を排し、両サンドボックスが同じ土俵で比較できる |
+| 比較スクリプト | `../sandbox-openfoam/scripts/compare_hartmann.py` を共有 | 判定基準の重複を排し、両サンドボックスが同じ土俵で比較できる |
 | レポート図2 | matplotlib 模式図ではなく cadrum レンダリング(geometry.png) | 「色付き CAD が境界条件の実物」という本サンドボックスの主張をそのまま示す |
 
-## sandbox-mhd との違い
+## sandbox-openfoam との違い
 
-| | sandbox-mhd | sandbox-mhd-cadrum |
+| | sandbox-openfoam | sandbox-openfoam-cadrum |
 |---|---|---|
 | メッシュ | blockMeshDict (手書き) | src/main.rs が polyMesh を直接出力 |
 | 境界条件 | 0/ を手書き | 面の色から生成 |
@@ -71,4 +71,4 @@ cargo run --release --example hartmann        cargo run --release --example cone
 ## 出典
 
 - [cadrum](https://github.com/lzpel/cadrum) — Rust CAD カーネル(OCCT 静的リンク)。crates.io から `cargo add cadrum`
-- その他(epotFoam, Hartmann 解析解, OpenFOAM)は [sandbox-mhd/README.md](../sandbox-mhd/README.md) を参照
+- その他(epotFoam, Hartmann 解析解, OpenFOAM)は [sandbox-openfoam/README.md](../sandbox-openfoam/README.md) を参照

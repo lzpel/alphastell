@@ -1,0 +1,25 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2412                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      electromagneticProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// 一様印加磁場 [T]。流れ (x) に垂直な y 方向。
+// a = rho = nu = sigma = 1 なので Ha = B0·a·sqrt(sigma/(rho·nu)) = B0y。
+// このファイルは makefile が electromagneticProperties.template の 1000 を
+// sed 置換して生成する (make HA=20 run)。
+
+B0              B0 [1 0 -2 0 0 -1 0] (0 1000 0);
+
+
+// ************************************************************************* //

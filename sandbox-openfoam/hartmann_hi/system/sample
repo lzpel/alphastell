@@ -1,0 +1,24 @@
+// controlDict の functions から #include されるサンプリング関数オブジェクト。
+// 発達領域 x=8 で速度プロファイル U(y) を書き出し時刻ごとに抽出する。
+// 出力: postProcessing/sample/<time>/centreProfile_U.xy (列: y Ux Uy Uz)
+
+sample
+{
+    type                sets;
+    libs                (sampling);
+    writeControl        writeTime;
+    interpolationScheme cellPoint;
+    setFormat           raw;
+    fields              (U);
+    sets
+    (
+        centreProfile
+        {
+            type    uniform;
+            axis    y;
+            start   (8 -0.999 0.05);
+            end     (8  0.999 0.05);
+            nPoints 200;
+        }
+    );
+}
