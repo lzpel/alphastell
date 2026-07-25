@@ -1,6 +1,6 @@
-# sandbox-openmc — OpenMC (openmc-pypi wheel) による未衝突中性子減衰の解析解検証サンドボックス
+# sandbox-openmc — OpenMC (openmc-anywhere wheel) による未衝突中性子減衰の解析解検証サンドボックス
 
-OpenMC([openmc-pypi](https://github.com/lzpel/openmc-pypi) wheel、uv 管理)で 14.1 MeV
+OpenMC([openmc-anywhere](https://pypi.org/project/openmc-anywhere/) wheel、uv 管理)で 14.1 MeV
 等方点線源 + リチウム球の中性子輸送を計算し、未衝突中性子束の
 空間分布を輸送方程式の厳密解 φ(r)=S·exp(−Σt·r)/(4πr²) と比較する。**CAD もメッシュも使わず**、
 CSG(構成立体幾何)の同心球だけで体系を組む。3カ月計画 W7「OpenMC 経路(STEP→DAGMC→TBR)」の
@@ -11,9 +11,9 @@ sandbox-openfoam が Hartmann 流で epotFoam を検証したのと同じ「解�
 ## 使い方
 
 必要要件: GNU make, [uv](https://docs.astral.sh/uv/)。docker は `make paper` の
-texlive(report.tex のビルド)にだけ要る。OpenMC 本体は uv が openmc-pypi wheel
+texlive(report.tex のビルド)にだけ要る。OpenMC 本体は uv が openmc-anywhere wheel
 (openmc 実行ファイル・libopenmc・njoy 同梱、DAGMC 有効)を初回実行時に取ってくる
-(取得元は pyproject.toml の `[[tool.uv.index]]`、issue #16)。
+(取得元は PyPI、issue #16)。
 
 ```sh
 make                      # (デフォルト=paper) data → 解算 → 解析解比較 → レポート PDF
@@ -57,14 +57,14 @@ OpenMC の未衝突束(`CollisionFilter=0`)を等体積シェルでタリーし�
 | 検証ケース | 14.1 MeV 点線源 + Li 球の**未衝突**減衰 | 輸送方程式の未衝突成分は散乱源が消えて厳密解 φ=S·e^{−Σt·r}/4πr² を持つ。CSG 球1個で組めて CAD 不要。Hartmann 流が epotFoam の解析解検証だったのと同じ役割を中性子側で果たす |
 | CAD を使わない | CSG 同心球のみ | issue #4 の「CAD 無しの解析解がある実験」。DAGMC/STEP の重い依存を持ち込まずに輸送エンジン単体を検証する。CAD 経路(段2)は W7 以降 |
 | 未衝突束の抽出 | `CollisionFilter(bins=[0])` × 線源エネルギー窓 × 飛跡長 flux | 衝突回数 0 = 未衝突。ただし CollisionFilter だけだと (n,2n) の二次中性子(新粒子・衝突回数 0 から始まる)が混入し外側シェルほど過大評価される(実測 ~7%)。未衝突源中性子は厳密に 14.1 MeV のままなので、線源エネルギー ±0.1% の `EnergyFilter` を併用すると低エネルギーの二次中性子が除け、厳密解と 0.1% 台で一致する |
-| 断面積の処理 | ENDF → **NJOY**(openmc-pypi wheel 同梱)→ HDF5、293.6 K | `IncidentNeutron.from_endf` のデータは共鳴再構成・Doppler 広がり未処理で HDF5 に直接書けない。wheel が venv に置く `njoy` で `from_njoy` を通しポイントワイズ化する(以前は docker イメージ同梱の njoy に依存していた)。処理温度 293.6 K を材料温度の既定と一致させる |
+| 断面積の処理 | ENDF → **NJOY**(openmc-anywhere wheel 同梱)→ HDF5、293.6 K | `IncidentNeutron.from_endf` のデータは共鳴再構成・Doppler 広がり未処理で HDF5 に直接書けない。wheel が venv に置く `njoy` で `from_njoy` を通しポイントワイズ化する(以前は docker イメージ同梱の njoy に依存していた)。処理温度 293.6 K を材料温度の既定と一致させる |
 | シェル分割 | 等体積 R·(i/n)^{1/3} | 各シェルのタリー統計をそろえる(等半径幅だと外側シェルほど体積大で誤差が偏る)。点値でなく式(体積平均)と比較しビン化バイアスを除く |
 | 解析解の Σt | **数値解と同じライブラリ**から読む | データではなく輸送ソルバーを検証している。model.py の `macroscopic_total()` が cross_sections.xml の同じ HDF5 から 14.1 MeV の Σt を評価し、xs.json に出す。ライブラリ差を検証誤差に混入させない |
 | 合格判定 | 最大相対誤差 < 2% **かつ** 全シェル 3σ 以内 | モンテカルロは統計誤差 σ を持つ(決定論の Hartmann との違い)。相対誤差だけだと統計ゆらぎを実装バグと誤検出/見逃すため、σ 整合を併用。ヒストリ数を上げれば σ は 1/√N で縮む |
 | 断面積ライブラリ | 既定 lite(Li6/Li7 の2核種、数MB)。`LIB=full` で ENDF/B-VIII.0 フル(数GB) | 純リチウム球の検証に必要な核種は2つだけ。軽量ライブラリはマウント機構(`-v` と `OPENMC_CROSS_SECTIONS`)を検証する。フルライブラリの取得経路は別で、切り替えを1変数に閉じ込めた。W7 の PbLi+構造材では full が要る |
 | ライブラリ生成 | IAEA の核種 zip → ENDF → `from_njoy` → HDF5 | IAEA-NDS ミラーは核種ごとの zip(`n_0325_3-Li-6.zip` 等)で配布。既定 UA を弾くのでブラウザ風 UA を付ける。中の ENDF を NJOY で処理して HDF5 化する |
 | データの置き場 | `sandbox-openmc/data/`(gitignore、clean で消さない) | 断面積は大きく git 管理外。実行時に `OPENMC_CROSS_SECTIONS` で渡す。`make clean` でも残し再DLを避ける。サンドボックス内で自己完結 |
-| OpenMC の供給 | **openmc-pypi wheel + uv**(2026-07-23 に docker から移行、issue #16) | `OPENMC = OPENMC_CROSS_SECTIONS=... uv run` の接頭辞1箇所に集約。uv run が venv の Scripts/bin を PATH に前置するので `openmc`/`njoy` の literal 解決が通る。docker 時代の `MSYS_NO_PATHCONV`/`USERSPEC` ノブは不要になった(texlive は report.tex 側で対処済み) |
+| OpenMC の供給 | **openmc-anywhere wheel + uv**(2026-07-23 に docker から移行、issue #16) | `OPENMC = OPENMC_CROSS_SECTIONS=... uv run` の接頭辞1箇所に集約。uv run が venv の Scripts/bin を PATH に前置するので `openmc`/`njoy` の literal 解決が通る。docker 時代の `MSYS_NO_PATHCONV`/`USERSPEC` ノブは不要になった(texlive は report.tex 側で対処済み) |
 | パラメータ注入 | model.py の CLI 引数 + params.stamp | OpenMC は Python API でモデルを組むのが自然で、XML を sed するのは退化。R/PARTICLES を stamp ファイルに記録し、値が変われば tally.json が再生成される(sandbox-openfoam の .template+cmp と同じ「変わったときだけ再実行」) |
 | 実験レポート | `report.tex`(自己ビルド式・LuaLaTeX 日本語)+ `make paper` | ルート paper.tex / sandbox-openfoam と同じ「`sh report.tex` でビルドできる polyglot + 出力先 report/」規約。図(fig01: 減衰プロット、fig02: 体系模式図)と数値(values.tex マクロ、compare_attenuation.py --tex が生成)は make paper が results/ からコピーし本文にハードコードしない |
 | docker_openmc の要否 | **今は作らない。ただし W7(DAGMC)では必要** | issue #4 の前提「標準イメージで回るなら docker_openmc は作らない」。`make env` の実測(下記)で、本サンドボックス(CSG のみ)は標準イメージで回ると確認。一方、標準イメージは **DAGMC 非対応**なので、STEP→DAGMC 経路(W7)では docker_openmc が要ると判明した |

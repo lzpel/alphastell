@@ -1,4 +1,4 @@
-# sandbox-openmc: OpenMC (openmc-pypi wheel、uv 管理) で 14.1 MeV 点線源 + リチウム球の
+# sandbox-openmc: OpenMC (PyPI 公開 openmc-anywhere wheel、uv 管理) で 14.1 MeV 点線源 + リチウム球の
 # 中性子輸送を計算し、未衝突中性子束の減衰を解析解 phi(r)=S*exp(-Sigma_t*r)/(4*pi*r^2) と
 # 比較する。CAD 不要。Docker も不要 (issue #16。report.tex の texlive だけは別)。
 #
@@ -19,7 +19,7 @@ UV        ?= uv
 XS   = data/lib/cross_sections.xml
 ENRICH_ARG = $(if $(ENRICH),--enrichment $(ENRICH),)
 
-# OpenMC の起動をここに集約する。uv run が pyproject.toml の依存 (openmc-pypi wheel:
+# OpenMC の起動をここに集約する。uv run が pyproject.toml の依存 (openmc-anywhere wheel:
 # openmc 実行ファイル・libopenmc・njoy を同梱) を .venv に用意し、その Scripts/bin を
 # PATH に前置するので、model.py の Model.run() (literal 'openmc') と build_xs.py の
 # from_njoy (literal 'njoy') がそのまま解決する。断面積は環境変数で渡す。

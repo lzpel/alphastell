@@ -1,16 +1,13 @@
-# transport と njoy を openmc/openmc docker イメージではなく openmc-pypi wheel で回す
-# (issue #16)。[build-system] を書かない = uv はこれを仮想プロジェクトとして扱い、
-# 依存だけを .venv に入れる (スクリプト集なので十分)。
+# transport と njoy を openmc/openmc docker イメージではなく PyPI 公開の
+# openmc-anywhere wheel で回す (issue #16)。[build-system] を書かない = uv は
+# これを仮想プロジェクトとして扱い、依存だけを .venv に入れる (スクリプト集なので十分)。
 # numpy/matplotlib は scripts/ が直接 import するので transitive に頼らず明示する。
 [project]
 name = "sandbox-openmc"
 version = "0.0.0"
 requires-python = ">=3.12"
-dependencies = ["openmc-pypi", "numpy", "matplotlib"]
-
-[tool.uv.sources]
-openmc-pypi = { index = "openmc-pypi" }
-
-[[tool.uv.index]]
-name = "openmc-pypi"
-url = "https://lzpel.github.io/openmc-pypi/wheel/"
+dependencies = [
+ "numpy",
+ "matplotlib",
+ "openmc-anywhere>=0.15.3.0",
+]
