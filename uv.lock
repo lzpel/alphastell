@@ -960,14 +960,14 @@ version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
     { name = "cad-to-dagmc" },
-    { name = "openmc-pypi" },
+    { name = "openmc-anywhere" },
     { name = "stellarator" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "cad-to-dagmc" },
-    { name = "openmc-pypi", index = "https://lzpel.github.io/openmc-pypi/wheel/" },
+    { name = "openmc-anywhere", specifier = ">=0.15.3.0" },
     { name = "stellarator", directory = "stellarator" },
 ]
 
@@ -1261,9 +1261,9 @@ wheels = [
 ]
 
 [[package]]
-name = "openmc-pypi"
-version = "0.15.3.post214"
-source = { registry = "https://lzpel.github.io/openmc-pypi/wheel/" }
+name = "openmc-anywhere"
+version = "0.15.3.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "endf" },
     { name = "h5py" },
@@ -1276,8 +1276,11 @@ dependencies = [
     { name = "uncertainties" },
 ]
 wheels = [
-    { url = "https://github.com/lzpel/openmc-pypi/releases/download/v0.15.3.post214/openmc_pypi-0.15.3.post214-py3-none-manylinux_2_28_x86_64.whl" },
-    { url = "https://github.com/lzpel/openmc-pypi/releases/download/v0.15.3.post214/openmc_pypi-0.15.3.post214-py3-none-win_amd64.whl" },
+    { url = "https://files.pythonhosted.org/packages/13/1b/8e7bfefe131a18877c48980ebb92ebfe5cec8b4de8ac7a1ecda662e1833b/openmc_anywhere-0.15.3.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:cf1665d523f5a492fe8ab8cc7191a5342938a2d8ec051dd6b0c8f66072c04205", size = 11039466, upload-time = "2026-07-25T08:54:40.438Z" },
+    { url = "https://files.pythonhosted.org/packages/f8/e1/18f62f9248ea98d634cd13e8aa9031a6b5a8096473b4f1f5706b255c2de6/openmc_anywhere-0.15.3.0-py3-none-macosx_11_0_x86_64.whl", hash = "sha256:3e3c6a236a79a009affd0dbfb95c643e1471f522b45ed709b1d2c1f9929b087f", size = 12416362, upload-time = "2026-07-25T08:56:09.457Z" },
+    { url = "https://files.pythonhosted.org/packages/21/9f/6a915da13303b945b040a8285c6d2a03af46d499e72b2d8f3db1a632e639/openmc_anywhere-0.15.3.0-py3-none-manylinux_2_28_aarch64.whl", hash = "sha256:5cb91c42969f8dce7e0ef1ab64f09fd7967a73c2e03aa0648f3a11bb745b0e67", size = 14453250, upload-time = "2026-07-25T08:55:12.283Z" },
+    { url = "https://files.pythonhosted.org/packages/70/06/b56d237cec78268e672a9157e387a9c8db0f79f80e93929c903e39d79833/openmc_anywhere-0.15.3.0-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:e182c2c71bc21bbe0a4bbff1a782ad2c2ea86fe09df3f393ca89a5c3951329ef", size = 14907673, upload-time = "2026-07-25T08:54:17.237Z" },
+    { url = "https://files.pythonhosted.org/packages/9e/2f/11257ab22468e980e21da814ecef2b11061cdbbeaddc289a60bc9dddca16/openmc_anywhere-0.15.3.0-py3-none-win_amd64.whl", hash = "sha256:5d7273fe0cba52d95f88e3c9321c619e0116038d510ff5204305cb9795b6f29f", size = 14812238, upload-time = "2026-07-25T08:55:43.117Z" },
 ]
 
 [[package]]
@@ -1742,6 +1745,16 @@ wheels = [
 name = "stellarator"
 version = "0.1.0"
 source = { directory = "stellarator" }
+dependencies = [
+    { name = "matplotlib" },
+    { name = "scipy" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "matplotlib", specifier = ">=3.11.1" },
+    { name = "scipy", specifier = ">=1.18.0" },
+]
 
 [[package]]
 name = "traitlets"
