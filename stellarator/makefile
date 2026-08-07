@@ -6,27 +6,14 @@
 #   make clean    # 生成物を削除 (out/ の wout は残す)
 #   make PATH_WMEC=/path/to/wout.nc test   # 別の wout で回す
 #
-# リポジトリルートからは `make -C stellarator` で呼べる。
-
-PATH_WMEC ?= out/wout_vmec.nc
-WOUT_URL  ?= https://github.com/lzpel/mhd-tbr-stell/releases/download/resource-v1/wout_vmec.nc
 
 .PHONY: test clean
 
 # 一発で通す: フィクスチャ取得 → テスト (CSV 生成) → 図と定量判定。
 test:
-	@mkdir -p out results
-	@if [ ! -f "$(PATH_WMEC)" ]; then \
-	  echo "fetching wout_vmec.nc ..."; \
-	  curl -fL --retry 3 -o "$(PATH_WMEC)" "$(WOUT_URL)"; \
-	fi
-	@if ! head -c 4 "$(PATH_WMEC)" | grep -q CDF; then echo "FAIL: $(PATH_WMEC) is not netCDF"; exit 1; fi
-	PATH_WMEC=$(PATH_WMEC) cargo test --release -- --nocapture
-	uv run --with numpy --with matplotlib --with scipy scripts/plot_surface.py \
-	  --csv results/surface_points.csv --wout $(PATH_WMEC) \
-	  --plot results/surface.png --report results/report.txt --tex results/values.tex
+	mkdir -p out
+	PATH_WMEC=./wout_vmec.nc cargo test --release -- --nocapture
+	uv run scripts/plot_surface.py --csv out/surface_points.csv --wout ./wout_vmec.nc --plot out/surface.png --report out/report.txt --tex out/values.tex
 
 clean:
 	cargo clean
-	rm -rf results
-	@echo "note: out/ は残す (8.3 MB の再取得回避)。消すなら rm -rf out"
