@@ -54,7 +54,6 @@
 // Ported from lzpel/alphastell core/src/vmec.rs (MIT, Satoshi Misumi).
 // upstream との diff が取れる状態を保つため、API は変更していない。
 
-use crate::Result;
 use crate::spline::CubicSpline;
 use crate::spline::BoundaryCondition;
 use std::f64::consts::TAU;
@@ -134,7 +133,7 @@ impl VmecData {
 	/// VMEC の wout ファイルには何十もの変数が入っていますが、今回プラズマ表面を
 	/// 描くのに必要なのは `rmnc`, `zmns`, `xm`, `xn` の 4 つだけです
 	/// (Rust 側の名前はそれぞれ `rmnc`, `zmns`, `mode_poloidal`, `mode_toroidal`)。
-	pub fn load(input: impl Read + Seek + 'static) -> Result<Self> {
+	pub fn load(input: impl Read + Seek + 'static) -> std::result::Result<Self, String> {
 		// netCDF-3 (Classic / 64-bit offset) ファイルを pure-Rust で読む。
 		let mut file = netcdf3::FileReader::open_seek_read("vmec", Box::new(input))
 			.map_err(|e| format!("open vmec stream: {:?}", e))?;
@@ -152,7 +151,7 @@ impl VmecData {
 		let mnmax = shape[1]; // Fourier mode の個数
 
 		// 値を実際に読む。read_var は DataVector を返すので f64 スライスを取り出す。
-		let read_f64 = |f: &mut netcdf3::FileReader, name: &str| -> Result<Vec<f64>> {
+		let read_f64 = |f: &mut netcdf3::FileReader, name: &str| -> std::result::Result<Vec<f64>, String> {
 			f.read_var(name)
 				.map_err(|e| format!("read {}: {:?}", name, e))?
 				.get_f64_into()

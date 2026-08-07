@@ -1,5 +1,5 @@
 # repo 全体の python 入口 (issue #5 の連携経路)。examples/ のスクリプトを
-# `uv run examples/hello.py` で動かすための仮想プロジェクト ([build-system] 無し =
+# `make al-00` (= uv run examples/al_00_hello.py) で動かすための仮想プロジェクト ([build-system] 無し =
 # パッケージ化せず依存だけ .venv に入れる。sandbox-openmc/pyproject.toml と同じ方式)。
 # stellarator は path 依存で、uv が maturin 経由で pyo3 拡張をビルドする。
 # openmc-anywhere は PyPI (sandbox-openmc/pyproject.toml と同じ wheel)。
