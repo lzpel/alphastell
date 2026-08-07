@@ -8,6 +8,12 @@ fn hello() {
 	println!("Hello, stellarator!");
 }
 
+#[pyfunction]
+fn hello_numpy(sum: f64) -> f64 {
+	println!("Hello, sum is {}!", sum);
+	sum
+}
+
 /// rust の型を python に渡す最小例。#[pyclass] を付けた構造体は python 側の
 /// オブジェクトとして扱われ、#[pymethods] のメソッドがそのまま呼べる。
 #[pyclass]
@@ -31,6 +37,7 @@ fn hello_constructor(name: String) -> Hello {
 #[pymodule]
 fn stellarator(m: &Bound<'_, PyModule>) -> PyResult<()> {
 	m.add_function(wrap_pyfunction!(hello, m)?)?;
+	m.add_function(wrap_pyfunction!(hello_numpy, m)?)?;
 	m.add_function(wrap_pyfunction!(hello_constructor, m)?)?;
 	m.add_class::<Hello>()
 }
