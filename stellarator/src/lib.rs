@@ -6,6 +6,7 @@
 //! C ツールチェインも HDF5 も要らない。
 
 pub mod vmec;
+pub mod spline;
 
 /// クレート共通のエラー型。
 ///

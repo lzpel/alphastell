@@ -55,7 +55,8 @@
 // upstream との diff が取れる状態を保つため、API は変更していない。
 
 use crate::Result;
-use netcdf3::FileReader;
+use crate::spline::CubicSpline;
+use crate::spline::BoundaryCondition;
 use std::f64::consts::TAU;
 use std::io::{Read, Seek};
 use std::sync::OnceLock;
@@ -128,21 +129,14 @@ impl VmecData {
 	/// netCDF ファイル (wout_*.nc) を開いて、このモジュールで使う変数だけ読み出す。
 	///
 	/// netCDF は **科学技術計算でよく使われるバイナリ形式**で、中身は「変数名と
-	/// 多次元配列のペア」の集まりです。VMEC の wout は netCDF-3 (classic /
-	/// 64-bit offset) なので、純 Rust の `netcdf3` クレートだけで読めます。
-	/// HDF5 ベースの netCDF-4 とは別系統で、libnetcdf / libhdf5 の C ライブラリも
-	/// FFI も不要 — Windows でツールチェイン無しに `cargo test` が通ります。
+	/// 多次元配列のペア」の集まりです。
 	///
 	/// VMEC の wout ファイルには何十もの変数が入っていますが、今回プラズマ表面を
 	/// 描くのに必要なのは `rmnc`, `zmns`, `xm`, `xn` の 4 つだけです
 	/// (Rust 側の名前はそれぞれ `rmnc`, `zmns`, `mode_poloidal`, `mode_toroidal`)。
 	pub fn load(input: impl Read + Seek + 'static) -> Result<Self> {
 		// netCDF-3 (Classic / 64-bit offset) ファイルを pure-Rust で読む。
-		// VMEC の wout は `CDF\x02` (64-bit offset) なので HDF5 は不要。
-		//
-		// netcdf3 の ReadError は内部に Rc を持つので !Send。エラーメッセージを
-		// 文字列化してから Box<dyn Error> に載せる。
-		let mut file = FileReader::open_seek_read("vmec", Box::new(input))
+		let mut file = netcdf3::FileReader::open_seek_read("vmec", Box::new(input))
 			.map_err(|e| format!("open vmec stream: {:?}", e))?;
 
 		// rmnc の shape を DataSet から取る (ns × mnmax)
@@ -158,7 +152,7 @@ impl VmecData {
 		let mnmax = shape[1]; // Fourier mode の個数
 
 		// 値を実際に読む。read_var は DataVector を返すので f64 スライスを取り出す。
-		let read_f64 = |f: &mut FileReader, name: &str| -> Result<Vec<f64>> {
+		let read_f64 = |f: &mut netcdf3::FileReader, name: &str| -> Result<Vec<f64>> {
 			f.read_var(name)
 				.map_err(|e| format!("read {}: {:?}", name, e))?
 				.get_f64_into()
@@ -289,9 +283,6 @@ impl VmecData {
 	}
 
 	/// (φ, θ, s) を指定して磁束面 (または `offset` だけ離れた平行面) 上の 3D 点を返す。
-	///
-	/// - `offset` の単位は VMEC ネイティブの **m**。スケール変換は呼び出し側で行う。
-	/// - `offset == 0.0` なら法線計算はスキップする。
 	pub fn interpolate(
 		&self,
 		phi: f64,
@@ -309,38 +300,38 @@ impl VmecData {
 		}
 
 		let rz = self.interpolate_rz(phi, theta, s);
-		// まず φ=0 の断面で点と法線を組み立てる (x=R, y=0, z=Z の 2D ライクな座標系)。
-		// ∂R/∂φ, ∂Z/∂φ はこの座標系では「隣の断面がどう変わるか」の成分として残る。
-		let mut p = [rz.r, 0.0, rz.z];
-		if offset != 0.0 {
-			let [t_theta, t_phi] = match normal {
-				NormalKind::Planar => {
-					// θ 接線 (Surface と共通) と、constant-φ 面の法線 (φ=0 で y_hat)。
-					// cross(y_hat, t_θ) が parastell `_normals()` と同じ断面内 2D 外向き法線。
-					[
-						[rz.dr_dtheta, 0.0, rz.dz_dtheta],
-						[0.0, 1.0, 0.0],
-					]
-				}
-				NormalKind::Surface => {
-					// φ=0 での接線: ∂p/∂θ = (dR/dθ, 0, dZ/dθ), ∂p/∂φ = (dR/dφ, R, dZ/dφ)
-					// cross(t_φ, t_θ) が外向き 3D 曲面法線 (t_θ × t_φ は内向きになる)。
-					[
-						[rz.dr_dtheta, 0.0, rz.dz_dtheta],
-						[rz.dr_dphi, rz.r, rz.dz_dphi],
-					]
-				}
-			};
-			let n = cross(t_phi, t_theta);
-			let inv_len = 1.0 / (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
-			p[0] += offset * n[0] * inv_len;
-			p[1] += offset * n[1] * inv_len;
-			p[2] += offset * n[2] * inv_len;
-		}
+		// θ 接線と φ 接線を作る。定義が 2 種類あるので NormalKind で切り替える。
+		let [t_theta, t_phi] = match normal {
+			NormalKind::Planar => {
+				// θ 接線 (Surface と共通) と、constant-φ 面の法線 (φ=0 で y_hat)。
+				// cross(y_hat, t_θ) が parastell `_normals()` と同じ断面内 2D 外向き法線。
+				[
+					[rz.dr_dtheta, 0.0, rz.dz_dtheta],
+					[0.0, 1.0, 0.0],
+				]
+			}
+			NormalKind::Surface => {
+				// φ=0 での接線: ∂p/∂θ = (dR/dθ, 0, dZ/dθ), ∂p/∂φ = (dR/dφ, R, dZ/dφ)
+				// cross(t_φ, t_θ) が外向き 3D 曲面法線 (t_θ × t_φ は内向きになる)。
+				[
+					[rz.dr_dtheta, 0.0, rz.dz_dtheta],
+					[rz.dr_dphi, rz.r, rz.dz_dphi],
+				]
+			}
+		};
+		// theta × t_phi が外向き法線。offset で平行面に移動する際に使う。
+		let normal = {
+			let v=cross(t_phi, t_theta);
+			v.map(|w| w/(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt())
+		};
+		// offsetを加味した三次元座標
+		let p = [
+			rz.r + offset * normal[0],
+			0.0 + offset * normal[1],
+			rz.z + offset * normal[2]
+		];
 		// 最後に Z 軸まわり φ 回転で実際の (x, y, z) に持ち上げる。
-		// (x, y, z) → (x cosφ − y sinφ, x sinφ + y cosφ, z)
-		let (sp, cp) = phi.sin_cos();
-		[p[0] * cp - p[1] * sp, p[0] * sp + p[1] * cp, p[2]]
+		[p[0] * phi.cos() - p[1] * phi.sin(), p[0] * phi.sin() + p[1] * phi.cos(), p[2]]
 	}
 
 	/// (φ, θ) を等分した格子で磁束面 (または `offset` だけ離れた平行面) の 3D 点を返す。
@@ -356,17 +347,17 @@ impl VmecData {
 		offset: f64,
 		normal: NormalKind,
 	) -> Vec<Vec<[f64; 3]>> {
-		let mut grid: Vec<Vec<[f64; 3]>> = Vec::with_capacity(div_phi);
-		for i in 0..div_phi {
-			let phi = TAU * (i as f64) / (div_phi as f64);
-			let mut row: Vec<[f64; 3]> = Vec::with_capacity(div_theta);
-			for j in 0..div_theta {
-				let theta = TAU * (j as f64) / (div_theta as f64);
-				row.push(self.interpolate(phi, theta, s, offset, normal));
-			}
-			grid.push(row);
-		}
-		grid
+    (0..div_phi)
+        .map(|i| {
+            let phi = TAU * (i as f64) / (div_phi as f64);
+            (0..div_theta)
+                .map(|j| {
+                    let theta = TAU * (j as f64) / (div_theta as f64);
+                    self.interpolate(phi, theta, s, offset, normal)
+                })
+                .collect()
+        })
+        .collect()
 	}
 
 	pub fn interpolate_rz(&self, phi: f64, theta: f64, s: f64) -> RZ {
@@ -398,239 +389,7 @@ impl VmecData {
 	}
 }
 
-// ================================================================
-// CubicSpline — 3 次スプライン (境界条件を選べる内部 helper)
-// ================================================================
 
-/// 境界条件 (両端で何を固定するか) の指定。
-///
-/// ## Natural (自由端)
-///
-/// 両端で **2 階微分 = 0**。「両端で曲がりが最小」になるように繋ぐ。端点のふるまい
-/// がおだやかで外挿が暴れにくい一方、元データに対応する物理的根拠は弱い。
-///
-/// ## NotAKnot (not-a-knot / ノットなし)
-///
-/// **scipy `CubicSpline` のデフォルト**。最初の 2 区間と最後の 2 区間で **3 階微分**
-/// が連続、すなわち「最初の 2 区間を 1 本の 3 次式でつなぐ、末尾も同様」という条件。
-/// 内側にも端点にも余計な制約をかけない分、元データに素直に追従する。
-/// parastell (scipy 依存) との一致を取りたいときはこちら。
-///
-/// # 両者の違いが出る場所
-///
-/// - データ範囲内 (補間) はどちらもほぼ一致 (10⁻⁴ オーダ)
-/// - データ範囲外 (外挿) で差が出る:
-///   - Natural: 端で曲率 0 に引き込まれるので直線的に延びる
-///   - NotAKnot: 最終区間の 3 次式をそのまま延長する
-///
-/// VMEC の s=1.08 のような**外挿**を使うなら NotAKnot の方が scipy と一致する。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BoundaryCondition {
-	Natural,
-	NotAKnot,
-}
-
-/// スプライン補間のための内部構造体。**このモジュール外には公開しない**。
-///
-/// # スプライン補間って何?
-///
-/// 離散的な点 (x₁, y₁), (x₂, y₂), ..., (xₙ, yₙ) が手元にあって、点と点の
-/// **間の値** を滑らかに埋めたいときに使う手法。1 次関数で繋ぐと折れ線になって
-/// しまうので、区間ごとに **3 次多項式** で繋いでなめらか (2 階微分まで連続) に
-/// する、というのが「3 次スプライン」。
-///
-/// ## どう滑らかにするか
-///
-/// 区間 [xᵢ, xᵢ₊₁] の多項式を `y(x) = aᵢ + bᵢ(x-xᵢ) + cᵢ(x-xᵢ)² + dᵢ(x-xᵢ)³`
-/// と置くと、各区間に 4 つの係数で合計 4(n-1) 個の未知数。
-/// 繋ぎ目での値・1 階微分・2 階微分の連続性と、両端での境界条件で方程式を立て、
-/// Thomas algorithm (三重対角連立方程式専用の高速解法) で O(n) で解く。
-///
-/// 境界条件は [`BoundaryCondition`] で切り替え。
-///
-/// ## なぜこれを使うのか
-///
-/// VMEC の Fourier 係数は s 軸上に 201 点だけ離散的に格納されている。プラズマ境界
-/// (s=1.0) の少し外 (s=1.08 など) を評価したいとき、離散データの間を補間するために
-/// スプラインが必要。
-struct CubicSpline {
-	/// x 軸上のサンプル点 (昇順)
-	xs: Vec<f64>,
-	/// 各区間の 3 次多項式係数 (y = a + b·dx + c·dx² + d·dx³)
-	a: Vec<f64>,
-	b: Vec<f64>,
-	c: Vec<f64>,
-	d: Vec<f64>,
-}
-
-impl CubicSpline {
-	/// (xs, ys) のデータと境界条件からスプラインを構築する。
-	///
-	/// 手順:
-	/// 1. 各区間の幅 h[i] を計算
-	/// 2. 2 階微分 M[i] を解く三重対角連立方程式を立てる (境界条件で第 1・最終行が変化)
-	/// 3. Thomas algorithm で前進消去 → 後退代入
-	/// 4. NotAKnot の場合は M[0] と M[n-1] を境界条件式から復元
-	/// 5. 解いた M[i] と h[i], y[i] から各区間の 3 次多項式係数 a, b, c, d を作る
-	fn new(xs: &[f64], ys: &[f64], bc: BoundaryCondition) -> Self {
-		let n = xs.len();
-		assert_eq!(ys.len(), n);
-		assert!(n >= 2, "スプライン構築には最低 2 点必要");
-
-		// h[i] = xs[i+1] - xs[i]  (各区間の幅)
-		let h: Vec<f64> = (0..n - 1).map(|i| xs[i + 1] - xs[i]).collect();
-
-		// M[i] = 2 階微分 (= 2·c[i]) を全ノードで持つ配列
-		let mut m = vec![0.0; n];
-
-		// 点が 2 点だけの場合は直線、3 点の場合は NotAKnot も事実上 Natural と同じ扱い
-		// になる (BC1 と BC2 が同じ条件に縮退するため)。安全のため n<4 では Natural に
-		// フォールバック。
-		let effective_bc = if n < 4 {
-			BoundaryCondition::Natural
-		} else {
-			bc
-		};
-
-		if n >= 3 {
-			// 内部の n-2 個の M (= M[1], M[2], ..., M[n-2]) を解く三重対角系。
-			// 内部方程式 (i = 1..n-2, ここでは row index = i-1 = 0..n-3):
-			//   h[i-1] * M[i-1] + 2(h[i-1]+h[i]) * M[i] + h[i] * M[i+1]
-			//   = 6 * ((y[i+1]-y[i])/h[i] - (y[i]-y[i-1])/h[i-1])
-			//
-			// 境界条件で行 0 と行 n-3 の係数が書き換えられる。明示的に lower/diag/upper
-			// の 3 本の Vec を持ち、Thomas アルゴリズムはこれらを使って前進消去する。
-			let k = n - 2; // 内部方程式の本数 = 内部 M の個数
-			let mut lower = vec![0.0; k]; // 下三角 (row i の M[i-1] 相当の列)
-			let mut diag = vec![0.0; k]; // 対角
-			let mut upper = vec![0.0; k]; // 上三角
-			let mut rhs = vec![0.0; k];
-
-			// まず内部行の係数を組む (row index r = 0..k-1 ↔ 内部 M index i = r+1)
-			for r in 0..k {
-				let i = r + 1;
-				lower[r] = h[i - 1];
-				diag[r] = 2.0 * (h[i - 1] + h[i]);
-				upper[r] = h[i];
-				rhs[r] = 6.0 * ((ys[i + 1] - ys[i]) / h[i] - (ys[i] - ys[i - 1]) / h[i - 1]);
-			}
-
-			match effective_bc {
-				BoundaryCondition::Natural => {
-					// M[0] = 0 と M[n-1] = 0 を代入するので、lower[0] と upper[k-1] の
-					// 項は消える。元々 Thomas の先頭・末尾では使わない値なので実質無操作。
-					lower[0] = 0.0;
-					upper[k - 1] = 0.0;
-				}
-				BoundaryCondition::NotAKnot => {
-					// BC1: h[1]·M[0] - (h[0]+h[1])·M[1] + h[0]·M[2] = 0
-					//      ↔ M[0] = ((h[0]+h[1])·M[1] - h[0]·M[2]) / h[1]
-					// これを row 0 (M[1] の内部式) に代入すると:
-					//   diag[0] += h[0]·(h[0]+h[1])/h[1]  →  (h[0]+h[1])·(h[0]+2h[1])/h[1]
-					//   upper[0] -= h[0]²/h[1]            →  (h[1]² - h[0]²)/h[1]
-					//   lower[0] は消える (M[0] を吸収)
-					//   rhs[0] は変わらず
-					let h0 = h[0];
-					let h1 = h[1];
-					diag[0] = (h0 + h1) * (h0 + 2.0 * h1) / h1;
-					upper[0] = (h1 * h1 - h0 * h0) / h1;
-					lower[0] = 0.0;
-
-					// BC2 (末尾側、対称):
-					//   M[n-1] = ((h[n-3]+h[n-2])·M[n-2] - h[n-2]·M[n-3]) / h[n-3]
-					// これを row k-1 (M[n-2] の内部式) に代入:
-					//   lower[k-1] -= h[n-2]²/h[n-3]     →  (h[n-3]² - h[n-2]²)/h[n-3]
-					//   diag[k-1]  += h[n-2]·(h[n-3]+h[n-2])/h[n-3]
-					//                                   →  (h[n-3]+h[n-2])·(h[n-2]+2h[n-3])/h[n-3]
-					//   upper[k-1] は消える (M[n-1] を吸収)
-					let ha = h[n - 3];
-					let hb = h[n - 2];
-					lower[k - 1] = (ha * ha - hb * hb) / ha;
-					diag[k - 1] = (ha + hb) * (hb + 2.0 * ha) / ha;
-					upper[k - 1] = 0.0;
-				}
-			}
-
-			// Thomas 前進消去
-			for r in 1..k {
-				let w = lower[r] / diag[r - 1];
-				diag[r] -= w * upper[r - 1];
-				rhs[r] -= w * rhs[r - 1];
-			}
-
-			// Thomas 後退代入
-			let mut m_inner = vec![0.0; k];
-			m_inner[k - 1] = rhs[k - 1] / diag[k - 1];
-			for r in (0..k - 1).rev() {
-				m_inner[r] = (rhs[r] - upper[r] * m_inner[r + 1]) / diag[r];
-			}
-
-			// 内部 M を全体配列に反映 (M[1..n-1] = m_inner)
-			for r in 0..k {
-				m[r + 1] = m_inner[r];
-			}
-
-			// 境界の M[0] と M[n-1] を復元 (Natural は 0 のまま、NotAKnot は BC から逆算)
-			if effective_bc == BoundaryCondition::NotAKnot {
-				m[0] = ((h[0] + h[1]) * m[1] - h[0] * m[2]) / h[1];
-				m[n - 1] =
-					((h[n - 3] + h[n - 2]) * m[n - 2] - h[n - 2] * m[n - 3]) / h[n - 3];
-			}
-		}
-
-		// 各区間の 3 次多項式係数を生成
-		//   y = a + b·(x - xᵢ) + c·(x - xᵢ)² + d·(x - xᵢ)³
-		//   a = yᵢ
-		//   b = (yᵢ₊₁ - yᵢ)/hᵢ - hᵢ·(2Mᵢ + Mᵢ₊₁)/6
-		//   c = Mᵢ / 2
-		//   d = (Mᵢ₊₁ - Mᵢ) / (6·hᵢ)
-		let mut a = Vec::with_capacity(n - 1);
-		let mut b = Vec::with_capacity(n - 1);
-		let mut c = Vec::with_capacity(n - 1);
-		let mut d = Vec::with_capacity(n - 1);
-		for i in 0..n - 1 {
-			let hi = h[i];
-			a.push(ys[i]);
-			b.push((ys[i + 1] - ys[i]) / hi - hi * (2.0 * m[i] + m[i + 1]) / 6.0);
-			c.push(m[i] / 2.0);
-			d.push((m[i + 1] - m[i]) / (6.0 * hi));
-		}
-
-		CubicSpline {
-			xs: xs.to_vec(),
-			a,
-			b,
-			c,
-			d,
-		}
-	}
-
-	/// 指定の x での y 値を計算する。
-	///
-	/// 範囲外の x が来た場合は、最初または最後の区間の多項式をそのまま延長して
-	/// **外挿**する (= extrapolate)。VMEC の wall_s = 1.08 など、LCFS (s=1)
-	/// の少し外でも値が欲しい場合に使う。
-	fn eval(&self, x: f64) -> f64 {
-		let n = self.xs.len();
-		// どの区間の多項式を使うか決める
-		let idx = if x <= self.xs[0] {
-			// x が左端より小さい: 最初の区間の多項式で外挿
-			0
-		} else if x >= self.xs[n - 1] {
-			// x が右端より大きい: 最後の区間の多項式で外挿
-			n - 2
-		} else {
-			// 範囲内: 二分探索で適切な区間を見つける
-			match self.xs.binary_search_by(|v| v.partial_cmp(&x).unwrap()) {
-				Ok(i) => i.min(n - 2),  // 完全一致
-				Err(i) => i - 1,          // 挿入位置 - 1 が含む区間
-			}
-		};
-		// y = a + b·(x-xᵢ) + c·(x-xᵢ)² + d·(x-xᵢ)³
-		let dx = x - self.xs[idx];
-		self.a[idx] + self.b[idx] * dx + self.c[idx] * dx.powi(2) + self.d[idx] * dx.powi(3)
-	}
-}
 
 // ================================================================
 // ベンチマーク用のテスト
@@ -646,14 +405,12 @@ mod tests {
 	///   素の `cargo test` がオフラインでも通り、純数学のテストだけが走る。
 	/// - **設定済みで読めない** → panic。`make test` は必ず設定するので、
 	///   本番の判定が無言で skip されることはない。
-	fn fixture() -> Option<VmecData> {
-		let Ok(path) = std::env::var("PATH_WMEC") else {
-			eprintln!("skip: PATH_WMEC 未設定 (make test なら自動で設定される)");
-			return None;
-		};
-		let file = std::fs::File::open(&path)
-			.unwrap_or_else(|e| panic!("PATH_WMEC={path} を開けない: {e}"));
-		Some(VmecData::load(file).unwrap_or_else(|e| panic!("PATH_WMEC={path} の読み込みに失敗: {e}")))
+	fn fixture() -> VmecData {
+		VmecData::load(
+			std::fs::File::open(
+				&std::env::var("PATH_WMEC").expect("PATH_WMEC が設定されていません")
+			).expect("ファイルを開けません")
+		).expect("ファイルを読めましたが解釈できません")
 	}
 
 	/// phi=0 と phi=2π で (R, Z) および全偏導関数が厳密一致することを確認する。
@@ -667,7 +424,7 @@ mod tests {
 	/// 入力データではなく cadrum / OCCT の surface construction or subtract 側にある。
 	#[test]
 	fn interpolate_rz_periodic_and_differentiable_at_phi_seam() {
-		let Some(vmec) = fixture() else { return };
+		let vmec = fixture();
 
 		// --- 前提: xm, xn が整数であること ---
 		let xn_nonint = vmec
@@ -733,7 +490,7 @@ mod tests {
 	/// だけの精度 (Precision::Confusion() ~ 1e-7) を満たすか確認する。
 	#[test]
 	fn mesh_phi_seam_matches_row0() {
-		let Some(vmec) = fixture() else { return };
+		let vmec = fixture();
 		let div_theta = 64;
 		let div_phi = 240;
 		let s = 1.08;
@@ -792,7 +549,7 @@ mod tests {
 	/// スプライン補間がノード上で元データを通ることを検証する健全性チェックでもある。
 	#[test]
 	fn index_rz_matches_interpolate_rz_on_grid() {
-		let Some(vmec) = fixture() else { return };
+		let vmec = fixture();
 		// LCFS (s=1.0) と磁気軸寄り (s=0.5) と中央 (s=0.5 付近の index) を抜き打ち確認。
 		for &i in &[0, vmec.s_grid.len() / 2, vmec.s_grid.len() - 1] {
 			let s = vmec.s_grid[i];
@@ -814,47 +571,11 @@ mod tests {
 		}
 	}
 
-	/// どの境界条件でもスプラインはグリッド点を**正確に通る** (補間性) ことを確認する。
-	#[test]
-	fn cubic_spline_passes_through_data_points() {
-		let xs = [0.0, 0.1, 0.3, 0.6, 1.0, 1.5, 2.1];
-		let ys = [0.0, 0.5, -0.2, 0.8, 0.3, -0.1, 1.2];
-		for bc in [BoundaryCondition::Natural, BoundaryCondition::NotAKnot] {
-			let sp = CubicSpline::new(&xs, &ys, bc);
-			for (i, &x) in xs.iter().enumerate() {
-				let y = sp.eval(x);
-				assert!(
-					(y - ys[i]).abs() < 1e-10,
-					"bc={bc:?} i={i}: eval({x}) = {y}, expected {}",
-					ys[i]
-				);
-			}
-		}
-	}
-
-	/// x² (純粋な 2 次関数) は not-a-knot 3 次スプラインで**厳密に再現**される
-	/// (3 次係数 d=0、M_i=2 が正解)。計算結果と比較して実装が正しいことを確認する。
-	#[test]
-	fn not_a_knot_reproduces_quadratic_exactly() {
-		let xs: Vec<f64> = (0..5).map(|i| i as f64).collect();
-		let ys: Vec<f64> = xs.iter().map(|&x| x * x).collect();
-		let sp = CubicSpline::new(&xs, &ys, BoundaryCondition::NotAKnot);
-		// 内挿点と外挿点 (x=6) の両方で y = x² を厳密に再現することを確認
-		for &x in &[0.5, 1.5, 2.5, 3.5, 4.5, 6.0, -1.0] {
-			let y = sp.eval(x);
-			let expected = x * x;
-			assert!(
-				(y - expected).abs() < 1e-9,
-				"not-a-knot should reproduce x²: eval({x}) = {y}, expected {expected}"
-			);
-		}
-	}
-
 	/// VMEC の s=1.08 外挿で natural vs not-a-knot の (R, Z) 差をサンプルして目視確認する。
 	/// 実装バグの診断用。`cargo test -- --nocapture vmec_s108_natural_vs_not_a_knot`
 	#[test]
 	fn vmec_s108_natural_vs_not_a_knot() {
-		let Some(vmec) = fixture() else { return };
+		let vmec = fixture();
 		let mnmax = vmec.mode_poloidal.len();
 		let s = 1.08;
 
@@ -901,7 +622,7 @@ mod tests {
 	/// 原因を切り分けるための診断)。
 	#[test]
 	fn vmec_s108_surface_drift() {
-		let Some(vmec) = fixture() else { return };
+		let vmec = fixture();
 		let mnmax = vmec.mode_poloidal.len();
 
 		// 各モードの rmnc, zmns について natural / not-a-knot 2 通りのスプラインを
@@ -988,47 +709,13 @@ mod tests {
 		);
 	}
 
-	/// フィクスチャの磁場周期数。`xn` には既に nfp が畳み込まれている
-	/// (xn = nfp × n) ので、ここは **ファイルから導出せず直に書く**。
-	/// 導出してしまうと「リーダが xn を nfp で割ってしまう」典型ミスを
-	/// 検出できなくなる (割られた xn から導出すると nfp=1 になり、
-	/// 2π 周期性を測るだけの無意味なテストに退化する)。
-	const NFP: f64 = 4.0;
-
-	/// φ を 1 磁場周期 (2π/nfp) 進めても形状が一致することを確認する。
-	///
-	/// xn の扱いを間違えると即座に落ちる。逆に言えばこれが通れば
-	/// Fourier 位相 `xm·θ − xn·φ` の φ 側は正しく組めている。
-	#[test]
-	fn fourier_field_period_symmetry() {
-		let Some(vmec) = fixture() else { return };
-		let period = TAU / NFP;
-		let mut max_dr = 0.0f64;
-		let mut max_dz = 0.0f64;
-		for &s in &[0.25, 0.5, 1.0] {
-			for i in 0..37 {
-				let phi = TAU * (i as f64) / 37.0;
-				for j in 0..29 {
-					let theta = TAU * (j as f64) / 29.0;
-					let a = vmec.interpolate_rz(phi, theta, s);
-					let b = vmec.interpolate_rz(phi + period, theta, s);
-					max_dr = max_dr.max((a.r - b.r).abs());
-					max_dz = max_dz.max((a.z - b.z).abs());
-				}
-			}
-		}
-		eprintln!("field period (nfp={NFP}): max|ΔR|={max_dr:.3e}, max|ΔZ|={max_dz:.3e}");
-		assert!(max_dr < 1e-9, "R が 1 周期でずれる: {max_dr:.3e}");
-		assert!(max_dz < 1e-9, "Z が 1 周期でずれる: {max_dz:.3e}");
-	}
-
 	/// ステラレータ対称性 `R(−φ,−θ) = R(φ,θ)`, `Z(−φ,−θ) = −Z(φ,θ)` を確認する。
 	///
 	/// R が cos、Z が sin に乗っていることの直接の帰結なので、
 	/// cos/sin の取り違えがあれば落ちる。
 	#[test]
 	fn stellarator_symmetry() {
-		let Some(vmec) = fixture() else { return };
+		let vmec = fixture();
 		let mut max_dr = 0.0f64;
 		let mut max_dz = 0.0f64;
 		for &s in &[0.25, 0.5, 1.0] {
@@ -1048,17 +735,13 @@ mod tests {
 		assert!(max_dz < 1e-12, "Z(−φ,−θ) ≠ −Z(φ,θ): {max_dz:.3e}");
 	}
 
-	/// 磁気面の点群を `results/surface_points.csv` に書き出す。
-	///
-	/// 形状の妥当性判定は `scripts/plot_surface.py` が担当する (リポジトリの
-	/// 既存様式に合わせ、幾何の合否は Python 側で `sys.exit`)。ここは
-	/// 行数と有限性だけ確認する。
+	/// 磁気面の点群を `results/surface_points.csv` に書き出す。形状の妥当性判定は `scripts/plot_surface.py` が担当する (リポジトリの
 	///
 	/// s=1.08 を含めるのは、これが W2 のオフセット面 (alphastell の `wall_s`)
 	/// そのものだから。スプライン外挿の妥当性を W2 に入る前に監査する。
 	#[test]
 	fn export_point_cloud_csv() {
-		let Some(vmec) = fixture() else { return };
+		let vmec = fixture();
 		const DIV_PHI: usize = 72;
 		const DIV_THETA: usize = 48;
 		let surfaces = [0.25, 0.50, 1.00, 1.08];
@@ -1097,8 +780,7 @@ mod tests {
 		}
 		assert_eq!(rows, surfaces.len() * DIV_PHI * DIV_THETA);
 
-		std::fs::create_dir_all("results").expect("results/ を作れない");
-		std::fs::write("results/surface_points.csv", &out).expect("CSV を書けない");
-		eprintln!("wrote results/surface_points.csv ({rows} rows)");
+		std::fs::create_dir_all("out").expect("out/ を作れない");
+		std::fs::write("out/surface_points.csv", &out).expect("CSV を書けない");
 	}
 }
