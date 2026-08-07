@@ -1,5 +1,5 @@
 //! VMEC ファイル (wout_*.nc) を読み込んで磁束面の (R, Z) を評価するモジュール。
-//!
+//! github.com/lzpel/alphastell の core/src/vmec.rs を 移植したもの。
 //! # このモジュールが扱う世界
 //!
 //! **ステラレータ** は核融合炉の一種で、ねじれたドーナツ (トーラス) 型の容器の中に
@@ -734,7 +734,7 @@ mod tests {
 		assert!(max_dz < 1e-12, "Z(−φ,−θ) ≠ −Z(φ,θ): {max_dz:.3e}");
 	}
 
-	/// 磁気面の点群を `results/surface_points.csv` に書き出す。形状の妥当性判定は `scripts/plot_surface.py` が担当する (リポジトリの
+	/// 磁気面の点群を `out/surface_points.csv` に書き出す。
 	///
 	/// s=1.08 を含めるのは、これが W2 のオフセット面 (alphastell の `wall_s`)
 	/// そのものだから。スプライン外挿の妥当性を W2 に入る前に監査する。
