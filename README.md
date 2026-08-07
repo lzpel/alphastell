@@ -12,8 +12,9 @@
 
 > **Status: pre-alpha.** コードはまだない。設計文書([notes/](notes/))とプレプリント草稿([paper.tex](paper.tex)、現状モック結果)が先行している。
 
-Python からの入口 (issue #5 の連携経路): `uv run examples/hello.py` が rust 製
-[stellarator](stellarator/) カーネルを pyo3/maturin 経由で呼ぶ最小例。
+Python からの入口 (issue #5 の連携経路): `make al-00` (= `examples/al_00_hello.py`) が rust 製
+[stellarator](stellarator/) カーネルを pyo3/maturin 経由で呼ぶ最小例。`make al-NN` で
+`examples/al_NN_*.py` を rust の再ビルド込みで走らせる。
 
 ## なぜ作るか
 

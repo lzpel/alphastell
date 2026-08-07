@@ -23,7 +23,8 @@ make clean                               # cargo clean
 feature `python` を立てると pyo3 の拡張モジュールになる (`pyproject.toml` の maturin が
 これを立てて cdylib をビルドする)。通常の `cargo test` は feature が切れているので
 pyo3 に依存しない。リポジトリルートの pyproject.toml が path 依存でこの crate を指しており、
-ルートで `uv run examples/hello.py` すると uv → maturin → cargo の順で自動ビルドされる。
+ルートで `make al-00` すると uv → maturin → cargo の順でビルドされる (rust を触った後の
+再ビルドを uv は検知しないので、この target は `uv sync --reinstall-package stellarator` を挟む)。
 
 リポジトリルートからは `make -C stellarator` で呼べる。
 `make test` は環境変数 `PATH_WMEC` に `./wout_vmec.nc` を設定して `cargo test` を回し、点群 CSV を出し、
