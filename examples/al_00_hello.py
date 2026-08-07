@@ -2,9 +2,12 @@
 """stellarator (rust, pyo3) の hello() を python から呼ぶ最小例 (issue #5)。
 """
 
-from stellarator import hello, hello_constructor
+from stellarator import hello, hello_constructor, hello_numpy
+import numpy as np
 
 hello()
+
+hello_numpy(np.array([1, 2, 3])) # print "Hello, stellarator!" to stdout
 
 a=hello_constructor(name="stellarator")
 
