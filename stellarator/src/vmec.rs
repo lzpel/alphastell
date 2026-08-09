@@ -42,17 +42,17 @@
 //! 係数 `rmnc`, `zmns` と波の周期を決める整数 `m`, `n` を netCDF から読むのが
 //! このモジュールの仕事です。
 //!
-//! # このモジュールの API (全部 VmecData のメソッド)
+//! # このモジュールの API (全部 SurfaceRZFourier のメソッド)
 //!
-//! 1. [`VmecData::load`] — netCDF ファイルを開いて [`VmecData`] を作る
-//! 2. [`VmecData::index_rz`] — s グリッド上の離散点 `s_grid[index_s]` で (R, Z) を計算
-//! 3. [`VmecData::interpolate_rz`] — 任意の s で (R, Z) を計算 (Fourier 係数を s 方向にスプライン)
+//! 1. [`SurfaceRZFourier::load`] — netCDF ファイルを開いて [`SurfaceRZFourier`] を作る
+//! 2. [`SurfaceRZFourier::index_rz`] — s グリッド上の離散点 `s_grid[index_s]` で (R, Z) を計算
+//! 3. [`SurfaceRZFourier::interpolate_rz`] — 任意の s で (R, Z) を計算 (Fourier 係数を s 方向にスプライン)
 //!
 //! vessel / first_wall は `interpolate_rz(φ, θ, s)` を (φ, θ) 走査しながら呼べばよい。
 //! 内部ヘルパーとして `eval_rz(r_coeff, z_coeff, θ, φ)` (private) が Fourier 和だけを担当する。
 
 // Ported from lzpel/alphastell core/src/vmec.rs (MIT, Satoshi Misumi).
-// upstream との diff が取れる状態を保つため、API は変更していない。
+// upstream との diff が取れる状態を保つため、型名 (upstream: VmecData) 以外は変更していない。
 
 use crate::spline::CubicSpline;
 use crate::spline::BoundaryCondition;
@@ -61,7 +61,7 @@ use std::io::{Read, Seek};
 use std::sync::OnceLock;
 
 // ================================================================
-// VmecData — 必要な変数だけ抽出したプラズマデータ
+// SurfaceRZFourier — 必要な変数だけ抽出したプラズマデータ
 // ================================================================
 
 /// VMEC が出した `wout_*.nc` ファイルから、プラズマ形状を評価するのに必要な
@@ -81,7 +81,14 @@ use std::sync::OnceLock;
 ///                    `(mode_poloidal, mode_toroidal)` の組 = `(m, n)` で 1 つの波。
 ///
 /// 例: `mode_poloidal=[0, 1, 0, 1, ...]`, `mode_toroidal=[0, 0, 4, 4, ...]`, `mnmax=179` 個。
-pub struct VmecData {
+///
+/// # 名前の由来
+///
+/// (R, Z) を角度 (θ, φ) の Fourier 級数で書く表現は、核融合分野では **逆モーメント表現**
+/// (inverse moments representation, Hirshman & Whitson 1983 — VMEC の "M" がこれ) と呼ばれ、
+/// simsopt の `SurfaceRZFourier` / DESC の `FourierRZToroidalSurface` に対応する。
+/// 本 struct はその面を s 方向に ns 枚積んだもの。
+pub struct SurfaceRZFourier {
 	/// 規格化磁束座標 s の配列 (長さ ns)
 	pub s_grid: Vec<f64>,
 	/// R の Fourier 係数 (rmnc[s 軸 index][mode 番号])
@@ -93,7 +100,7 @@ pub struct VmecData {
 	/// toroidal モード数 n (長さ mnmax)。ファイル上の名前は `xn`。
 	pub mode_toroidal: Vec<f64>,
 	/// `interpolate_rz` が初回に構築して以降使い回すスプライン群。(r_splines, z_splines) で
-	/// 各 Vec の長さは mnmax。[`OnceLock`] により再計算されない (計算結果は VmecData に
+	/// 各 Vec の長さは mnmax。[`OnceLock`] により再計算されない (計算結果は SurfaceRZFourier に
 	/// 紐づく遅延フィールド)。
 	splines: OnceLock<(Vec<CubicSpline>, Vec<CubicSpline>)>,
 }
@@ -107,7 +114,7 @@ pub struct RZ {
 	pub dz_dphi: f64,
 }
 
-/// [`VmecData::mesh`] の `offset != 0` 時に使う法線の定義。
+/// [`SurfaceRZFourier::mesh`] の `offset != 0` 時に使う法線の定義。
 #[derive(Clone, Copy, Debug)]
 #[allow(dead_code)] // バリアント列挙、呼び出し側は後続 PR で追加予定
 pub enum NormalKind {
@@ -120,9 +127,9 @@ pub enum NormalKind {
 	Surface,
 }
 
-impl VmecData {
+impl SurfaceRZFourier {
 	// --------------------------------------------------------------
-	// load — netCDF から VmecData を作る (コンストラクタ)
+	// load — netCDF から SurfaceRZFourier を作る (コンストラクタ)
 	// --------------------------------------------------------------
 
 	/// netCDF ファイル (wout_*.nc) を開いて、このモジュールで使う変数だけ読み出す。
@@ -360,7 +367,7 @@ impl VmecData {
 	}
 
 	pub fn interpolate_rz(&self, phi: f64, theta: f64, s: f64) -> RZ {
-		// 各モードごとの s 軸方向スプラインは (s, θ, φ) に依存しないので、VmecData の
+		// 各モードごとの s 軸方向スプラインは (s, θ, φ) に依存しないので、SurfaceRZFourier の
 		// ライフタイムで 1 回だけ構築してメモ化する。初回呼び出しで lazy 初期化。
 		let (r_splines, z_splines) = self.splines.get_or_init(|| {
 			let mnmax = self.mode_poloidal.len();
@@ -404,8 +411,8 @@ mod tests {
 	///   素の `cargo test` がオフラインでも通り、純数学のテストだけが走る。
 	/// - **設定済みで読めない** → panic。`make test` は必ず設定するので、
 	///   本番の判定が無言で skip されることはない。
-	fn fixture() -> VmecData {
-		VmecData::load(
+	fn fixture() -> SurfaceRZFourier {
+		SurfaceRZFourier::load(
 			std::fs::File::open(
 				&std::env::var("PATH_WMEC").expect("PATH_WMEC が設定されていません")
 			).expect("ファイルを開けません")
