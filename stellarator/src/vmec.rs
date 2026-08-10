@@ -288,15 +288,14 @@ impl SurfaceRZFourier {
 		self.eval_rz(&self.rmnc[index_s], &self.zmns[index_s], theta, phi)
 	}
 
-	/// (φ, θ, s) を指定して磁束面 (または `offset` だけ離れた平行面) 上の 3D 点を返す。
+	/// (φ, θ, s) を指定して磁束面 (または `offset` だけ離れた平行面) 上の 3D 点と法線を返す。
 	pub fn interpolate(
 		&self,
 		phi: f64,
 		theta: f64,
 		s: f64,
-		offset: f64,
 		normal: NormalKind,
-	) -> [f64; 3] {
+	) -> [[f64; 3]; 2] {
 		fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
 			[
 				a[1] * b[2] - a[2] * b[1],
@@ -330,14 +329,15 @@ impl SurfaceRZFourier {
 			let v=cross(t_phi, t_theta);
 			v.map(|w| w/(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt())
 		};
-		// offsetを加味した三次元座標
-		let p = [
-			rz.r + offset * normal[0],
-			0.0 + offset * normal[1],
-			rz.z + offset * normal[2]
-		];
+		let rotate=|point: [f64; 3]| -> [f64; 3] {
+			[
+				point[0] * phi.cos() - point[1] * phi.sin(),
+				point[0] * phi.sin() + point[1] * phi.cos(),
+				point[2]
+			]
+		};
 		// 最後に Z 軸まわり φ 回転で実際の (x, y, z) に持ち上げる。
-		[p[0] * phi.cos() - p[1] * phi.sin(), p[0] * phi.sin() + p[1] * phi.cos(), p[2]]
+		[rotate([rz.r, 0.0, rz.z]), rotate(normal)]
 	}
 
 	/// (φ, θ) を等分した格子で磁束面 (または `offset` だけ離れた平行面) の 3D 点を返す。
@@ -359,7 +359,8 @@ impl SurfaceRZFourier {
             (0..div_theta)
                 .map(|j| {
                     let theta = TAU * (j as f64) / (div_theta as f64);
-                    self.interpolate(phi, theta, s, offset, normal)
+                    let [p,n]=self.interpolate(phi, theta, s, normal);
+					std::array::from_fn(|k| p[k] + offset * n[k])
                 })
                 .collect()
         })

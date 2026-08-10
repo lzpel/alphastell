@@ -8,7 +8,7 @@
 name = "mhd-tbr-stell"
 version = "0.0.0"
 requires-python = ">=3.14"
-dependencies = ["stellarator", "openmc-anywhere>=0.15.3.0", "cad-to-dagmc"]
+dependencies = ["stellarator", "openmc-anywhere>=0.15.3.0", "cad-to-dagmc", "matplotlib"]
 
 [tool.uv.sources]
 stellarator = { path = "./stellarator" }
