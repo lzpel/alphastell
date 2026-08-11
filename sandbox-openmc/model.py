@@ -7,9 +7,9 @@ CAD なし・メッシュなしの CSG 同心球。未衝突中性子束の空�
 
 コンテナ内 openmc で実行する (makefile の $(OPENMC) 経由):
 
-    python model.py --radius 20 --particles 200000 --out results
+    python model.py --radius 20 --particles 200000 --out out
 
-statepoint から抽出した結果を results/tally.json と results/xs.json に書く。
+statepoint から抽出した結果を out/tally.json と out/xs.json に書く。
 ホスト側の scripts/compare_attenuation.py がこの JSON を読んで解析解と比較する。
 xs.json の Sigma_t は「解析解が使う断面積」であり、同じライブラリから読む
 (データではなく輸送ソルバーを検証しているため)。
@@ -85,7 +85,7 @@ def main():
     p.add_argument("--shells", type=int, default=20, help="球シェル数 (未衝突束の空間分布)")
     p.add_argument("--enrichment", type=float, default=None, help="Li6 原子分率 (未指定で天然組成)")
     p.add_argument("--energy", type=float, default=14.1e6, help="線源エネルギー [eV]")
-    p.add_argument("--out", default="results", help="出力ディレクトリ")
+    p.add_argument("--out", default="out", help="出力ディレクトリ")
     args = p.parse_args()
 
     os.makedirs(args.out, exist_ok=True)

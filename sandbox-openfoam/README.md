@@ -19,7 +19,7 @@ make clean        # 生成物を全削除
 
 リポジトリルートからは `make -C sandbox-openfoam` で呼べる。
 比較は最大相対誤差が 2% を超えると非ゼロ終了する(検証として失敗する)。
-出力: `results/hartmann_Ha20.png`(プロット)、`results/report_Ha20.txt`(誤差レポート)。
+出力: `out/hartmann_Ha20.png`(プロット)、`out/report_Ha20.txt`(誤差レポート)。
 `make paper` は texlive/texlive:latest(初回 pull 約5GB)で `report.tex` を LuaLaTeX ビルドする。
 
 ### Ha=1000 ケース (`hartmann_hi/`)
@@ -47,7 +47,7 @@ MSYS_NO_PATHCONV=1 $PFX blockMesh -case hartmann_hi
 MSYS_NO_PATHCONV=1 $PFX epotFoam  -case hartmann_hi
 uv run --with numpy --with matplotlib scripts/compare_hartmann.py --ha 1000 \
   --profile "$(ls -d hartmann_hi/postProcessing/sample/*/ | sort -V | tail -1)centreProfile_U.xy" \
-  --plot ../paper/fig02.png --report results/report_Ha1000.txt --tex results/values_Ha1000.tex
+  --plot ../paper/fig02.png --report out/report_Ha1000.txt --tex out/values_Ha1000.tex
 ```
 
 実測: **最大相対誤差 0.385%** (閾値 2%)、約13000 ステップ。この PNG が paper の fig02。
@@ -83,7 +83,7 @@ $$u(y)/\bar{u} = \frac{\mathrm{Ha}}{\mathrm{Ha}-\tanh\mathrm{Ha}}\left(1-\frac{\
 | サンプリング | controlDict の functions に `sets` 関数オブジェクトを #include | `postProcess -func` の関数名解決に依存せず、解算中に自動出力される |
 | 比較スクリプト | `uv run --with numpy --with matplotlib` | ホスト python に numpy が無い環境でも uv だけで動く。数値解・解析解ともサンプル区間のバルク速度で正規化し、切り欠きバイアスを対称に除去。解析解の cosh 比は指数形で計算し Ha~10³ でも桁溢れしない |
 | 合格閾値 | 最大相対誤差 2% | README(リポジトリルート)の検証方針「相関式との一致目標: 数%」に整合。このメッシュ・Ha=20 では <1% を期待 |
-| 実験レポート | `report.tex`(/tex 規約の自己ビルド式・LuaLaTeX 日本語)+ `make paper` で計算から PDF まで自動化 | ルートの paper.tex と同じ「`sh report.tex` でビルドできる polyglot + 出力先 `report/`」規約に統一。図 (fig01: 比較プロット、fig02: 境界条件の 3D 模式図 = `scripts/visualize_condition.py` が生成) と誤差数値 (values.tex の LaTeX マクロ、compare_hartmann.py --tex が生成) は `make paper` が results/ からコピーし、本文にハードコードしない — レポートの数値が常に直近の計算と一致することを保証する。fig01/fig02/values.tex/PDF は生成物なので report/.gitignore で管理外 |
+| 実験レポート | `report.tex`(/tex 規約の自己ビルド式・LuaLaTeX 日本語)+ `make paper` で計算から PDF まで自動化 | ルートの paper.tex と同じ「`sh report.tex` でビルドできる polyglot + 出力先 `report/`」規約に統一。図 (fig01: 比較プロット、fig02: 境界条件の 3D 模式図 = `scripts/visualize_condition.py` が生成) と誤差数値 (values.tex の LaTeX マクロ、compare_hartmann.py --tex が生成) は `make paper` が out/ からコピーし、本文にハードコードしない — レポートの数値が常に直近の計算と一致することを保証する。fig01/fig02/values.tex/PDF は生成物なので report/.gitignore で管理外 |
 
 ## ライセンス注意
 

@@ -9,7 +9,7 @@
 //!
 //! 出力:
 //!   cone/constant/polyMesh/…  cone/0/{U,p,PotE}
-//!   results/geometry_cone.step  results/geometry_cone.png
+//!   out/geometry_cone.step  out/geometry_cone.png
 //!
 //! 実行: cargo run --release --example cone
 
@@ -104,15 +104,15 @@ fn main() -> Result<(), cadrum::Error> {
     let duct = build_colored_duct()?;
 
     // ---- CAD 出力 ----
-    fs::create_dir_all("results").unwrap();
-    Solid::write_step([&duct], &mut fs::File::create("results/geometry_cone.step").unwrap())?;
+    fs::create_dir_all("out").unwrap();
+    Solid::write_step([&duct], &mut fs::File::create("out/geometry_cone.step").unwrap())?;
     let mesh = Solid::mesh([&duct], Default::default())?;
     let scene = mesh.scene(SceneOption {
         view: DVec3::new(-1.0, 1.2, 0.8),
         up: DVec3::Z,
         ..Default::default()
     });
-    scene.write_png([1280, 720], &mut fs::File::create("results/geometry_cone.png").unwrap())?;
+    scene.write_png([1280, 720], &mut fs::File::create("out/geometry_cone.png").unwrap())?;
 
     // ---- 節点: (x, r cosθ, r sinθ)。r は内外壁両側グレーディングの無次元列 t を半径に写像 ----
     let xs: Vec<f64> = (0..=NX).map(|i| LEN * i as f64 / NX as f64).collect();

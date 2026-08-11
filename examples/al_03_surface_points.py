@@ -24,8 +24,8 @@ from stellarator import SurfaceRZFourier
 
 # cwd に依存しないよう、wout はこのファイルからの相対で引く。
 WOUT = pathlib.Path(__file__).resolve().parent.parent / "stellarator" / "wout_vmec.nc"
-OUT_CSV = pathlib.Path("results/al_03_surface_points.csv")
-OUT_PNG = pathlib.Path("results/al_03_surface_points.png")
+OUT_CSV = pathlib.Path("out/al_03_surface_points.csv")
+OUT_PNG = pathlib.Path("out/al_03_surface_points.png")
 
 S = 1.0  # LCFS (プラズマ最外縁)。s>1 はスプライン外挿になる
 DIV_PHI = 240  # トロイダル分割。nfp=4 なので 1 周期あたり 60 点

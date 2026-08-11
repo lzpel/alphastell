@@ -26,8 +26,8 @@ make clean                # 生成物を削除 (data/ の断面積は残す)
 リポジトリルートからは `make -C sandbox-openmc` で呼べる。
 比較は最大相対誤差が閾値(既定 2%)を超えるか、統計的外れ値(3σ 超)のシェルがあると
 **非ゼロ終了**する(検証として失敗する)。
-出力: `results/attenuation.png`(プロット)、`results/report.txt`(誤差レポート)、
-`results/tally.json` / `results/xs.json`(数値解と使用断面積)。
+出力: `out/attenuation.png`(プロット)、`out/report.txt`(誤差レポート)、
+`out/tally.json` / `out/xs.json`(数値解と使用断面積)。
 `make paper` は texlive/texlive:latest(初回 pull 約5GB)で `report.tex` を LuaLaTeX ビルドする。
 
 ## 何を検証するか
@@ -66,7 +66,7 @@ OpenMC の未衝突束(`CollisionFilter=0`)を等体積シェルでタリーし�
 | データの置き場 | `sandbox-openmc/data/`(gitignore、clean で消さない) | 断面積は大きく git 管理外。実行時に `OPENMC_CROSS_SECTIONS` で渡す。`make clean` でも残し再DLを避ける。サンドボックス内で自己完結 |
 | OpenMC の供給 | **openmc-anywhere wheel + uv**(2026-07-23 に docker から移行、issue #16) | `OPENMC = OPENMC_CROSS_SECTIONS=... uv run` の接頭辞1箇所に集約。uv run が venv の Scripts/bin を PATH に前置するので `openmc`/`njoy` の literal 解決が通る。docker 時代の `MSYS_NO_PATHCONV`/`USERSPEC` ノブは不要になった(texlive は report.tex 側で対処済み) |
 | パラメータ注入 | model.py の CLI 引数 + params.stamp | OpenMC は Python API でモデルを組むのが自然で、XML を sed するのは退化。R/PARTICLES を stamp ファイルに記録し、値が変われば tally.json が再生成される(sandbox-openfoam の .template+cmp と同じ「変わったときだけ再実行」) |
-| 実験レポート | `report.tex`(自己ビルド式・LuaLaTeX 日本語)+ `make paper` | ルート paper.tex / sandbox-openfoam と同じ「`sh report.tex` でビルドできる polyglot + 出力先 report/」規約。図(fig01: 減衰プロット、fig02: 体系模式図)と数値(values.tex マクロ、compare_attenuation.py --tex が生成)は make paper が results/ からコピーし本文にハードコードしない |
+| 実験レポート | `report.tex`(自己ビルド式・LuaLaTeX 日本語)+ `make paper` | ルート paper.tex / sandbox-openfoam と同じ「`sh report.tex` でビルドできる polyglot + 出力先 report/」規約。図(fig01: 減衰プロット、fig02: 体系模式図)と数値(values.tex マクロ、compare_attenuation.py --tex が生成)は make paper が out/ からコピーし本文にハードコードしない |
 | docker_openmc の要否 | **今は作らない。ただし W7(DAGMC)では必要** | issue #4 の前提「標準イメージで回るなら docker_openmc は作らない」。`make env` の実測(下記)で、本サンドボックス(CSG のみ)は標準イメージで回ると確認。一方、標準イメージは **DAGMC 非対応**なので、STEP→DAGMC 経路(W7)では docker_openmc が要ると判明した |
 
 ### `make env` の実測(2026-07-18、docker_openmc 要否の判断根拠)

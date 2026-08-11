@@ -1,7 +1,7 @@
 % 2>/dev/null; MSYS_NO_PATHCONV=1 exec docker run --rm -v .:/work -w /work texlive/texlive:latest latexmk -lualatex -interaction=nonstopmode -outdir="${0%.tex}" "$0"
 % report/ に置いた資産(図・refs.bib・values.tex 等)は全てパス無しで参照できる(-outdir が入力探索先も兼ねるため)。
 % ビルド: `make paper`(計算 → 図・数値の取り込み → PDF まで自動)。原稿だけ再組版するなら `sh report.tex`。
-% 注意: fig01.png と values.tex は make paper が results/ からコピーする生成物。単体ビルド前に一度 make paper を通すこと。
+% 注意: fig01.png と values.tex は make paper が out/ からコピーする生成物。単体ビルド前に一度 make paper を通すこと。
 \documentclass{ltjsarticle}   % LuaLaTeX + luatexja。日本語本文をそのまま組める。
 
 \usepackage{amsmath}

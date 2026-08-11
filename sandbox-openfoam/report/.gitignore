@@ -17,7 +17,7 @@
 *.snm
 *.vrb
 *.xdv
-# make paper が results/ からコピーしてくる生成アセット（計算のたびに変わる）
+# make paper が out/ からコピーしてくる生成アセット（計算のたびに変わる）
 fig01.png
 fig02.png
 values.tex
