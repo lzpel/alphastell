@@ -20,7 +20,7 @@ Sigma_t は 14.1 MeV での巨視的全断面積 (単一の数)。未衝突中�
 実行は uv 経由 (ホスト python に numpy が無いため):
 
     uv run --with numpy --with matplotlib compare_attenuation.py \
-      --tally results/tally.json --xs results/xs.json --plot ... --report ... --tex ...
+      --tally out/tally.json --xs out/xs.json --plot ... --report ... --tex ...
 """
 
 import argparse
@@ -45,8 +45,8 @@ def shell_average_analytic(edges, sigma_t, strength):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--tally", required=True, help="model.py が出力した results/tally.json")
-    p.add_argument("--xs", required=True, help="model.py が出力した results/xs.json")
+    p.add_argument("--tally", required=True, help="model.py が出力した out/tally.json")
+    p.add_argument("--xs", required=True, help="model.py が出力した out/xs.json")
     p.add_argument("--plot", required=True, help="出力 PNG パス")
     p.add_argument("--report", required=True, help="出力レポート (テキスト) パス")
     p.add_argument("--threshold", type=float, default=0.02, help="合格閾値 (最大相対誤差)")

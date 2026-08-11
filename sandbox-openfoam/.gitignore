@@ -1,4 +1,4 @@
-results/
+out/
 epotFoam/epotFoam
 epotFoam/Make/linux*
 hartmann/log.*

@@ -34,7 +34,7 @@ make clean            # 生成物を全削除
 cargo run --release --example hartmann        cargo run --release --example cone
   Solid::cube 10×2×0.1                          (cone(2.0→1.2) − cylinder(0.6)).build()
   緑=流入 橙=流出 灰=壁 青=z周期(cyclic)          緑=入口環 橙=出口環 灰=壁 (θはラップ内部接続)
-  ├─ results/geometry.{step,png}                ├─ results/geometry_cone.{step,png}
+  ├─ out/geometry.{step,png}                    ├─ out/geometry_cone.{step,png}
   ├─ hartmann/constant/polyMesh (50×80×1)       ├─ cone/constant/polyMesh (θ48×r16×x50)
   └─ hartmann/0/{U,p,PotE}                      └─ cone/0/{U,p,PotE}
         │                                             │

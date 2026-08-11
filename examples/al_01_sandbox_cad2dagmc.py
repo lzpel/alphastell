@@ -27,7 +27,7 @@ from cad_to_dagmc import CadToDagmc
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--size", type=float, default=10.0, help="代表寸法 [cm]")
-    p.add_argument("--out", default="results")
+    p.add_argument("--out", default="out")
     args = p.parse_args()
     os.makedirs(args.out, exist_ok=True)
 

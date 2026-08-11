@@ -20,10 +20,10 @@ UV   ?= uv
 # latexmk -lualatex を起動する。初回は docker pull texlive/texlive (約5GB)。
 paper: compare
 	$(UV) run --with numpy --with matplotlib scripts/visualize_condition.py \
-	  --out results/boundary_conditions.png
-	cp results/hartmann_Ha$(HA).png report/fig01.png
-	cp results/boundary_conditions.png report/fig02.png
-	cp results/values_Ha$(HA).tex report/values.tex
+	  --out out/boundary_conditions.png
+	cp out/hartmann_Ha$(HA).png report/fig01.png
+	cp out/boundary_conditions.png report/fig02.png
+	cp out/values_Ha$(HA).tex report/values.tex
 	sh report.tex
 
 # HA が変わったときだけ書き換える (タイムスタンプ無駄更新を避ける)
@@ -39,16 +39,16 @@ solve: $(CASE)/constant/polyMesh/points $(CASE)/constant/electromagneticProperti
 	MSYS_NO_PATHCONV=1 $$($(MAKE) -s --no-print-directory -C epotFoam) epotFoam -case $(CASE) > $(CASE)/log.epotFoam
 
 compare: solve
-	mkdir -p results
+	mkdir -p out
 	$(UV) run --with numpy --with matplotlib scripts/compare_hartmann.py \
 	  --ha $(HA) \
 	  --profile "$$(ls -d $(CASE)/postProcessing/sample/*/ | sort -V | tail -1)centreProfile_U.xy" \
-	  --plot results/hartmann_Ha$(HA).png --report results/report_Ha$(HA).txt \
-	  --tex results/values_Ha$(HA).tex
+	  --plot out/hartmann_Ha$(HA).png --report out/report_Ha$(HA).txt \
+	  --tex out/values_Ha$(HA).tex
 
 clean:
 	$(MAKE) -C epotFoam clean
-	rm -rf results \
+	rm -rf out \
 	  $(CASE)/log.* $(CASE)/postProcessing \
 	  $(CASE)/constant/polyMesh $(CASE)/constant/electromagneticProperties \
 	  $(CASE)/[1-9]* $(CASE)/0.[0-9]* \

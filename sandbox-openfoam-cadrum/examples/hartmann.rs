@@ -5,7 +5,7 @@
 //! 出力:
 //!   hartmann/constant/polyMesh/{points,faces,owner,neighbour,boundary}
 //!   hartmann/0/{U,p,PotE}
-//!   results/geometry.step  results/geometry.png  (色=境界条件の可視化)
+//!   out/geometry.step  out/geometry.png  (色=境界条件の可視化)
 //!
 //! 実行: cargo run --release --example hartmann
 
@@ -88,15 +88,15 @@ fn main() -> Result<(), cadrum::Error> {
     let solid = build_colored_box();
 
     // ---- CAD 出力 (STEP + PNG レンダリング: 色=境界条件の可視化) ----
-    fs::create_dir_all("results").unwrap();
-    Solid::write_step([&solid], &mut fs::File::create("results/geometry.step").unwrap())?;
+    fs::create_dir_all("out").unwrap();
+    Solid::write_step([&solid], &mut fs::File::create("out/geometry.step").unwrap())?;
     let mesh = Solid::mesh([&solid], Default::default())?;
     let scene = mesh.scene(SceneOption {
         view: DVec3::new(-1.0, 1.6, 0.9),
         up: DVec3::Z,
         ..Default::default()
     });
-    scene.write_png([1280, 720], &mut fs::File::create("results/geometry.png").unwrap())?;
+    scene.write_png([1280, 720], &mut fs::File::create("out/geometry.png").unwrap())?;
 
     // ---- 節点 (y は両側マルチグレーディング: 下半分を graded、上半分は鏡映) ----
     let xs: Vec<f64> = (0..=NX).map(|i| X[0] + (X[1] - X[0]) * i as f64 / NX as f64).collect();

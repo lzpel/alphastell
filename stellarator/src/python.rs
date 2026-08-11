@@ -35,18 +35,27 @@ fn hello_constructor(name: String) -> Hello {
 }
 
 #[pyclass(unsendable)]
-struct Geometry {
-	pub geometry: cadrum::Solid
+#[repr(transparent)]
+struct Geometry(cadrum::Solid);
+
+#[pymethods]
+impl Geometry {
+	/// SurfaceRZFourier::load が file-like から read() するのと対称に、file-like へ write() する。
+	fn write_step(&self, file: &Bound<'_, PyAny>) -> PyResult<()> {
+		let data = crate::geometry::write_step(&self.0)?;
+		file.call_method1("write", (pyo3::types::PyBytes::new(file.py(), &data),))?;
+		Ok(())
+	}
 }
 
 #[pyfunction]
 fn loft_geometry(points: Vec<f64>) -> Result<Geometry, crate::geometry::Error> {
-	Ok(Geometry { geometry: crate::geometry::loft_geometry(points)? })
+	Ok(Geometry(crate::geometry::loft_geometry(points)?))
 }
 
 #[pyfunction]
 fn bspline_geometry(points: Vec<f64>) -> Result<Geometry, crate::geometry::Error> {
-	Ok(Geometry { geometry: crate::geometry::bspline_geometry(points)? })
+	Ok(Geometry(crate::geometry::bspline_geometry(points)?))
 }
 
 /// pyo3 も cadrum も他クレートなので impl From<cadrum::Error> for PyErr は孤児則で書けない。

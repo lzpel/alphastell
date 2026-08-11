@@ -38,3 +38,10 @@ pub fn bspline_geometry(points: Vec<f64>) -> std::result::Result<cadrum::Solid, 
 	let (u, v, point) = points_to_dvec3(points);
 	Ok(cadrum::Solid::bspline(u, v, true, |i,j| point[i*v+j])?)
 }
+/// STEP (AP214) をバイト列で返す。cadrum の writer は std::io::Write を取るので、
+/// 呼び出し側 (python 束縛) に渡すため一旦 Vec<u8> に溜める。
+pub fn write_step(solid: &cadrum::Solid) -> std::result::Result<Vec<u8>, Error> {
+	let mut buffer = Vec::new();
+	cadrum::Solid::write_step([solid], &mut buffer)?;
+	Ok(buffer)
+}

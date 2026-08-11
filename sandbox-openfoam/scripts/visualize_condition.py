@@ -6,7 +6,7 @@ hartmann/system/blockMeshDict の領域 (x∈[0,10], y∈[-1,1], z∈[0,0.1]) �
 
 実行 (uv 経由、ホスト python に numpy が無いため):
 
-    uv run --with numpy --with matplotlib scripts/visualize_condition.py --out results/boundary_conditions.png
+    uv run --with numpy --with matplotlib scripts/visualize_condition.py --out out/boundary_conditions.png
 """
 
 import argparse

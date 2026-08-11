@@ -6,7 +6,7 @@ model.py のジオメトリ (半径 R の CSG 球、等体積球シェル分割)
 
 実行 (uv 経由、ホスト python に numpy が無いため):
 
-    uv run --with numpy --with matplotlib scripts/visualize_condition.py --out results/condition.png --radius 20
+    uv run --with numpy --with matplotlib scripts/visualize_condition.py --out out/condition.png --radius 20
 """
 
 import argparse

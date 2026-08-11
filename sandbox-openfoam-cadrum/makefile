@@ -20,12 +20,12 @@ UV      ?= uv
 
 # 両ケースの計算 → 図・数値を report/ へ取り込み → PDF
 paper: compare verify-cone
-	cp results/hartmann_Ha$(HA).png report/fig01.png
-	cp results/geometry.png report/fig02.png
-	cp results/geometry_cone.png report/fig03.png
-	cp results/cone_profiles.png report/fig04.png
-	cp results/values_Ha$(HA).tex report/values.tex
-	cp results/values_cone.tex report/values_cone.tex
+	cp out/hartmann_Ha$(HA).png report/fig01.png
+	cp out/geometry.png report/fig02.png
+	cp out/geometry_cone.png report/fig03.png
+	cp out/cone_profiles.png report/fig04.png
+	cp out/values_Ha$(HA).tex report/values.tex
+	cp out/values_cone.tex report/values_cone.tex
 	sh report.tex
 
 # ---- ケース生成 (色付き B-rep → polyMesh + 0/) ----
@@ -60,18 +60,18 @@ compare: solve-hartmann
 	$(UV) run --with numpy --with matplotlib ../sandbox-openfoam/scripts/compare_hartmann.py \
 	  --ha $(HA) \
 	  --profile "$$(ls -d hartmann/postProcessing/sample/*/ | sort -V | tail -1)centreProfile_U.xy" \
-	  --plot results/hartmann_Ha$(HA).png --report results/report_Ha$(HA).txt \
-	  --tex results/values_Ha$(HA).tex
+	  --plot out/hartmann_Ha$(HA).png --report out/report_Ha$(HA).txt \
+	  --tex out/values_Ha$(HA).tex
 
 verify-cone: solve-cone
 	$(UV) run --with numpy --with matplotlib scripts/verify_cone.py \
 	  --case cone --ha $(HA_CONE) \
-	  --plot results/cone_profiles.png --report results/report_cone.txt \
-	  --tex results/values_cone.tex
+	  --plot out/cone_profiles.png --report out/report_cone.txt \
+	  --tex out/values_cone.tex
 
 clean:
 	cargo clean
-	rm -rf results \
+	rm -rf out \
 	  hartmann/log.* hartmann/postProcessing \
 	  hartmann/0 hartmann/constant/polyMesh hartmann/constant/electromagneticProperties \
 	  hartmann/[1-9]* hartmann/0.[0-9]* \

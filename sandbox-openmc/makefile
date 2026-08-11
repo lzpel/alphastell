@@ -35,12 +35,12 @@ OPENMC = OPENMC_CROSS_SECTIONS=$(CURDIR)/$(XS) $(UV) run
 # ---- 計算 → 図・数値を report/ へ取り込み → PDF (report/report.pdf) ----
 # report.tex は自己ビルド式 (/tex 規約): sh report.tex が texlive/texlive の
 # latexmk -lualatex を起動する。初回は docker pull texlive/texlive (約5GB)。
-paper: results/values.tex
+paper: out/values.tex
 	$(OPENMC) python scripts/visualize_condition.py \
-	  --out results/condition.png --radius $(R)
-	cp results/attenuation.png report/fig01.png
-	cp results/condition.png report/fig02.png
-	cp results/values.tex report/values.tex
+	  --out out/condition.png --radius $(R)
+	cp out/attenuation.png report/fig01.png
+	cp out/condition.png report/fig02.png
+	cp out/values.tex report/values.tex
 	sh report.tex
 
 # ---- 断面積ライブラリ (実ファイルターゲット、clean では消さない) ----
@@ -49,26 +49,26 @@ $(XS): scripts/build_xs.py
 data: $(XS)
 
 # ---- パラメータ変更で再実行させるためのスタンプ (値が変わったときだけ更新) ----
-results/params.stamp: FORCE
-	@mkdir -p results; \
+out/params.stamp: FORCE
+	@mkdir -p out; \
 	echo 'R=$(R) N=$(PARTICLES) B=$(BATCHES) S=$(SHELLS) E=$(ENRICH)' > $@.tmp; \
 	if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv $@.tmp $@; echo "params -> $$(cat $@)"; fi
 
-# ---- 解算 (tally.json + xs.json を results/ に出力) ----
-results/tally.json: model.py results/params.stamp $(XS)
+# ---- 解算 (tally.json + xs.json を out/ に出力) ----
+out/tally.json: model.py out/params.stamp $(XS)
 	$(OPENMC) python model.py --radius $(R) --particles $(PARTICLES) \
-	  --batches $(BATCHES) --shells $(SHELLS) $(ENRICH_ARG) --out results
+	  --batches $(BATCHES) --shells $(SHELLS) $(ENRICH_ARG) --out out
 
 # ---- 解析解比較 (閾値超過で非ゼロ終了 = 検証の失敗) ----
 # 4出力のうち values.tex を代表ターゲットにする (paper が依存する最終成果物)。
-results/values.tex: scripts/compare_attenuation.py results/tally.json
+out/values.tex: scripts/compare_attenuation.py out/tally.json
 	$(OPENMC) python scripts/compare_attenuation.py \
-	  --tally results/tally.json --xs results/xs.json \
-	  --plot results/attenuation.png --report results/report.txt \
-	  --tex results/values.tex
+	  --tally out/tally.json --xs out/xs.json \
+	  --plot out/attenuation.png --report out/report.txt \
+	  --tex out/values.tex
 
 clean:
-	rm -rf results \
+	rm -rf out \
 	  report/fig01.png report/fig02.png report/values.tex \
 	  report/*.pdf report/*.aux report/*.log \
 	  report/*.bbl report/*.blg report/*.out report/*.fls report/*.fdb_latexmk
