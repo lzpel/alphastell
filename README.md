@@ -1,24 +1,30 @@
-# mhd-tbr-stell
+# alphastell
 
-**ステラレータ液体金属ブランケットの成立性を、VMEC 平衡(`wout.nc`)から分単位で判定するオープンソースパイプライン。**
+ステラレータ液体金属ブランケットの成立性を、VMEC 平衡(`wout.nc`)から分単位で判定するオープンソースパイプライン。
 
 プラズマ境界を入力すると、磁気面に追従する液体金属流路を生成し、次の3つのプラント判定スカラーと設計図面を返す:
 
-1. **TBR(トリチウム増殖比)** — ≥ 1.1〜1.15 で燃料サイクルが閉じるか
-2. **MHD 総圧損 → ポンプ動力の対核融合出力比** — 液体金属ブランケットの生死を決める数字
-3. **最高壁温度 / 構造材界面温度** — 材料寿命と腐食限界
+1. TBR(トリチウム増殖比)<br>≥ 1.1〜1.15 で燃料サイクルが閉じるか
+2. MHD 総圧損 → ポンプ動力の対核融合出力比<br>液体金属ブランケットの生死を決める数字
+3. 最高壁温度 / 構造材界面温度<br>材料寿命と腐食限界
+
+![img](figure/image.png)
 
 きれいな 3D 可視化は副産物であって製品ではない。製品は「この磁場配位・この流路トポロジーで、ブランケットとして成立するか」への Yes/No と、TBR–圧損の Pareto フロントである。
 
-> **Status: pre-alpha.** コードはまだない。設計文書([notes/](notes/))とプレプリント草稿([paper.tex](paper.tex)、現状モック結果)が先行している。
+> Status: pre-alpha. コードはまだない。設計文書([notes/](notes/))とプレプリント草稿([paper.tex](paper.tex)、現状モック結果)が先行している。
 
-Python からの入口 (issue #5 の連携経路): `make al-00` (= `examples/al_00_hello.py`) が rust 製
-[stellarator](stellarator/) カーネルを pyo3/maturin 経由で呼ぶ最小例。`make al-NN` で
-`examples/al_NN_*.py` を rust の再ビルド込みで走らせる。
+## 使い方
+
+Requirement: cargoが入っていること
+
+```
+make al-04 # make geometry
+```
 
 ## なぜ作るか
 
-トカマク向けブランケット設計手法は EU で確立済みだが、**ステラレータの 3D にねじれた磁気面へ液体金属流路を配置する問題は未解決**であり、各社・各機関の内部資料に留まっている。ジオメトリ側は [ParaStell][parastell] が均一厚シェル+中性子計算の基盤を提供しているが、その内側を流れる**液体金属の MHD 圧損と TBR を連成して評価する公開ツールは存在しない**。本プロジェクトは既存 OSS(OpenMC, epotFoam)を配管し、未実施の計算を最初に実行する。
+トカマク向けブランケット設計手法は EU で確立済みだが、ステラレータの 3D にねじれた磁気面へ液体金属流路を配置する問題は未解決であり、各社・各機関の内部資料に留まっている。ジオメトリ側は [ParaStell][parastell] が均一厚シェル+中性子計算の基盤を提供しているが、その内側を流れる液体金属の MHD 圧損と TBR を連成して評価する公開ツールは存在しない。本プロジェクトは既存 OSS(OpenMC, epotFoam)を配管し、未実施の計算を最初に実行する。
 
 ## パイプライン
 
@@ -70,6 +76,11 @@ wout.nc (VMEC 平衡)
 - [notes/20260714-3カ月で作り上げる計画.md](notes/20260714-3カ月で作り上げる計画.md) — 週次マイルストーン
 - [notes/20260714-CTO論評.md](notes/20260714-CTO論評.md) — 製品定義に至った戦略論評の記録
 - [paper.tex](paper.tex) — arXiv 用プレプリント草稿(`sh paper.tex` で Docker/texlive がビルド。**現状の数値・図はすべてモック**)
+
+## 参考資料
+
+- Smolentsev, S., Morley, N. B., Abdou, M. A., & Malang, S. (2015).Dual-coolant lead–lithium (DCLL) blanket status and R&D needs. Fusion Engineering and Design, 100, 44–54. https://doi.org/10.1016/j.fusengdes.2014.12.031
+	- カジュアルな解説
 
 ## License
 
