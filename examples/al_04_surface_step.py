@@ -15,7 +15,7 @@ import pathlib
 
 import numpy as np
 
-from stellarator import SurfaceRZFourier, bspline_geometry
+from stellarator import SurfaceRZFourier, Geometry
 
 WOUT = pathlib.Path(__file__).resolve().parent.parent / "stellarator" / "wout_vmec.nc"
 OUT_STEP = pathlib.Path("out/al_04_surface.step")
@@ -37,7 +37,7 @@ for i in range(DIV_PHI):
 		# 法線は使わないので捨てる。use_surface は点の値に影響しない
 		points[i, j], _ = surface.point_normal(phi, theta, S, True)
 
-solid = bspline_geometry(points)
+solid = Geometry.bspline_geometry(points)
 
 OUT_STEP.parent.mkdir(parents=True, exist_ok=True)
 with open(OUT_STEP, "wb") as f:
