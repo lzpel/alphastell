@@ -40,22 +40,20 @@ struct Geometry(cadrum::Solid);
 
 #[pymethods]
 impl Geometry {
+	#[staticmethod]
+	fn loft_geometry(points: Vec<f64>) -> Result<Geometry, crate::geometry::Error> {
+		Ok(Geometry(crate::geometry::loft_geometry(points)?))
+	}
+	#[staticmethod]
+	fn bspline_geometry(points: Vec<f64>) -> Result<Geometry, crate::geometry::Error> {
+		Ok(Geometry(crate::geometry::bspline_geometry(points)?))
+	}
 	/// SurfaceRZFourier::load が file-like から read() するのと対称に、file-like へ write() する。
 	fn write_step(&self, file: &Bound<'_, PyAny>) -> PyResult<()> {
 		let data = crate::geometry::write_step(&self.0)?;
 		file.call_method1("write", (pyo3::types::PyBytes::new(file.py(), &data),))?;
 		Ok(())
 	}
-}
-
-#[pyfunction]
-fn loft_geometry(points: Vec<f64>) -> Result<Geometry, crate::geometry::Error> {
-	Ok(Geometry(crate::geometry::loft_geometry(points)?))
-}
-
-#[pyfunction]
-fn bspline_geometry(points: Vec<f64>) -> Result<Geometry, crate::geometry::Error> {
-	Ok(Geometry(crate::geometry::bspline_geometry(points)?))
 }
 
 /// pyo3 も cadrum も他クレートなので impl From<cadrum::Error> for PyErr は孤児則で書けない。
@@ -97,8 +95,6 @@ fn stellarator(m: &Bound<'_, PyModule>) -> PyResult<()> {
 	m.add_function(wrap_pyfunction!(hello_numpy, m)?)?;
 	m.add_function(wrap_pyfunction!(hello_constructor, m)?)?;
 	m.add_class::<Hello>()?;
-	m.add_function(wrap_pyfunction!(loft_geometry, m)?)?;
-	m.add_function(wrap_pyfunction!(bspline_geometry, m)?)?;
 	m.add_class::<Geometry>()?;
 	m.add_class::<SurfaceRZFourier>()?;
 	Ok(())
