@@ -337,8 +337,7 @@ dependencies = [
     { name = "cad-to-dagmc" },
     { name = "matplotlib" },
     { name = "openmc-anywhere" },
-    { name = "simsopt", version = "1.10.6", source = { git = "https://github.com/hiddenSymmetries/simsopt.git?tag=v1.10.6#a504ad23fa96e24b2102ba85f9902343187f71a5" }, marker = "python_full_version >= '3.15' or sys_platform != 'win32'" },
-    { name = "simsopt", version = "1.10.6", source = { url = "https://github.com/lzpel/alphastell/releases/download/simsopt-1.10.6/simsopt-1.10.6-cp314-cp314-win_amd64.whl" }, marker = "python_full_version < '3.15' and sys_platform == 'win32'" },
+    { name = "simsopt" },
     { name = "typst" },
 ]
 
@@ -348,8 +347,7 @@ requires-dist = [
     { name = "cad-to-dagmc" },
     { name = "matplotlib" },
     { name = "openmc-anywhere", specifier = ">=0.15.3.0" },
-    { name = "simsopt", marker = "python_full_version >= '3.15' or sys_platform != 'win32'", git = "https://github.com/hiddenSymmetries/simsopt.git?tag=v1.10.6" },
-    { name = "simsopt", marker = "python_full_version < '3.15' and sys_platform == 'win32'", url = "https://github.com/lzpel/alphastell/releases/download/simsopt-1.10.6/simsopt-1.10.6-cp314-cp314-win_amd64.whl" },
+    { name = "simsopt", specifier = ">=0.1.dev0", index = "https://lzpel.github.io/simsopt/simple/" },
     { name = "typst" },
 ]
 
@@ -1297,34 +1295,8 @@ wheels = [
 
 [[package]]
 name = "simsopt"
-version = "1.10.6"
-source = { git = "https://github.com/hiddenSymmetries/simsopt.git?tag=v1.10.6#a504ad23fa96e24b2102ba85f9902343187f71a5" }
-resolution-markers = [
-    "python_full_version >= '3.15' and sys_platform == 'win32'",
-    "sys_platform == 'emscripten'",
-    "sys_platform != 'emscripten' and sys_platform != 'win32'",
-]
-dependencies = [
-    { name = "deprecated" },
-    { name = "f90nml" },
-    { name = "jax" },
-    { name = "jaxlib" },
-    { name = "matplotlib" },
-    { name = "monty" },
-    { name = "numpy" },
-    { name = "pyevtk" },
-    { name = "ruamel-yaml" },
-    { name = "scipy" },
-    { name = "sympy" },
-]
-
-[[package]]
-name = "simsopt"
-version = "1.10.6"
-source = { url = "https://github.com/lzpel/alphastell/releases/download/simsopt-1.10.6/simsopt-1.10.6-cp314-cp314-win_amd64.whl" }
-resolution-markers = [
-    "python_full_version < '3.15' and sys_platform == 'win32'",
-]
+version = "0.1.dev1+g72907df76"
+source = { registry = "https://lzpel.github.io/simsopt/simple/" }
 dependencies = [
     { name = "deprecated" },
     { name = "f90nml" },
@@ -1339,40 +1311,31 @@ dependencies = [
     { name = "sympy" },
 ]
 wheels = [
-    { url = "https://github.com/lzpel/alphastell/releases/download/simsopt-1.10.6/simsopt-1.10.6-cp314-cp314-win_amd64.whl", hash = "sha256:c759253bb91e35efec1b7090affacde0e0adec6d476c927948057f2695638756" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:ab5fbbb2acbef55d0de78f4a2418b3cd0a6abc0b361995914f4884fec25caf01" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:035ef3d0ef07affba3a093dc4e90c24ca69f2c06b4341e5e34453f19e818caa6" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:371f9a2a543d42114d1b5e8d5b4c6090b48bb05f0d75e11bebcf20ff023a36e7" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:ef24f9062179fe2d741cc7813b1aceadffe7ab0d09a149d4372e59f344d53fb6" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314-win32.whl", hash = "sha256:000e1922cb548e26266f199fc34b59d318390af738ca05fe90a3787148c273db" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314-win_amd64.whl", hash = "sha256:1dd5a570b65b42a920666bcff2f3c7e3b60cb93f6e02833fa1c5f303e869db4f" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:c3e42566650755da97aeb737bf2411aa029988d323f10a4c0d8cf463df1b756e" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:315eda9f5ef5432208470cf404dce09ab22fb5b85c55d51b7572fc03809391f4" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314t-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:c5f78097e4cfc73afb61393b4011f6683bbf92fde9745c4834bdcfd626f4336e" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:e6cb710559fae631cd65e3459bda8361b649233d66efed81451e86aaeb527578" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314t-win32.whl", hash = "sha256:e58354469e504f4534dddbd4a44d6b544ed8c7d17c58dd112c1c14fbeebf8e30" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314t-win_amd64.whl", hash = "sha256:9a4498da25339377cf7043f717630d8cf668da1b0fc2739479abe2e6adf266b1" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315-macosx_10_15_x86_64.whl", hash = "sha256:d1700742028a8ed44b2ebc8f66840ccaef8784185bd27b497cf7b93437fa53c7" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315-macosx_11_0_arm64.whl", hash = "sha256:c30dd3208870d410079c04615ebb9199f763585773ab146dbfe999aaca7ac9da" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:1898574ec05d8260d33e6b858de0ff30f4b71caf3bfd8589e14ea0dc7399b813" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:1a4467ea38fed8f6fc5481de1f54c9cc44af4daec4d9e70f544a61f602b798a8" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315-win32.whl", hash = "sha256:ad31b4e0197cd8343ef8869f33a534e67dc47e6aee1e304d0b7433c466f0581e" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315-win_amd64.whl", hash = "sha256:61f1882249342652d520bafd7d36efcaf8e2428133695605376d37a024095a2c" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315t-macosx_10_15_x86_64.whl", hash = "sha256:25fbdc50eb866029914c8ad4dc21a867085072f082482dc8ad272f6719112e2d" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315t-macosx_11_0_arm64.whl", hash = "sha256:76f6213d62c8b7eaa0c01b5cd3190d13680fbbf278e933d377e5bf9c93097e4f" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315t-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:3a53ec3056b9f2d31c91b444a6830e5a020c25f480c9296d584e2a19a9e69e06" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:19ceaae9579aee6478c4adc4a454aea7e5e4fd324f424a470a6789aadd0fdb96" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315t-win32.whl", hash = "sha256:f5db2ad139c71456760f7ecd971c057b2c7365790e44eb540010a34a52ee43a7" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315t-win_amd64.whl", hash = "sha256:937b609d052df1de50728cd01b149881d886e262bc047014f6d7a0287be6b4b9" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "bentley-ottmann", marker = "extra == 'algs'", specifier = "==8" },
-    { name = "breathe", marker = "extra == 'docs'" },
-    { name = "deprecated", specifier = ">=1.2.10" },
-    { name = "f90nml" },
-    { name = "ground", marker = "extra == 'algs'", specifier = "==9" },
-    { name = "h5py", marker = "extra == 'spec'", specifier = ">=3.1.0" },
-    { name = "jax", specifier = ">=0.2.5" },
-    { name = "jaxlib", specifier = ">=0.1.56" },
-    { name = "matplotlib" },
-    { name = "monty", specifier = ">=2021.6.10" },
-    { name = "mpi4py", marker = "extra == 'mpi'", specifier = ">=3.0.3" },
-    { name = "networkx", marker = "extra == 'vis'" },
-    { name = "numpy", specifier = ">=1.21" },
-    { name = "plotly", marker = "extra == 'vis'" },
-    { name = "py-spec", marker = "extra == 'spec'", specifier = ">=3.0.1" },
-    { name = "pyevtk" },
-    { name = "pyoculus", marker = "extra == 'spec'", specifier = ">=0.1.1" },
-    { name = "pyqt5", marker = "extra == 'vis'" },
-    { name = "qsc", marker = "extra == 'algs'" },
-    { name = "ruamel-yaml" },
-    { name = "scipy", specifier = ">=1.5.4" },
-    { name = "sphinx", marker = "extra == 'docs'" },
-    { name = "sphinx-autodoc-napoleon-typehints", marker = "extra == 'docs'" },
-    { name = "sphinx-rtd-theme", marker = "extra == 'docs'" },
-    { name = "sphinxcontrib-napoleon", marker = "extra == 'docs'" },
-    { name = "sympy" },
-    { name = "vtk", marker = "extra == 'vis'", specifier = ">=8.1.2" },
-]
-provides-extras = ["spec", "mpi", "vis", "docs", "algs"]
 
 [[package]]
 name = "six"
