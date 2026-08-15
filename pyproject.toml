@@ -2,7 +2,10 @@
 name = "examples"
 version = "0.0.0"
 requires-python = ">=3.14"
-dependencies = ["alphastell", "openmc-anywhere>=0.15.3.0", "cad-to-dagmc", "matplotlib", "typst"]
+dependencies = ["alphastell", "openmc-anywhere>=0.15.3.0", "cad-to-dagmc", "matplotlib", "typst", "simsopt"]
 
 [tool.uv.sources]
 alphastell = { path = "./alphastell" }
+# PyPI の sdist は thirdparty/ (fmt, xtensor, pybind11) の submodule を含まず wheel の無い
+# 環境ではビルドできない。git から取れば submodule ごと来る。
+simsopt = { git = "https://github.com/hiddenSymmetries/simsopt.git", tag = "v1.10.6" }
