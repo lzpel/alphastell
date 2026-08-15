@@ -23,9 +23,9 @@ import openmc
 import typst
 from cad_to_dagmc import CadToDagmc
 
-from stellarator import SurfaceRZFourier, Geometry
+from alphastell import SurfaceRZFourier, Geometry
 
-WOUT = pathlib.Path(__file__).resolve().parent.parent / "stellarator" / "wout_vmec.nc"
+WOUT = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc"
 OUT = pathlib.Path("out")
 WORK = OUT / "al_06_openmc"
 

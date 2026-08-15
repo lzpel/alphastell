@@ -1,5 +1,5 @@
 
-from stellarator import loft_geometry, bspline_geometry
+from alphastell import loft_geometry, bspline_geometry
 import numpy as np
 
 # 退化しない最小構成: 断面2つ x 断面あたり3点 (非共線)。三角柱。
