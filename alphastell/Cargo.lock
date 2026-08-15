@@ -21,6 +21,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
+name = "alphastell"
+version = "0.1.0"
+dependencies = [
+ "cadrum",
+ "netcdf3",
+ "pyo3",
+]
+
+[[package]]
 name = "anstyle"
 version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -643,15 +652,6 @@ name = "simd-adler32"
 version = "0.3.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a219298ac11a56ea9a6d2120044824d6f01aeb034955e7af7bc16858527deea"
-
-[[package]]
-name = "stellarator"
-version = "0.1.0"
-dependencies = [
- "cadrum",
- "netcdf3",
- "pyo3",
-]
 
 [[package]]
 name = "strict-num"

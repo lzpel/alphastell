@@ -2,7 +2,7 @@
 # OpenMC は cross_sections.xml のパスを見る (ディレクトリではない)
 export OPENMC_CROSS_SECTIONS=out/cross_sections/cross_sections.xml
 al-%: $(OPENMC_CROSS_SECTIONS)
-	uv sync --reinstall-package stellarator
+	uv sync --reinstall-package alphastell
 	uv run $(shell find examples -name "al_$*_*.py")
 paper:
 	bash ./paper.tex
