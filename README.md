@@ -20,7 +20,16 @@ Requirement: cargoが入っていること
 
 ```
 make al-04 # make geometry
+make al-07 # コイル形状 (simsopt)
 ```
+
+### simsopt (al_07 以降)
+
+simsopt は PyPI から入らない。Windows wheel が無く、cp314 の wheel は Linux/macOS にも無く、sdist は `thirdparty/` の git submodule を含まないためソースからもビルドできないからである。
+
+代わりに [lzpel/simsopt](https://github.com/lzpel/simsopt) が cibuildwheel で Windows と CPython 3.14/3.15 の wheel を焼き、GitHub Pages を PEP 503 index として公開しているので、`pyproject.toml` の `[[tool.uv.index]]` でそこを見ている。`explicit = true` を付けてあるので simsopt 以外はこの index を見に行かない。ビルドツールチェーンは不要で `uv sync` だけで入る。
+
+Windows wheel は MSVC ビルドで、`msvcp140.dll` / `vcomp140.dll` を同梱済みである。
 
 ## なぜ作るか
 

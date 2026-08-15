@@ -10,4 +10,5 @@
 
 ## al_(\d\d).py
 
-- all output from script al_-_(\d\d).py must be in out/al_$1_<somename>.<extension>
+- all output from script al_(\d\d).py must be in out/al_$1_<name>.<extension>
+- all pdf report like al_$1_<name>.pdf must be uploaded into github release.
