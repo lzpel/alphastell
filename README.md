@@ -20,7 +20,19 @@ Requirement: cargoが入っていること
 
 ```
 make al-04 # make geometry
+make al-07 # コイル形状 (simsopt)
 ```
+
+### simsopt (al_07 以降)
+
+simsopt は Windows の wheel が無く、PyPI の sdist は `thirdparty/` の submodule を含まないためビルドできない。`pyproject.toml` の `[tool.uv.sources]` で git を指しているのはそのためで、ビルドには C++ コンパイラ・CMake・Boost 1.76 以上のヘッダが要る。MinGW を使う場合:
+
+```
+CC=gcc CXX=g++ CMAKE_GENERATOR="MinGW Makefiles" \
+  CMAKE_ARGS="-DBOOST_ROOT=<boost のヘッダ> -DBoost_NO_BOOST_CMAKE=ON" uv sync
+```
+
+ビルド後、`libgcc_s_seh-1.dll` `libgomp-1.dll` `libstdc++-6.dll` `libwinpthread-1.dll` を `.venv/Lib/site-packages/` に置く。Python 3.8 以降は拡張モジュールと同じディレクトリしか依存 DLL を探さないため、PATH に mingw があっても足りない。
 
 ## なぜ作るか
 
