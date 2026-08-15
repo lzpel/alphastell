@@ -3,16 +3,16 @@ use pyo3::prelude::*;
 
 #[pyclass]
 #[repr(transparent)]
-pub struct SurfaceRZFourier(vmec::SurfaceRZFourier);
+pub struct SurfaceFourierRZ(vmec::SurfaceFourierRZ);
 
 #[pymethods]
-impl SurfaceRZFourier {
+impl SurfaceFourierRZ {
 	#[staticmethod]
 	fn load(file: &Bound<'_, PyAny>) -> PyResult<Self> {
 		// PyBackedBytes は python の bytes を掴んだまま &[u8] を貸す型 (Vec への再コピーが無い)。
 		// Cursor<T> は T: AsRef<[u8]> で Read + Seek を満たし、所有型なので 'static も通る。
 		let data: pyo3::pybacked::PyBackedBytes = file.call_method0("read")?.extract()?;
-		vmec::SurfaceRZFourier::load(std::io::Cursor::new(data))
+		vmec::SurfaceFourierRZ::load(std::io::Cursor::new(data))
 			.map(Self)
 			.map_err(pyo3::exceptions::PyValueError::new_err)
 	}
@@ -25,6 +25,6 @@ impl SurfaceRZFourier {
 }
 
 pub fn module(m: &Bound<'_, PyModule>) -> PyResult<()> {
-	m.add_class::<SurfaceRZFourier>()?;
+	m.add_class::<SurfaceFourierRZ>()?;
 	Ok(())
 }

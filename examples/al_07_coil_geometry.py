@@ -35,7 +35,7 @@ from simsopt.geo import (
 )
 from simsopt.objectives import QuadraticPenalty, SquaredFlux
 
-from alphastell import SurfaceRZFourier as AlphaSurface
+from alphastell import SurfaceFourierRZ
 
 WOUT = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc"
 OUT = pathlib.Path("out")
@@ -83,7 +83,7 @@ def make_surface(quadpoints_phi, quadpoints_theta):
 # 同じ wout を alphastell (Rust) と simsopt に読ませて LCFS 上の点が一致するか見る。
 # xn の符号や θ の向きを取り違えると鏡像になるだけで、図を見ても気付けない。
 with open(WOUT, "rb") as f:
-	alpha = AlphaSurface.load(f)
+	alpha = SurfaceFourierRZ.load(f)
 for phi, theta in [(0.7, 1.3), (2.1, 4.0), (5.0, 0.2)]:
 	point = make_surface([phi / math.tau], [theta / math.tau]).gamma()[0, 0]
 	assert np.allclose(point, alpha.point_normal(phi, theta, 1.0, True)[0]), "surface convention mismatch"
