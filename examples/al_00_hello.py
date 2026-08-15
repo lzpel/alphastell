@@ -2,7 +2,7 @@
 """stellarator (rust, pyo3) の hello() を python から呼ぶ最小例 (issue #5)。
 """
 
-from stellarator import hello, hello_constructor, hello_numpy
+from alphastell import hello, hello_constructor, hello_numpy
 import numpy as np
 
 hello()

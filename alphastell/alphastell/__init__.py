@@ -1,4 +1,4 @@
-from .stellarator import *
+from .alphastell import *
 import numpy as np
 from .decorator import wrap_call
 
