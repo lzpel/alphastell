@@ -13,7 +13,6 @@ s>1 の Fourier 外挿は s=1.08 でも 2〜17 cm しか稼げず、s を上げ�
 import math
 import pathlib
 
-import cadquery as cq
 import matplotlib
 
 matplotlib.use("Agg")
@@ -28,6 +27,7 @@ from alphastell import SurfaceRZFourier, Geometry
 WOUT = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc"
 OUT = pathlib.Path("out")
 WORK = OUT / "al_06_openmc"
+STEP = OUT / "al_06_shell.step"
 
 DIV_PHI, DIV_THETA = 96, 40  # 制御点。中性子の平均自由行程は PbLi で約 7 cm なのでこれで足りる
 THICKNESS = [0.3, 0.5, 0.7]  # m
@@ -47,21 +47,23 @@ def offset_grid(thickness):
 	return inner, outer
 
 
-def shell_solid(inner, outer):
-	steps = []
-	for name, points in (("inner", inner), ("outer", outer)):
-		path = OUT / f"al_06_{name}.step"
-		with open(path, "wb") as f:
-			Geometry.bspline_geometry(points).write_step(f)
-		steps.append(cq.importers.importStep(str(path)))
-	return steps[1].cut(steps[0])
+def shell_step(inner, outer):
+	"""内外 2 個のソリッドの差を cadrum の boolean_subtract で取り、STEP と四面図を書く。"""
+	shell = Geometry.bspline_geometry(outer).boolean_subtract(Geometry.bspline_geometry(inner))
+	with open(STEP, "wb") as f:
+		shell.write_step(f)
+	with open(OUT / "al_06_shell.png", "wb") as f:
+		shell.write_png(f)
+	return shell
 
 
-def tbr(shell):
+def tbr():
 	"""CAD → DAGMC → OpenMC。material_tags の文字列と Material.name の一致だけが両者の結線。"""
+	# bounded_universe は id を 10000 番台に固定で振るので、厚みごとに呼ぶと衝突して IDWarning が出る
+	openmc.reset_auto_ids()
 	h5m = str(OUT / "al_06.h5m")
 	cad = CadToDagmc()
-	cad.add_cadquery_object(shell, material_tags=["pbli"])
+	cad.add_stp_file(str(STEP), material_tags=["pbli"])
 	cad.export_dagmc_h5m_file(filename=h5m, scale_factor=100)  # VMEC は m、OpenMC は cm
 
 	pbli = openmc.Material(name="pbli")
@@ -100,7 +102,8 @@ OUT.mkdir(parents=True, exist_ok=True)
 results = []
 for thickness in THICKNESS:
 	inner, outer = offset_grid(thickness)
-	value, error = tbr(shell_solid(inner, outer))
+	shell = shell_step(inner, outer)
+	value, error = tbr()
 	results.append((thickness, value, error))
 	print(f"{thickness * 100:.0f} cm: TBR = {value:.3f} +/- {error:.3f}")
 
@@ -143,10 +146,9 @@ OpenMC で TBR を計算した。構造材・冷却材・遮蔽を含まない�
 稼げず、s を上げると外挿が発散して同じ s でも場所により 5 cm と 138 cm が混在するためである。
 法線オフセットはこの配位では 70 cm まで断面の自己交差を起こさない。
 
-CAD は Rust/cadrum が B スプライン曲面から内外 2 個のソリッドを作り、CadQuery で差を取って
-殻にした。`cad_to_dagmc` が DAGMC 形式に変換し、`material_tags` の文字列 `pbli` が
-`openmc.Material` の名前と一致することで材料が結線される。VMEC は m、OpenMC は cm なので
-書き出し時に 100 倍している。
+#figure(image("al_06_shell.png", width: 78%), caption: [PbLi 殻 ({DIV_PHI}×{DIV_THETA} 制御点、
+厚み {THICKNESS[-1] * 100:.0f} cm) の四面図。cadrum が STEP と同じソリッドから直接描いたもので、
+nfp=4 のねじれと断面の三角形状が確認できる。])
 
 線源はプラズマ内部に散らした {SOURCES} 個の 14.07 MeV 点線源、{PARTICLES} 粒子 × {BATCHES} バッチ。
 増殖材は Li#sub[17]Pb#sub[83] (⁶Li 90% 濃縮、9.4 g/cm³)。
