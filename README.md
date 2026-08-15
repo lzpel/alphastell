@@ -25,12 +25,11 @@ make al-07 # コイル形状 (simsopt)
 
 ### simsopt (al_07 以降)
 
-simsopt は PyPI から入らない。Windows wheel が無く、cp314 の wheel は Linux/macOS にも無く、sdist は `thirdparty/` の git submodule を含まないためソースからもビルドできないからである。`pyproject.toml` の `[tool.uv.sources]` で入手先を分けている:
+simsopt は PyPI から入らない。Windows wheel が無く、cp314 の wheel は Linux/macOS にも無く、sdist は `thirdparty/` の git submodule を含まないためソースからもビルドできないからである。
 
-- **Windows (cp314)** — [自前ビルドの wheel](https://github.com/lzpel/alphastell/releases/tag/simsopt-1.10.6)。DLL 同梱済みなのでビルドツールは要らず、`uv sync` だけで入る
-- **それ以外** — upstream の git。submodule ごと来るのでビルドできる。C++ コンパイラ・CMake・Boost 1.76 以上のヘッダが要る
+代わりに [lzpel/simsopt](https://github.com/lzpel/simsopt) が cibuildwheel で Windows と CPython 3.14/3.15 の wheel を焼き、GitHub Pages を PEP 503 index として公開しているので、`pyproject.toml` の `[[tool.uv.index]]` でそこを見ている。`explicit = true` を付けてあるので simsopt 以外はこの index を見に行かない。ビルドツールチェーンは不要で `uv sync` だけで入る。
 
-wheel は upstream の `v1.10.6` を MinGW-w64 GCC 14.2 で `-O3 -march=westmere` (upstream が配布 wheel に使う移植性ベースライン) で焼き、`delvewheel repair` でランタイム DLL を同梱したもの。恒久的には upstream の `wheel.yml` の cibuildwheel matrix に `windows-latest` を足すのが筋である。
+Windows wheel は MSVC ビルドで、`msvcp140.dll` / `vcomp140.dll` を同梱済みである。
 
 ## なぜ作るか
 
