@@ -25,14 +25,12 @@ make al-07 # コイル形状 (simsopt)
 
 ### simsopt (al_07 以降)
 
-simsopt は Windows の wheel が無く、PyPI の sdist は `thirdparty/` の submodule を含まないためビルドできない。`pyproject.toml` の `[tool.uv.sources]` で git を指しているのはそのためで、ビルドには C++ コンパイラ・CMake・Boost 1.76 以上のヘッダが要る。MinGW を使う場合:
+simsopt は PyPI から入らない。Windows wheel が無く、cp314 の wheel は Linux/macOS にも無く、sdist は `thirdparty/` の git submodule を含まないためソースからもビルドできないからである。`pyproject.toml` の `[tool.uv.sources]` で入手先を分けている:
 
-```
-CC=gcc CXX=g++ CMAKE_GENERATOR="MinGW Makefiles" \
-  CMAKE_ARGS="-DBOOST_ROOT=<boost のヘッダ> -DBoost_NO_BOOST_CMAKE=ON" uv sync
-```
+- **Windows (cp314)** — [自前ビルドの wheel](https://github.com/lzpel/alphastell/releases/tag/simsopt-1.10.6)。DLL 同梱済みなのでビルドツールは要らず、`uv sync` だけで入る
+- **それ以外** — upstream の git。submodule ごと来るのでビルドできる。C++ コンパイラ・CMake・Boost 1.76 以上のヘッダが要る
 
-ビルド後、`libgcc_s_seh-1.dll` `libgomp-1.dll` `libstdc++-6.dll` `libwinpthread-1.dll` を `.venv/Lib/site-packages/` に置く。Python 3.8 以降は拡張モジュールと同じディレクトリしか依存 DLL を探さないため、PATH に mingw があっても足りない。
+wheel は upstream の `v1.10.6` を MinGW-w64 GCC 14.2 で `-O3 -march=westmere` (upstream が配布 wheel に使う移植性ベースライン) で焼き、`delvewheel repair` でランタイム DLL を同梱したもの。恒久的には upstream の `wheel.yml` の cibuildwheel matrix に `windows-latest` を足すのが筋である。
 
 ## なぜ作るか
 

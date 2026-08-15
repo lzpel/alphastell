@@ -2,7 +2,8 @@ version = 1
 revision = 3
 requires-python = ">=3.14"
 resolution-markers = [
-    "sys_platform == 'win32'",
+    "python_full_version >= '3.15' and sys_platform == 'win32'",
+    "python_full_version < '3.15' and sys_platform == 'win32'",
     "sys_platform == 'emscripten'",
     "sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
@@ -336,7 +337,8 @@ dependencies = [
     { name = "cad-to-dagmc" },
     { name = "matplotlib" },
     { name = "openmc-anywhere" },
-    { name = "simsopt" },
+    { name = "simsopt", version = "1.10.6", source = { git = "https://github.com/hiddenSymmetries/simsopt.git?tag=v1.10.6#a504ad23fa96e24b2102ba85f9902343187f71a5" }, marker = "python_full_version >= '3.15' or sys_platform != 'win32'" },
+    { name = "simsopt", version = "1.10.6", source = { url = "https://github.com/lzpel/alphastell/releases/download/simsopt-1.10.6/simsopt-1.10.6-cp314-cp314-win_amd64.whl" }, marker = "python_full_version < '3.15' and sys_platform == 'win32'" },
     { name = "typst" },
 ]
 
@@ -346,7 +348,8 @@ requires-dist = [
     { name = "cad-to-dagmc" },
     { name = "matplotlib" },
     { name = "openmc-anywhere", specifier = ">=0.15.3.0" },
-    { name = "simsopt", git = "https://github.com/hiddenSymmetries/simsopt.git?tag=v1.10.6" },
+    { name = "simsopt", marker = "python_full_version >= '3.15' or sys_platform != 'win32'", git = "https://github.com/hiddenSymmetries/simsopt.git?tag=v1.10.6" },
+    { name = "simsopt", marker = "python_full_version < '3.15' and sys_platform == 'win32'", url = "https://github.com/lzpel/alphastell/releases/download/simsopt-1.10.6/simsopt-1.10.6-cp314-cp314-win_amd64.whl" },
     { name = "typst" },
 ]
 
@@ -1296,6 +1299,11 @@ wheels = [
 name = "simsopt"
 version = "1.10.6"
 source = { git = "https://github.com/hiddenSymmetries/simsopt.git?tag=v1.10.6#a504ad23fa96e24b2102ba85f9902343187f71a5" }
+resolution-markers = [
+    "python_full_version >= '3.15' and sys_platform == 'win32'",
+    "sys_platform == 'emscripten'",
+    "sys_platform != 'emscripten' and sys_platform != 'win32'",
+]
 dependencies = [
     { name = "deprecated" },
     { name = "f90nml" },
@@ -1309,6 +1317,62 @@ dependencies = [
     { name = "scipy" },
     { name = "sympy" },
 ]
+
+[[package]]
+name = "simsopt"
+version = "1.10.6"
+source = { url = "https://github.com/lzpel/alphastell/releases/download/simsopt-1.10.6/simsopt-1.10.6-cp314-cp314-win_amd64.whl" }
+resolution-markers = [
+    "python_full_version < '3.15' and sys_platform == 'win32'",
+]
+dependencies = [
+    { name = "deprecated" },
+    { name = "f90nml" },
+    { name = "jax" },
+    { name = "jaxlib" },
+    { name = "matplotlib" },
+    { name = "monty" },
+    { name = "numpy" },
+    { name = "pyevtk" },
+    { name = "ruamel-yaml" },
+    { name = "scipy" },
+    { name = "sympy" },
+]
+wheels = [
+    { url = "https://github.com/lzpel/alphastell/releases/download/simsopt-1.10.6/simsopt-1.10.6-cp314-cp314-win_amd64.whl", hash = "sha256:c759253bb91e35efec1b7090affacde0e0adec6d476c927948057f2695638756" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "bentley-ottmann", marker = "extra == 'algs'", specifier = "==8" },
+    { name = "breathe", marker = "extra == 'docs'" },
+    { name = "deprecated", specifier = ">=1.2.10" },
+    { name = "f90nml" },
+    { name = "ground", marker = "extra == 'algs'", specifier = "==9" },
+    { name = "h5py", marker = "extra == 'spec'", specifier = ">=3.1.0" },
+    { name = "jax", specifier = ">=0.2.5" },
+    { name = "jaxlib", specifier = ">=0.1.56" },
+    { name = "matplotlib" },
+    { name = "monty", specifier = ">=2021.6.10" },
+    { name = "mpi4py", marker = "extra == 'mpi'", specifier = ">=3.0.3" },
+    { name = "networkx", marker = "extra == 'vis'" },
+    { name = "numpy", specifier = ">=1.21" },
+    { name = "plotly", marker = "extra == 'vis'" },
+    { name = "py-spec", marker = "extra == 'spec'", specifier = ">=3.0.1" },
+    { name = "pyevtk" },
+    { name = "pyoculus", marker = "extra == 'spec'", specifier = ">=0.1.1" },
+    { name = "pyqt5", marker = "extra == 'vis'" },
+    { name = "qsc", marker = "extra == 'algs'" },
+    { name = "ruamel-yaml" },
+    { name = "scipy", specifier = ">=1.5.4" },
+    { name = "sphinx", marker = "extra == 'docs'" },
+    { name = "sphinx-autodoc-napoleon-typehints", marker = "extra == 'docs'" },
+    { name = "sphinx-rtd-theme", marker = "extra == 'docs'" },
+    { name = "sphinxcontrib-napoleon", marker = "extra == 'docs'" },
+    { name = "sympy" },
+    { name = "vtk", marker = "extra == 'vis'", specifier = ">=8.1.2" },
+]
+provides-extras = ["spec", "mpi", "vis", "docs", "algs"]
 
 [[package]]
 name = "six"

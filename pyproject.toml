@@ -6,6 +6,10 @@ dependencies = ["alphastell", "openmc-anywhere>=0.15.3.0", "cad-to-dagmc", "matp
 
 [tool.uv.sources]
 alphastell = { path = "./alphastell" }
-# PyPI の sdist は thirdparty/ (fmt, xtensor, pybind11) の submodule を含まず wheel の無い
-# 環境ではビルドできない。git から取れば submodule ごと来る。
-simsopt = { git = "https://github.com/hiddenSymmetries/simsopt.git", tag = "v1.10.6" }
+# PyPI に Windows wheel は無く、cp314 の wheel は Linux/macOS にも無い。sdist は thirdparty/
+# (fmt, xtensor, eigen) の submodule を含まずビルドもできないので、両方とも PyPI は使えない。
+# Windows は自前ビルドの wheel、それ以外は submodule ごと来る git から入れる。
+simsopt = [
+	{ url = "https://github.com/lzpel/alphastell/releases/download/simsopt-1.10.6/simsopt-1.10.6-cp314-cp314-win_amd64.whl", marker = "sys_platform == 'win32' and python_full_version < '3.15'" },
+	{ git = "https://github.com/hiddenSymmetries/simsopt.git", tag = "v1.10.6", marker = "sys_platform != 'win32' or python_full_version >= '3.15'" },
+]
