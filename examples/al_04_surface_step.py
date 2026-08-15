@@ -15,9 +15,9 @@ import pathlib
 
 import numpy as np
 
-from stellarator import SurfaceRZFourier, Geometry
+from alphastell import SurfaceRZFourier, Geometry
 
-WOUT = pathlib.Path(__file__).resolve().parent.parent / "stellarator" / "wout_vmec.nc"
+WOUT = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc"
 OUT_STEP = pathlib.Path("out/al_04_surface.step")
 
 S = 1.0  # LCFS (プラズマ最外縁)

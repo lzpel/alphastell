@@ -20,10 +20,10 @@ import numpy as np
 matplotlib.use("Agg")  # 画面の無い環境でも PNG を書けるようにする
 import matplotlib.pyplot as plt
 
-from stellarator import SurfaceRZFourier
+from alphastell import SurfaceRZFourier
 
 # cwd に依存しないよう、wout はこのファイルからの相対で引く。
-WOUT = pathlib.Path(__file__).resolve().parent.parent / "stellarator" / "wout_vmec.nc"
+WOUT = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc"
 OUT_CSV = pathlib.Path("out/al_03_surface_points.csv")
 OUT_PNG = pathlib.Path("out/al_03_surface_points.png")
 
