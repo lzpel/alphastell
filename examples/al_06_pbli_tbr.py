@@ -22,7 +22,7 @@ import openmc
 import typst
 from cad_to_dagmc import CadToDagmc
 
-from alphastell import SurfaceRZFourier, Geometry
+from alphastell import SurfaceFourierRZ, Geometry
 
 WOUT = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc"
 OUT = pathlib.Path("out")
@@ -34,7 +34,7 @@ THICKNESS = [0.3, 0.5, 0.7]  # m
 SOURCES, PARTICLES, BATCHES = 200, 40000, 10
 
 with open(WOUT, "rb") as f:
-	surface = SurfaceRZFourier.load(f)
+	surface = SurfaceFourierRZ.load(f)
 
 
 def offset_grid(thickness):

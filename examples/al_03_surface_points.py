@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """VMEC の LCFS (s=1) を (φ, θ) 格子で走査し、3D 点と法線を CSV と PNG に出す。
 
-rust 側 SurfaceRZFourier の python 経路 (load → point_normal) の疎通確認を兼ねる。
+rust 側 SurfaceFourierRZ の python 経路 (load → point_normal) の疎通確認を兼ねる。
 CSV は x,y,z,nx,ny,nz の 6 列。行の並びは φ 外側・θ 内側のループ順なので、
 DIV_THETA 行ずつ切り出せば constant-φ の断面 1 枚になる。
 
@@ -20,7 +20,7 @@ import numpy as np
 matplotlib.use("Agg")  # 画面の無い環境でも PNG を書けるようにする
 import matplotlib.pyplot as plt
 
-from alphastell import SurfaceRZFourier
+from alphastell import SurfaceFourierRZ
 
 # cwd に依存しないよう、wout はこのファイルからの相対で引く。
 WOUT = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc"
@@ -35,7 +35,7 @@ USE_SURFACE = True
 
 # rust 側 load は file-like を受けるので、開いて渡す。
 with open(WOUT, "rb") as f:
-    surface = SurfaceRZFourier.load(f)
+    surface = SurfaceFourierRZ.load(f)
 
 points = np.empty((DIV_PHI, DIV_THETA, 3))
 normals = np.empty((DIV_PHI, DIV_THETA, 3))

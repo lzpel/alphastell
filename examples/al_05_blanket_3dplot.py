@@ -28,7 +28,7 @@ matplotlib.use("Agg")  # 画面の無い環境でも PNG を書けるように�
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
-from alphastell import SurfaceRZFourier
+from alphastell import SurfaceFourierRZ
 
 WOUT = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc"
 OUT_DIR = pathlib.Path("out")
@@ -48,7 +48,7 @@ DIRECTIONS = [
 ]
 
 with open(WOUT, "rb") as f:
-	surface = SurfaceRZFourier.load(f)
+	surface = SurfaceFourierRZ.load(f)
 
 
 def unit(vectors):

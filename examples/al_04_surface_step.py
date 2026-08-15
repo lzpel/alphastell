@@ -15,7 +15,7 @@ import pathlib
 
 import numpy as np
 
-from alphastell import SurfaceRZFourier, Geometry
+from alphastell import SurfaceFourierRZ, Geometry
 
 WOUT = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc"
 OUT_STEP = pathlib.Path("out/al_04_surface.step")
@@ -27,7 +27,7 @@ DIV_PHI = 128
 DIV_THETA = 48
 
 with open(WOUT, "rb") as f:
-	surface = SurfaceRZFourier.load(f)
+	surface = SurfaceFourierRZ.load(f)
 
 points = np.empty((DIV_PHI, DIV_THETA, 3))
 for i in range(DIV_PHI):

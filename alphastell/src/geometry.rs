@@ -73,7 +73,7 @@ impl Geometry {
 	fn __len__(&self) -> usize {
 		self.0.len()
 	}
-	/// SurfaceRZFourier::load が file-like から read() するのと対称に、file-like へ write() する。
+	/// SurfaceFourierRZ::load が file-like から read() するのと対称に、file-like へ write() する。
 	fn write_step(&self, file: &Bound<'_, PyAny>) -> PyResult<()> {
 		let mut data = Vec::new();
 		cadrum::Solid::write_step(&self.0, &mut data).map_err(Error)?;
