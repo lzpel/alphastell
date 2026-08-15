@@ -62,22 +62,26 @@ wout.nc (VMEC 平衡)
 
 ## 関連プロジェクト
 
-| プロジェクト | 役割 |
-|---|---|
-| [ParaStell][parastell] | ステラレータ炉内構造のパラメトリック CAD + OpenMC 中性子計算(上流) |
-| [OpenMC][openmc] | モンテカルロ中性子輸送 — TBR・核発熱 |
-| epotFoam (OpenFOAM) | 低磁気レイノルズ数 MHD の標準実装 — 検証用フル CFD |
-| [cadrum][cadrum] | Rust CAD カーネル(OCCT 静的リンク・WASM 対応)— B-rep / STEP 出力 |
-| alphastell | VMEC フーリエ評価カーネルの移植元(6層シェル生成はスコープ外として引き継がない) |
+- cadrum 自作RustCADカーネル step出力
+- OpenMC モンテカルロ中性子輸送 — TBR・核発熱
+- OpenMC-anywhere windows版PIPでもうごくようにした自前ビルドのOpenMC
+- parastell
+	- ステラレータ炉構造のパラメトリックCAD
+- epotFoam (OpenFOAM) | 低磁気レイノルズ数 MHD の標準実装 — 検証用フル CFD
 
 ## ドキュメント
 
 - [notes/20260714-全体構成.md](notes/20260714-全体構成.md) — レイヤー分業とリポジトリ構成
 - [notes/20260714-3カ月で作り上げる計画.md](notes/20260714-3カ月で作り上げる計画.md) — 週次マイルストーン
 - [notes/20260714-CTO論評.md](notes/20260714-CTO論評.md) — 製品定義に至った戦略論評の記録
-- [paper.tex](paper.tex) — arXiv 用プレプリント草稿(`sh paper.tex` で Docker/texlive がビルド。**現状の数値・図はすべてモック**)
 
 ## 参考資料
+
+- Lion, J., Anglès, J.-C., Bonauer, L., Bañón Navarro, A., Cadena Ceron, S. A., Davies, R., Drevlak, M., Foppiani, N., Geiger, J., Goodman, A., Guo, W., Guiraud, E., Hernández, F., Henneberg, S., Herrero, R., Höchter, J., Jelonnek, J., Jenko, F., Jorge, R., ... Xanthopoulos, P., & Zheng, M. (2025). Stellaris: A high-field quasi-isodynamic stellarator for a prototypical fusion power plant. Fusion Engineering and Design, 214, 114868. PDF[https://github.com/user-attachments/files/31101341/Lion2025_Stellaris_A_high-field_quasi-isodynamic_stellarator_for_a_prototypical_fusion_power_plant.pdf]
+	- Proximaの設計論文
+	- 3.2 Further improvements and ongoing research
+		- full neutronics and structural calculations of a blanket design that is not fully homogenized and includes open ports, including thermal stress analysis and estimation of pumping requirements (完全には均質化されておらず、開いたポートを含むブランケット設計の、完全な中性子工学計算および構造計算。熱応力解析とポンプ動力要求の見積もりを含む)
+		- further tritium blanket analyses, including simulating MHD effects in the PbLi, estimations of corrosion, simulation of tritium transport and a respective TBR target, water activation and safety relevant analyses(トリチウムブランケットに関するさらなる解析。これには、PbLiにおけるMHD効果のシミュレーション、腐食の推定、トリチウム輸送および対応するTBRターゲットのシミュレーション、水の活性化、ならびに安全性に関する解析が含まれる。)
 
 - Smolentsev, S., Morley, N. B., Abdou, M. A., & Malang, S. (2015).Dual-coolant lead–lithium (DCLL) blanket status and R&D needs. Fusion Engineering and Design, 100, 44–54. [PDF](https://bpb-us-w2.wpmucdn.com/research.seas.ucla.edu/dist/d/39/files/2019/08/FED-v100-Smolentsev-Dual_Coolant_Lead_Lithium_Blanket_Status2015.pdf)
 	- カジュアルな解説：PbLiを流す流路の一つDCLLのレビュー論文　図が分かりやすい

@@ -87,6 +87,21 @@ wheels = [
 ]
 
 [[package]]
+name = "alphastell"
+version = "0.1.0"
+source = { directory = "alphastell" }
+dependencies = [
+    { name = "matplotlib" },
+    { name = "scipy" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "matplotlib", specifier = ">=3.11.1" },
+    { name = "scipy", specifier = ">=1.18.0" },
+]
+
+[[package]]
 name = "asttokens"
 version = "3.0.2"
 source = { registry = "https://pypi.org/simple" }
@@ -298,6 +313,27 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/19/df/b74f51764a57f9ebabe511fa0c1a3fcae684dcf6d755433ada926c0f9ad5/endf-0.1.12-cp314-cp314t-win32.whl", hash = "sha256:742a54e3af7618659877838cbb7e54218ca67263db5354f595d1445fae7040d1", size = 113156, upload-time = "2026-02-12T13:01:24.85Z" },
     { url = "https://files.pythonhosted.org/packages/91/dc/52e58da38111ef40f27e06fc6adb1930f0866f878922f90a528678ccf4bf/endf-0.1.12-cp314-cp314t-win_amd64.whl", hash = "sha256:071ad65cca73cda066317e0bb0cc89a137bd632ef892a97b12020289ce1fadc9", size = 119980, upload-time = "2026-02-12T13:01:25.932Z" },
     { url = "https://files.pythonhosted.org/packages/76/18/9c7c61599e019b87e4f0f7f691cf56fba651ab16758e1c4ad10509fe72e8/endf-0.1.12-cp314-cp314t-win_arm64.whl", hash = "sha256:c07cebecb06751433e7f2a9264f7c90a30b63f3169803a428684e6c8db7baf76", size = 112355, upload-time = "2026-02-12T13:01:26.972Z" },
+]
+
+[[package]]
+name = "examples"
+version = "0.0.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "alphastell" },
+    { name = "cad-to-dagmc" },
+    { name = "matplotlib" },
+    { name = "openmc-anywhere" },
+    { name = "typst" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "alphastell", directory = "alphastell" },
+    { name = "cad-to-dagmc" },
+    { name = "matplotlib" },
+    { name = "openmc-anywhere", specifier = ">=0.15.3.0" },
+    { name = "typst" },
 ]
 
 [[package]]
@@ -624,27 +660,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/bd/c0/9f7c9a46090390368a4d7bcb76bb87a4a36c421e4c0792cdb53486ffac7a/matplotlib_inline-0.2.2.tar.gz", hash = "sha256:72f3fe8fce36b70d4a5b612f899090cd0401deddc4ea90e1572b9f4bfb058c79", size = 8150, upload-time = "2026-05-08T17:33:33.49Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/41/09/5b161152e2d90f7b87f781c2e1267494aef9c32498df793f73ad0a0a494a/matplotlib_inline-0.2.2-py3-none-any.whl", hash = "sha256:3c821cf1c209f59fb2d2d64abbf5b23b67bcb2210d663f9918dd851c6da1fcf6", size = 9534, upload-time = "2026-05-08T17:33:32.055Z" },
-]
-
-[[package]]
-name = "mhd-tbr-stell"
-version = "0.0.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "cad-to-dagmc" },
-    { name = "matplotlib" },
-    { name = "openmc-anywhere" },
-    { name = "stellarator" },
-    { name = "typst" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "cad-to-dagmc" },
-    { name = "matplotlib" },
-    { name = "openmc-anywhere", specifier = ">=0.15.3.0" },
-    { name = "stellarator", directory = "stellarator" },
-    { name = "typst" },
 ]
 
 [[package]]
@@ -1156,21 +1171,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/28/e3/55dcc2cfbc3ca9c29519eb6884dd1415ecb53b0e934862d3559ddcb7e20b/stack_data-0.6.3.tar.gz", hash = "sha256:836a778de4fec4dcd1dcd89ed8abff8a221f58308462e1c4aa2a3cf30148f0b9", size = 44707, upload-time = "2023-09-30T13:58:05.479Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f1/7b/ce1eafaf1a76852e2ec9b22edecf1daa58175c090266e9f6c64afcd81d91/stack_data-0.6.3-py3-none-any.whl", hash = "sha256:d5558e0c25a4cb0853cddad3d77da9891a08cb85dd9f9f91b9f8cd66e511e695", size = 24521, upload-time = "2023-09-30T13:58:03.53Z" },
-]
-
-[[package]]
-name = "stellarator"
-version = "0.1.0"
-source = { directory = "stellarator" }
-dependencies = [
-    { name = "matplotlib" },
-    { name = "scipy" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "matplotlib", specifier = ">=3.11.1" },
-    { name = "scipy", specifier = ">=1.18.0" },
 ]
 
 [[package]]
