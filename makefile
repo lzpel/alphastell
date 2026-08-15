@@ -1,6 +1,11 @@
-.PHONY:paper
+.PHONY:paper download
+# OpenMC は cross_sections.xml のパスを見る (ディレクトリではない)
+export OPENMC_CROSS_SECTIONS=out/cross_sections/cross_sections.xml
 al-%:
 	uv sync --reinstall-package stellarator
 	uv run $(shell find examples -name "al_$*_*.py")
 paper:
 	bash ./paper.tex
+$(OPENMC_CROSS_SECTIONS): # curlでFENDL3.2を落としてくる核融合用の評価済みライブラリで ENDF/B より小さい
+	curl -L --fail -C - -o out/fendl-3.2.tar.xz https://anl.box.com/shared/static/3cb7jetw7tmxaw6nvn77x6c578jnm2ey.xz
+	tar -xJf out/fendl-3.2.tar.xz --transform="s,^[^/]+,out/cross_sections,x" --show-transformed-names
