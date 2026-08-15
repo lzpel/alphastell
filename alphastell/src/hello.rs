@@ -1,4 +1,5 @@
- use pyo3::prelude::*;
+use pyo3::prelude::*;
+
 #[pyfunction]
 fn hello() {
 	println!("Hello, stellarator!");
@@ -30,9 +31,10 @@ fn hello_constructor(name: String) -> Hello {
 	Hello { name }
 }
 
-pub fn module(m: &Bound<'_, PyModule>) -> PyResult<()>{
+pub fn module(m: &Bound<'_, PyModule>) -> PyResult<()> {
 	m.add_function(wrap_pyfunction!(hello, m)?)?;
 	m.add_function(wrap_pyfunction!(hello_numpy, m)?)?;
 	m.add_function(wrap_pyfunction!(hello_constructor, m)?)?;
 	m.add_class::<Hello>()?;
+	Ok(())
 }
