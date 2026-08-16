@@ -51,11 +51,11 @@ with open(WOUT, "rb") as f:
 	surface = SurfaceFourierRZ.load(f)
 
 
-def unit(vectors):
+def unit(vectors: np.ndarray) -> np.ndarray:
 	return vectors / np.linalg.norm(vectors, axis=-1, keepdims=True)
 
 
-def surface_points(phi, theta, s):
+def surface_points(phi: np.ndarray, theta: np.ndarray, s: float) -> tuple[np.ndarray, np.ndarray]:
 	"""同じ shape の (φ, θ) 配列を点と法線にする。末尾に xyz の軸が増える。"""
 	points = np.empty(np.shape(phi) + (3,))
 	normals = np.empty_like(points)
@@ -64,14 +64,14 @@ def surface_points(phi, theta, s):
 	return points, normals
 
 
-def field_direction(points, normals):
+def field_direction(points: np.ndarray, normals: np.ndarray) -> np.ndarray:
 	"""磁力線方向の代用。B は磁気面に接するので e_phi を接平面に落とす。iota は未使用。"""
 	e_phi = np.stack([-points[..., 1], points[..., 0], np.zeros(points.shape[:-1])], axis=-1)
 	normal = unit(normals)
 	return unit(e_phi - (e_phi * normal).sum(axis=-1, keepdims=True) * normal)
 
 
-def perp_fraction(points, normals):
+def perp_fraction(points: np.ndarray, normals: np.ndarray) -> np.ndarray:
 	"""流路接線と磁力線の成す角の sin。0 で磁場平行、1 で直交。"""
 	tangent = unit(np.gradient(points, axis=0))
 	field = field_direction(points, normals)
