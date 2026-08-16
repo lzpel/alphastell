@@ -37,7 +37,7 @@ with open(WOUT, "rb") as f:
 	surface = SurfaceFourierRZ.load(f)
 
 
-def offset_grid(thickness):
+def offset_grid(thickness: float) -> tuple[np.ndarray, np.ndarray]:
 	"""LCFS の点と、それを面内法線方向に thickness だけ押した点を (φ, θ) 格子で返す。"""
 	inner = np.empty((DIV_PHI, DIV_THETA, 3))
 	outer = np.empty_like(inner)
@@ -47,7 +47,7 @@ def offset_grid(thickness):
 	return inner, outer
 
 
-def shell_step(inner, outer):
+def shell_step(inner: np.ndarray, outer: np.ndarray) -> Geometry:
 	"""内外 2 個のソリッドの差を cadrum の boolean_subtract で取り、STEP と四面図を書く。"""
 	shell = Geometry.bspline_geometry(outer).boolean_subtract(Geometry.bspline_geometry(inner))
 	with open(STEP, "wb") as f:
@@ -57,7 +57,7 @@ def shell_step(inner, outer):
 	return shell
 
 
-def tbr():
+def tbr() -> tuple[float, float]:
 	"""CAD → DAGMC → OpenMC。material_tags の文字列と Material.name の一致だけが両者の結線。"""
 	# bounded_universe は id を 10000 番台に固定で振るので、厚みごとに呼ぶと衝突して IDWarning が出る
 	openmc.reset_auto_ids()
