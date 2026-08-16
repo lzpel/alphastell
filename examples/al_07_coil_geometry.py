@@ -89,7 +89,7 @@ def optimize_coil(
 	閾値 (length_target 等) は工学的な制約そのもの、weights は物理的意味を持たない数値の重み。
 	"""
 	from simsopt.field import BiotSavart, Current, coils_via_symmetries
-	from simsopt.geo import CurveCurveDistance, CurveLength, CurveSurfaceDistance, LpCurveCurvature, MeanSquaredCurvature, SurfaceRZFourier, create_equally_spaced_curves
+	from simsopt.geo import CurveCurveDistance, CurveLength, CurveSurfaceDistance, LpCurveCurvature, MeanSquaredCurvature, create_equally_spaced_curves
 	from simsopt.objectives import QuadraticPenalty, SquaredFlux
 	from scipy.optimize import minimize
 	nfp = surface.nfp
