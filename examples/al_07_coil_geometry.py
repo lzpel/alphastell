@@ -137,6 +137,8 @@ def optimize_coil(
 		"standoff": standoff,
 		# 対称像も含めた全 2*nfp*ncoils 本。3D 図と CSV はここから引く
 		"coils": coils,
+		# coils と同じ順序のフーリエ係数 [3, 2*order+1]。対称像 (RotatedCurve) は自前の DOF を持たず x を読むと回転前の係数が返るので、全本を gamma() から一様に起こす
+		"coeffs": np.array([fourier_coefficients(coil.curve.gamma(), order) for coil in coils]),
 		# B·n/|B| を (phi, theta) 格子で。符号付きの無次元量で、0 なら磁気面と整合する
 		"error": (b * surface.unitnormal()).sum(axis=-1) / np.linalg.norm(b, axis=-1),
 		# 独立コイル ncoils 本の周長 [m]。装置全体の導体長は 2*nfp 倍する
@@ -151,17 +153,20 @@ def optimize_coil(
 	}
 
 
-def fourier_coefficients(points: np.ndarray, order: int) -> tuple[np.ndarray, np.ndarray]:
-	"""周期点列 (t = 0..1 の等間隔) を三角多項式の係数に戻す。
+def fourier_coefficients(points: np.ndarray, order: int) -> np.ndarray:
+	"""周期点列 (t = 0..1 の等間隔) を三角多項式の係数 [3, 2*order+1] に戻す。
 
-	x(t) = Σ_m [ c_m cos(2πmt) + s_m sin(2πmt) ]。曲線は order 次の帯域制限なので
-	FFT で厳密に取れる。点列より係数の方が、下流で任意の分解能の滑らかな CAD を引ける。
+	x(t) = Σ_m [ c_m cos(2πmt) + s_m sin(2πmt) ]。列は [c_0, c_1..c_order, s_1..s_order] の順で、
+	s_0 は定義上ゼロなので持たない。曲線は order 次の帯域制限なので FFT で厳密に取れる。
+	点列より係数の方が、下流で任意の分解能の滑らかな CAD を引ける。
 	対称操作の像も回転行列を掛けただけで次数は変わらないため、同じ扱いでよい。
 	"""
 	spectrum = np.fft.rfft(points, axis=0) / len(points)
 	cosine, sine = 2 * spectrum.real, -2 * spectrum.imag
 	cosine[0] /= 2
-	return cosine[: order + 1], sine[: order + 1]
+	angle = math.tau * np.outer(np.linspace(0, 1, len(points), endpoint=False), np.arange(order + 1))
+	assert np.allclose(np.cos(angle) @ cosine[: order + 1] + np.sin(angle) @ sine[: order + 1], points), "fourier fit is not exact"
+	return np.concatenate([cosine[: order + 1], sine[1 : order + 1]]).T
 
 
 def main(
@@ -187,12 +192,11 @@ def main(
 	out.mkdir(parents=True, exist_ok=True)
 	geometry = [coil.curve.gamma() for coil in coils]
 	rows = []
-	for index, (coil, points) in enumerate(zip(coils, geometry)):
-		cosine, sine = fourier_coefficients(points, order)
-		mode = np.arange(order + 1)
-		angle = math.tau * np.outer(np.linspace(0, 1, len(points), endpoint=False), mode)
-		assert np.allclose(np.cos(angle) @ cosine + np.sin(angle) @ sine, points), "fourier fit is not exact"
-		rows.append(np.column_stack([np.full(order + 1, index), np.full(order + 1, coil.current.get_value()), mode, cosine, sine]))
+	for index, (coil, coefficients) in enumerate(zip(coils, baseline["coeffs"])):
+		# CSV は m ごとに 1 行なので、cos 側と sin 側を並べ直す。sin の m=0 は定義上ゼロ
+		cosine = coefficients[:, : order + 1].T
+		sine = np.vstack([np.zeros(3), coefficients[:, order + 1 :].T])
+		rows.append(np.column_stack([np.full(order + 1, index), np.full(order + 1, coil.current.get_value()), np.arange(order + 1), cosine, sine]))
 	np.savetxt(
 		out / "al_07_coils.csv", np.concatenate(rows), delimiter=",",
 		header="coil,current_A,m,xc,yc,zc,xs,ys,zs", comments="", fmt="%.9e",  # 係数の単位は m
