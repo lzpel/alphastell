@@ -132,6 +132,13 @@ def optimize_coil(
 
 	# B·n/|B| を (φ, θ) 格子の形で。0 なら磁気面がコイルの作る磁場と整合する。
 	b = field.B().reshape(surface.gamma().shape)
+	
+
+	def fourier_coefficients(points: np.ndarray, order: int) -> np.ndarray:
+		"""周期点列 (t = 0..1 の等間隔) を三角多項式の係数 [3, 2*order+1] に戻す。x(t) = Σ_m [ c_m cos(2πmt) + s_m sin(2πmt) ]。列は simsopt の DOF と同じ [c_0, s_1, c_1, .. s_order, c_order]"""
+		spectrum = np.fft.rfft(points, axis=0)[: order + 1] / len(points)
+		# stack で s_m, c_m を交互に並べ、先頭の [s_0, c_0] だけ落として c_0 を単独で戻す
+		return np.concatenate([spectrum[:1].real, np.stack([-2 * spectrum.imag, 2 * spectrum.real], 1).reshape(-1, 3)[2:]]).T
 	return {
 		# 入力の要求値をそのまま返す。実際に到達した距離は "curve_surface_distance"
 		"standoff": standoff,
@@ -151,22 +158,6 @@ def optimize_coil(
 		"curve_curve_distance": float(distance_cc.shortest_distance()),  # コイル間の最小距離 [m]
 		"curve_surface_distance": float(distance_cs.shortest_distance()),  # コイル-プラズマ最小距離 [m]
 	}
-
-
-def fourier_coefficients(points: np.ndarray, order: int) -> np.ndarray:
-	"""周期点列 (t = 0..1 の等間隔) を三角多項式の係数 [3, 2*order+1] に戻す。
-
-	x(t) = Σ_m [ c_m cos(2πmt) + s_m sin(2πmt) ]。列は [c_0, c_1..c_order, s_1..s_order] の順で、
-	s_0 は定義上ゼロなので持たない。曲線は order 次の帯域制限なので FFT で厳密に取れる。
-	点列より係数の方が、下流で任意の分解能の滑らかな CAD を引ける。
-	対称操作の像も回転行列を掛けただけで次数は変わらないため、同じ扱いでよい。
-	"""
-	spectrum = np.fft.rfft(points, axis=0) / len(points)
-	cosine, sine = 2 * spectrum.real, -2 * spectrum.imag
-	cosine[0] /= 2
-	angle = math.tau * np.outer(np.linspace(0, 1, len(points), endpoint=False), np.arange(order + 1))
-	assert np.allclose(np.cos(angle) @ cosine[: order + 1] + np.sin(angle) @ sine[: order + 1], points), "fourier fit is not exact"
-	return np.concatenate([cosine[: order + 1], sine[1 : order + 1]]).T
 
 
 def main(
@@ -194,8 +185,8 @@ def main(
 	rows = []
 	for index, (coil, coefficients) in enumerate(zip(coils, baseline["coeffs"])):
 		# CSV は m ごとに 1 行なので、cos 側と sin 側を並べ直す。sin の m=0 は定義上ゼロ
-		cosine = coefficients[:, : order + 1].T
-		sine = np.vstack([np.zeros(3), coefficients[:, order + 1 :].T])
+		cosine = coefficients[:, 0::2].T
+		sine = np.vstack([np.zeros(3), coefficients[:, 1::2].T])
 		rows.append(np.column_stack([np.full(order + 1, index), np.full(order + 1, coil.current.get_value()), np.arange(order + 1), cosine, sine]))
 	np.savetxt(
 		out / "al_07_coils.csv", np.concatenate(rows), delimiter=",",
