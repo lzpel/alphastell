@@ -36,6 +36,10 @@ impl Geometry {
 		file.call_method1("write", (pyo3::types::PyBytes::new(file.py(), data),))?;
 		Ok(())
 	}
+	/// 入力の形が不正なときの Error。cadrum の InvalidEdge に載せると PyValueError になる。
+	fn invalid(message: String) -> Error {
+		Error(cadrum::Error::InvalidEdge(message))
+	}
 	fn points_to_dvec3(points: Vec<f64>) -> (usize, usize, Vec<cadrum::DVec3>) {
 		// 最初の2要素は n, m のサイズ 残りは n*m*3のフラットな座標配列
 		let n = points[0] as usize;
@@ -61,6 +65,42 @@ impl Geometry {
 		let (u, v, point) = Self::points_to_dvec3(points);
 		Ok(Geometry(vec![cadrum::Solid::bspline(u, v, true, |i,j| point[i*v+j])?]))
 	}
+	/// 断面を経路に沿って掃引する。profile は原点まわりの平面断面 [x0, y0, x1, y1, ...]、
+	/// 各 path は [upx, upy, upz, x, y, z, ...] の 3+3N 要素。
+	/// periodic なら閉ループとして扱う。周期性はスプラインの基底に入るので、始点を末尾で繰り返さない
+	/// (繰り返すと cadrum が InvalidEdge で弾く)。
+	/// up は経路の接線と平行にならない向き (コイルなら巻線面の法線) を渡す。
+	#[staticmethod]
+	#[pyo3(signature = (periodic, profile, *paths))]
+	fn sweep_geometry(periodic: bool, profile: Vec<f64>, paths: Vec<Vec<f64>>) -> Result<Geometry, Error> {
+		if profile.len() < 6 || profile.len() % 2 != 0 {
+			return Err(Self::invalid(format!("profile needs >=3 xy points as an even count, got {}", profile.len())));
+		}
+		// 断面は XY 平面に置く。align_z が局所 +Z を接線へ向けるので、この向きなら経路と直交する
+		let section: Vec<cadrum::DVec3> = profile.chunks_exact(2).map(|c| cadrum::DVec3::new(c[0], c[1], 0.0)).collect();
+		// sectionsと対になるpathの点群、最初の1点は上方向ベクトルで点群ではないことに注意
+		let paths: Vec<Vec<cadrum::DVec3>>=paths
+			.iter()
+			.map(|path| -> Result<Vec<cadrum::DVec3>, Error> {
+				if path.len() < 12 || path.len() % 3 != 0 {
+					return Err(Self::invalid(format!("path needs up + >=3 xyz points as 3+3N values, got {}", path.len())));
+				}
+				let point: Vec<cadrum::DVec3> = path.chunks_exact(3).map(|c| cadrum::DVec3::new(c[0], c[1], c[2])).collect();
+				Ok(point)
+			}).collect::<Result<_, Error>>()?;
+		paths
+			.iter()
+			.map(|path| -> Result<cadrum::Solid, Error> {
+				let (up, point) = (path[0].try_normalize().ok_or_else(|| Self::invalid("path up is the zero vector".into()))?, &path[1..]);
+				let spine = cadrum::Edge::bspline(point, if periodic { cadrum::BSplineEnd::Periodic } else { cadrum::BSplineEnd::NotAKnot }).map_err(Error)?;
+				let (tangent, start) = (spine.start_tangent(), spine.start_point());
+				// 断面のローカル +X が up、+Y が tangent x up に乗る
+				let edges: Vec<cadrum::Edge> = cadrum::Edge::polygon(&section).map_err(Error)?.into_iter().map(|e| e.align_z(tangent, up).translate(start)).collect();
+				cadrum::Solid::sweep(&edges, &[spine], cadrum::ProfileOrient::Up(up)).map_err(Error)
+			})
+			.collect::<Result<Vec<cadrum::Solid>, Error>>()
+			.map(Geometry)
+	}
 	fn boolean_union(&self, other: &Geometry) -> Result<Geometry, Error> {
 		Ok(Geometry((self.expression() + other.expression()).build_vec()?))
 	}
@@ -73,6 +113,10 @@ impl Geometry {
 	fn __len__(&self) -> usize {
 		self.0.len()
 	}
+	/// ソリッドごとの体積。掃引や押し出しの結果を解析値と突き合わせる用。
+	fn volume(&self) -> Vec<f64> {
+		self.0.iter().map(|s| s.volume().abs()).collect()
+	}
 	/// SurfaceFourierRZ::load が file-like から read() するのと対称に、file-like へ write() する。
 	fn write_step(&self, file: &Bound<'_, PyAny>) -> PyResult<()> {
 		let mut data = Vec::new();
@@ -82,10 +126,7 @@ impl Geometry {
 	/// 4 面図の PNG。write_step と同じく file-like へ write() する。
 	fn write_png(&self, file: &Bound<'_, PyAny>) -> PyResult<()> {
 		let mut data = Vec::new();
-		match self.0.as_slice() {
-			[solid] => solid.write_multiview_png(&mut data).map_err(Error)?,
-			_ => self.expression().build().map_err(Error)?.write_multiview_png(&mut data).map_err(Error)?,
-		}
+		cadrum::Solid::mesh(&self.0, Default::default()).map_err(Error)?.write_multiview_png(&mut data).map_err(Error)?;
 		Self::write_bytes(file, &data)
 	}
 }
