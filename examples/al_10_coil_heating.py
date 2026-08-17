@@ -30,7 +30,8 @@ from alphastell import Geometry, SurfaceFourierRZ
 
 MU0 = 4e-7 * math.pi
 JOULE_PER_EV = 1.602176634e-19
-DT_ENERGY = 17.6e6  # DT 反応 1 回あたりの発生エネルギー [eV]
+DT_ENERGY = 17.6e6  # DT 反応 1 回あたりの発生エネルギー [eV]。出力の換算に使う
+NEUTRON_ENERGY = 14.07e6  # そのうち中性子が持ち去る分 [eV]。残り 3.5 MeV はアルファ粒子
 FAST = 0.1e6  # 高速中性子の下限 [eV]。Nb3Sn のフルエンス制限がこの区間で定義される
 YEAR = 365.25 * 24 * 3600  # フル出力年 [s]
 
@@ -254,7 +255,7 @@ def weighted_source(lcfs: SurfaceFourierRZ, sample: np.ndarray, volume_element: 
 	return [
 		openmc.IndependentSource(
 			space=openmc.stats.Point(np.multiply(lcfs.point_normal(phi, theta, s, False)[0], 100)),
-			energy=openmc.stats.Discrete([DT_ENERGY], [1.0]),
+			energy=openmc.stats.Discrete([NEUTRON_ENERGY], [1.0]),
 			strength=w,
 		)
 		for (phi, theta, s), w in zip(sample, weight / weight.sum())
