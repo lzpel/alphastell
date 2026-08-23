@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """モジュラーコイルの核発熱を出す (al_10)。
 
-al_07 でコイルの中心線が、al_09 で断面を持つ導体ソリッドが作れるようになった。al_06 は PbLi 殻の
+al_07 でコイルの中心線が、sweep_geometry で断面を持つ導体ソリッドが作れるようになった。al_06 は PbLi 殻の
 TBR を、al_08 は線源モデルの選び方を決めた。これらを繋ぐとコイルに何 W 落ちるかが計算できる。
 
 遮蔽体は入れない。増殖材 50 cm とその外の真空だけでコイルが何を浴びるかを見る。遮蔽が必須である
@@ -39,6 +39,7 @@ YEAR = 365.25 * 24 * 3600  # フル出力年 [s]
 NCOILS, STANDOFF, CC_THRESHOLD = 5, 1.27, 0.87  # 半周期あたりの独立コイル数、コイル-LCFS 距離、コイル間距離 [m]
 WIDTH, HEIGHT = 0.40, 0.50  # 巻線パックのトロイダル幅と半径方向厚み [m]
 ORDER, NPOINT = 6, 96  # コイルの Fourier 次数と掃引の制御点数
+GUIDE = 30.0  # 掃引のガイド曲線を中心線から e_phi 方向へずらす距離 [m]。近すぎても遠すぎても掃引が落ちる
 
 THICKNESS = 0.5  # PbLi 殻の厚み [m]。al_06 の中央、al_08 と同じ
 DIV_PHI, DIV_THETA = 96, 40  # 殻の制御点。al_06 / al_08 と同じにして幾何を揃える
@@ -171,9 +172,10 @@ def optimize_coil(
 
 
 def coil_paths(coeffs: np.ndarray, npoint: int) -> list[list[float]]:
-	"""係数から sweep_geometry の経路 [upx, upy, upz, x, y, z, ...] を作る。
+	"""係数から sweep_geometry の経路 [x, y, z, guide_x, guide_y, guide_z, ...] を作る。
 
-	up はコイル面の法線 e_phi。コイルの代表トロイダル角は c_0 (曲線の平均点) の偏角で取る。
+	ガイドは中心線をコイル面の法線 e_phi へ GUIDE m 平行移動したもので、断面のローカル +X が
+	中心線からガイドへの向きを追う。コイルの代表トロイダル角は c_0 (曲線の平均点) の偏角で取る。
 	周期指定で渡すので終点は重複させない。
 	"""
 	order = (coeffs.shape[2] - 1) // 2
@@ -181,21 +183,22 @@ def coil_paths(coeffs: np.ndarray, npoint: int) -> list[list[float]]:
 	paths = []
 	for c in coeffs:
 		phi = math.atan2(c[1, 0], c[0, 0])
+		normal = GUIDE * np.array([-math.sin(phi), math.cos(phi), 0.0])
 		point = np.cos(angle) @ c[:, 0::2].T + np.sin(angle) @ np.vstack([np.zeros(3), c[:, 1::2].T])
-		paths.append([-math.sin(phi), math.cos(phi), 0.0, *point.ravel()])
+		paths.append(np.hstack([point, point + normal]).ravel().tolist())
 	return paths
 
 
 def tilt(paths: list[list[float]]) -> tuple[np.ndarray, np.ndarray]:
 	"""各経路で断面が法平面から傾く角 [deg] の (最悪点, RMS)。制御点の弦を接線の近似に使う。
 
-	ProfileOrient::Up は up を固定軸に保つので、up が接線と直交しない箇所で断面が寝る。
-	al_09 で測ったとおり掃引体積はこの傾きの二乗で目減りする。
+	ガイドが中心線の平行移動なら断面のローカル +X は 1 本の固定ベクトルになるので、それが接線と
+	直交しない箇所で断面が寝る。掃引体積はこの傾きの二乗で目減りする。
 	"""
 	worst, rms = [], []
 	for path in paths:
-		up = np.array(path[:3])
-		point = np.array(path[3:]).reshape(-1, 3)
+		point, guide = np.hsplit(np.array(path).reshape(-1, 6), 2)
+		up = (guide[0] - point[0]) / np.linalg.norm(guide[0] - point[0])
 		chord = np.roll(point, -1, axis=0) - point
 		chord /= np.linalg.norm(chord, axis=1)[:, None]
 		projection = np.abs(chord @ up)
@@ -208,7 +211,7 @@ def swept_volume(paths: list[list[float]]) -> float:
 	"""断面積 × 中心線長 [m^3]。断面が法平面に乗っていれば掃引体積はこれに一致する。"""
 	total = 0.0
 	for path in paths:
-		point = np.array(path[3:]).reshape(-1, 3)
+		point = np.array(path).reshape(-1, 6)[:, :3]
 		total += WIDTH * HEIGHT * float(np.linalg.norm(np.roll(point, -1, axis=0) - point, axis=1).sum())
 	return total
 
@@ -369,7 +372,8 @@ def main() -> dict[str, Any]:
 
 	paths = coil_paths(result["coeffs"], NPOINT)
 	profile = [-WIDTH / 2, -HEIGHT / 2, WIDTH / 2, -HEIGHT / 2, WIDTH / 2, HEIGHT / 2, -WIDTH / 2, HEIGHT / 2]
-	coils = Geometry.sweep_geometry(True, profile, *paths)
+	# 全要素 0 の 6 要素が経路の区切り。1 回の呼び出しで全コイルを別ソリッドとして起こす
+	coils = Geometry.sweep_geometry(True, profile, *[v for i, path in enumerate(paths) for v in ([0.0] * 6 if i else []) + path])
 	shell, outer = blanket(lcfs, THICKNESS)
 	for geometry, path in ((shell, SHELL_STEP), (coils, COIL_STEP)):
 		with open(path, "wb") as f:
@@ -437,6 +441,7 @@ def main() -> dict[str, Any]:
 		"height": f"{HEIGHT * 100:.0f}",
 		"thickness": f"{THICKNESS * 100:.0f}",
 		"npoint": NPOINT,
+		"guide": f"{GUIDE:.0f}",
 		"nsample": N_SAMPLE,
 		"particles": PARTICLES,
 		"batches": BATCHES,
@@ -491,8 +496,9 @@ al_06 は「PbLi 殻を厚くするほど TBR が上がる」と示し、al_07 �
 
 断面は {width} × {height} cm の矩形で、これも parastell の `config.yaml` と同じである。中心線の
 Fourier 係数から各コイルの代表トロイダル角を $phi = arctan(c_(0,y) \\/ c_(0,x))$ で取り、
-コイル面の法線 $e_phi$ を掃引の up にして、全 {ncoil_total} 本を `sweep_geometry` の 1 回の
-呼び出しで起こす。制御点は 1 本あたり {npoint} 点。
+中心線をコイル面の法線 $e_phi$ へ {guide} m 平行移動した曲線を掃引のガイドにして、全 {ncoil_total} 本を
+`sweep_geometry` の 1 回の呼び出しで起こす。ガイドは断面のローカル $+x$ が向く先を決めるだけで、
+剛体平行移動なのでこの向きは全周で $e_phi$ に一致する。制御点は 1 本あたり {npoint} 点。
 
 最適化は要求 {standoff} m に対し {achieved} m まで寄る。巻線パック半厚 {height} cm の半分と
 増殖材 {thickness} cm を引くと隙間は {clearance} m で、コイルと増殖材は干渉しない。
@@ -582,16 +588,16 @@ TBR の低下がトレードオフに入る。al_06 の TBR-厚み曲線と本�
 
 === 断面が法平面に乗らない — この計算で最も大きい系統誤差
 
-`ProfileOrient::Up` は up を固定軸として保つので、up が接線と直交しない箇所では断面が寝る。
-al_09 の摂動円では最大 10.7 度で済み、体積の目減りは 1.5% だった。**実コイルは桁が違う。**
-測ると最悪点で {tilt_max} 度、コイルあたりの RMS で {tilt_rms} 度ある。
+ガイドを中心線の平行移動に取ると、断面のローカル $+x$ は 1 本の固定ベクトル $e_phi$ になる。
+これは接線と直交しない箇所で断面を寝かせる。測ると最悪点で {tilt_max} 度、コイルあたりの
+RMS で {tilt_rms} 度ある。
 
 結果として掃引体積は {coil_volume} m³ で、断面積 × 中心線長の {exact_volume} m³ に対し
 **{volume_error} %** である。
 
 これは al_07 の最適化が粗いせいではない。同じ手順を parastell 自身の `coils.example` に
-当てはめても RMS 29 度・体積 −22% になる。**モジュラーコイルの巻線パックは、1 本の固定ベクトルを
-up にする限り表現できない。** 経路が面外に大きく振れるためで、コイル面の法線 $e_phi$ を選んでも、
+当てはめても RMS 29 度・体積 −22% になる。**モジュラーコイルの巻線パックは、断面の向きを
+1 本の固定ベクトルに保つ限り表現できない。** 経路が面外に大きく振れるためで、コイル面の法線 $e_phi$ を選んでも、
 コイル点群に最も良く乗る平面の法線を選んでも (実測 −24%) 改善しない。
 
 核発熱への効き方は単純なスケールではない。断面が寝ると体積が減るだけでなく、中性子が
