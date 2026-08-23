@@ -1,4 +1,4 @@
-use cadrum;
+use cadrum::{self, DVec3};
 use pyo3::prelude::*;
 
 #[derive(Debug)]
@@ -66,38 +66,40 @@ impl Geometry {
 		Ok(Geometry(vec![cadrum::Solid::bspline(u, v, true, |i,j| point[i*v+j])?]))
 	}
 	/// 断面を経路に沿って掃引する。profile は原点まわりの平面断面 [x0, y0, x1, y1, ...]、
-	/// 各 path は [upx, upy, upz, x, y, z, ...] の 3+3N 要素。
-	/// periodic なら閉ループとして扱う。周期性はスプラインの基底に入るので、始点を末尾で繰り返さない
-	/// (繰り返すと cadrum が InvalidEdge で弾く)。
-	/// up は経路の接線と平行にならない向き (コイルなら巻線面の法線) を渡す。
+	/// paths は [x, y, z, aux_x, aux_y, aux_z, ...] の 6N 要素で、aux はガイド曲線の制御点そのもの。
+	/// 断面のローカル +X が経路点から対応するガイド点の向きを追う。
+	/// 全要素 0 の 6 要素を挟むと、そこで経路が切れて別のソリッドになる。
+	/// periodic なら経路とガイドを周期スプラインとして閉じるので、始点を末尾で繰り返さない。
+	/// ガイドは経路の接線と平行にならない向き (コイルなら巻線面の法線側) に置く。
 	#[staticmethod]
 	#[pyo3(signature = (periodic, profile, *paths))]
-	fn sweep_geometry(periodic: bool, profile: Vec<f64>, paths: Vec<Vec<f64>>) -> Result<Geometry, Error> {
+	fn sweep_geometry(periodic: bool, profile: Vec<f64>, paths: Vec<f64>) -> Result<Geometry, Error> {
 		if profile.len() < 6 || profile.len() % 2 != 0 {
 			return Err(Self::invalid(format!("profile needs >=3 xy points as an even count, got {}", profile.len())));
 		}
+		if paths.len() % 6 != 0 {
+			return Err(Self::invalid(format!("paths needs 6 values per point, got {}", paths.len())));
+		}
 		// 断面は XY 平面に置く。align_z が局所 +Z を接線へ向けるので、この向きなら経路と直交する
-		let section: Vec<cadrum::DVec3> = profile.chunks_exact(2).map(|c| cadrum::DVec3::new(c[0], c[1], 0.0)).collect();
-		// sectionsと対になるpathの点群、最初の1点は上方向ベクトルで点群ではないことに注意
-		let paths: Vec<Vec<cadrum::DVec3>>=paths
-			.iter()
-			.map(|path| -> Result<Vec<cadrum::DVec3>, Error> {
-				if path.len() < 12 || path.len() % 3 != 0 {
-					return Err(Self::invalid(format!("path needs up + >=3 xyz points as 3+3N values, got {}", path.len())));
-				}
-				let point: Vec<cadrum::DVec3> = path.chunks_exact(3).map(|c| cadrum::DVec3::new(c[0], c[1], c[2])).collect();
-				Ok(point)
-			}).collect::<Result<_, Error>>()?;
-		paths
-			.iter()
-			.map(|path| -> Result<cadrum::Solid, Error> {
-				let (up, point) = (path[0].try_normalize().ok_or_else(|| Self::invalid("path up is the zero vector".into()))?, &path[1..]);
-				let spine = cadrum::Edge::bspline(point, if periodic { cadrum::BSplineEnd::Periodic } else { cadrum::BSplineEnd::NotAKnot }).map_err(Error)?;
-				let (tangent, start) = (spine.start_tangent(), spine.start_point());
-				// 断面のローカル +X が up、+Y が tangent x up に乗る
-				let edges: Vec<cadrum::Edge> = cadrum::Edge::polygon(&section).map_err(Error)?.into_iter().map(|e| e.align_z(tangent, up).translate(start)).collect();
-				cadrum::Solid::sweep(&edges, &[spine], cadrum::ProfileOrient::Up(up)).map_err(Error)
-			})
+		let section: Vec<DVec3> = profile.chunks_exact(2).map(|c| DVec3::new(c[0], c[1], 0.0)).collect();
+		let path: Vec<[DVec3; 2]> = paths.chunks_exact(6).map(|v| [DVec3::from_slice(v), DVec3::from_slice(&v[3..])]).collect();
+		let sweeper = |single: &[[DVec3; 2]]| -> Result<cadrum::Solid, Error> {
+			if single.len() < 3 {
+				return Err(Self::invalid(format!("path needs >=3 points, got {}", single.len())));
+			}
+			let end = match periodic {
+				true => cadrum::BSplineEnd::Periodic,
+				false => cadrum::BSplineEnd::NotAKnot,
+			};
+			let spine = cadrum::Edge::bspline(single.iter().map(|v| &v[0]), end)?;
+			let guide = cadrum::Edge::bspline(single.iter().map(|v| &v[1]), end)?;
+			// 断面は経路の始点へ、その接線を法線として置く。sweep は断面を動かさずそのまま掃く
+			let wire: Vec<cadrum::Edge> = cadrum::Edge::polygon(&section)?.into_iter().map(|e| e.align_z(spine.start_tangent(), single[0][1] - single[0][0]).translate(single[0][0])).collect();
+			cadrum::Solid::sweep(&wire, &[spine], cadrum::ProfileOrient::Auxiliary(&[guide])).map_err(Error)
+		};
+		path.split(|v| v[0].length() + v[1].length() < 1e-9)
+			.filter(|single| !single.is_empty())
+			.map(sweeper)
 			.collect::<Result<Vec<cadrum::Solid>, Error>>()
 			.map(Geometry)
 	}
