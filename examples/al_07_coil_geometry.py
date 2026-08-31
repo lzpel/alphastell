@@ -2,7 +2,7 @@
 """VMEC の LCFS を再現するモジュラーコイルを simsopt の stage-2 最適化で起こす (al_07)。
 
 手法は optimize_coil() にある。main() はそれをコイル-プラズマ距離について走査し、
-CSV・3D 図・PDF レポート (本文は al_07_report.typ) を出すだけの段取りである。
+CSV・3D 図・PDF レポート (本文は末尾の TEMPLATE) を出すだけの段取りである。
 
 al_06 で PbLi 殻を厚くするほど TBR が上がると分かったが、厚みを置く空間はコイルが決める。
 距離を振って磁気面の再現誤差を見ると、ブランケット・遮蔽・真空容器に使える半径方向の予算が出る。
@@ -67,16 +67,20 @@ def make_surface(
 
 def optimize_coil(
 	surface: SurfaceRZFourier, # 固定する LCFS。この面上の B·n を消すようにコイルが動く
-	standoff: float, # コイル-プラズマ距離の要求値 [m]。ペナルティの閾値と初期半径の両方に効く
-	ncoils: int, # 半周期あたりの独立コイル数。全体では 2*nfp*ncoils 本になる
-	order: int, # コイル 1 本の Fourier 次数。自由度は 1 本あたり 3*(2*order+1) 個
-	b0: float, # 大半径での磁場 [T]。正味ポロイダル電流の総量を決めるためだけに使う
-	length_target: float, # コイル 1 本の長さ上限 [m]。超えた分だけ二次で罰する
-	cc_threshold: float, # コイル間の最小距離 [m]。組み立てと支持構造が要求する
-	curvature_threshold: float, # 曲率上限 [1/m]。逆数が導体の最小曲げ半径
-	msc_threshold: float, # 平均二乗曲率の上限 [1/m^2]。曲率上限では拾えない全体の波打ちを抑える
-	weights: dict[str, float], # 各ペナルティの重み。キーは length/curve_curve_distance/curve_surface_distance/curvature/msc
-	maxiter: int, # L-BFGS-B の反復上限
+	ncoils: int = 4, # 半周期あたりの独立コイル数。全体では 2*nfp*ncoils 本になる
+	order: int = 6, # コイル 1 本の Fourier 次数。自由度は 1 本あたり 3*(2*order+1) 個。上げると細かく波打つ
+	b0: float = 5.5, # 大半径での磁場 [T]。正味ポロイダル電流の総量を決めるためだけに使う
+	iteration: int = 300, # L-BFGS-B の反復上限
+	threshold_length: float = 32.0, # コイル 1 本の長さ上限 [m]。超えた分だけ二次で罰する
+	weight_length: float = 1e-3, # 長さペナルティの重み
+	threshold_curve_curve_distance: float = 0.8, # コイル間の最小距離 [m]。組み立てと支持構造が要求する
+	weight_curve_curve_distance: float = 3e-1, # コイル間距離ペナルティの重み
+	threshold_curve_surface_distance: float = 1.5, # コイル-プラズマ距離の要求値 [m]。ペナルティの閾値と初期半径の両方に効く
+	weight_curve_surface_distance: float = 3e-2, # コイル-プラズマ距離ペナルティの重み
+	threshold_curvature: float = 0.5, # 曲率上限 [1/m]。逆数が導体の最小曲げ半径
+	weight_curvature: float = 1e-2, # 曲率ペナルティの重み
+	threshold_mean_squared_curvature: float = 0.25, # 平均二乗曲率の上限 [1/m^2]。曲率上限では拾えない全体の波打ちを抑える
+	weight_mean_squared_curvature: float = 1e-2, # 平均二乗曲率ペナルティの重み
 ) -> dict[str, Any]:
 	"""磁気面を固定してコイルだけを動かす stage-2。
 
@@ -86,15 +90,17 @@ def optimize_coil(
 	4. 目的関数 = 規格化 B·n の二乗積分 + 長さ/コイル間/プラズマ間/曲率のペナルティ
 	5. L-BFGS-B で解く
 
-	閾値 (length_target 等) は工学的な制約そのもの、weights は物理的意味を持たない数値の重み。
+	閾値 (threshold_length 等) は工学的な制約そのもの、weight_* は物理的意味を持たない数値の重み。
 	"""
+	# docstring 直後ならローカルはまだ引数だけ。返り値で入力をそのまま echo する
+	parameters = {k: v for k, v in locals().items() if k != "surface"}
 	from simsopt.field import BiotSavart, Current, coils_via_symmetries
 	from simsopt.geo import CurveCurveDistance, CurveLength, CurveSurfaceDistance, LpCurveCurvature, MeanSquaredCurvature, create_equally_spaced_curves
 	from simsopt.objectives import QuadraticPenalty, SquaredFlux
 	from scipy.optimize import minimize
 	nfp = surface.nfp
 	r_major = surface.get_rc(0, 0)
-	base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym=True, R0=r_major, R1=3.5 + standoff, order=order)
+	base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym=True, R0=r_major, R1=3.5 + threshold_curve_surface_distance, order=order)
 
 	# 正味ポロイダル電流 2πR·B0/μ0 を半周期に配り、その合計だけを固定する。
 	# 最後の 1 本を「合計 - 残り」にすると本数分の自由度から 1 つだけ減る。
@@ -111,16 +117,16 @@ def optimize_coil(
 	# definition="local" は ∫(B·n/|B|)² dA。無次元なので重みが b0 の仮定に引きずられない。
 	flux = SquaredFlux(surface, field, definition="local")
 	lengths = [CurveLength(c) for c in base_curves]
-	distance_cc = CurveCurveDistance([c.curve for c in coils], cc_threshold, num_basecurves=ncoils)
-	distance_cs = CurveSurfaceDistance(base_curves, surface, standoff)
+	distance_cc = CurveCurveDistance([c.curve for c in coils], threshold_curve_curve_distance, num_basecurves=ncoils)
+	distance_cs = CurveSurfaceDistance(base_curves, surface, threshold_curve_surface_distance)
 	# flux + 重み * 罰
 	objective = (
 		flux
-		+ weights["length"] * sum(QuadraticPenalty(length, length_target, "max") for length in lengths)
-		+ weights["curve_curve_distance"] * distance_cc
-		+ weights["curve_surface_distance"] * distance_cs
-		+ weights["curvature"] * sum(LpCurveCurvature(c, 2, curvature_threshold) for c in base_curves)
-		+ weights["msc"] * sum(QuadraticPenalty(MeanSquaredCurvature(c), msc_threshold, "max") for c in base_curves)
+		+ weight_length * sum(QuadraticPenalty(length, threshold_length, "max") for length in lengths)
+		+ weight_curve_curve_distance * distance_cc
+		+ weight_curve_surface_distance * distance_cs
+		+ weight_curvature * sum(LpCurveCurvature(c, 2, threshold_curvature) for c in base_curves)
+		+ weight_mean_squared_curvature * sum(QuadraticPenalty(MeanSquaredCurvature(c), threshold_mean_squared_curvature, "max") for c in base_curves)
 	)
 
 	# 目的関数の値と勾配を返す
@@ -128,11 +134,10 @@ def optimize_coil(
 		objective.x = dofs
 		return objective.J(), objective.dJ()
 
-	minimize(fun, objective.x, jac=True, method="L-BFGS-B", options={"maxiter": maxiter, "maxcor": 300})
+	minimize(fun, objective.x, jac=True, method="L-BFGS-B", options={"maxiter": iteration, "maxcor": 300})
 
 	# B·n/|B| を (φ, θ) 格子の形で。0 なら磁気面がコイルの作る磁場と整合する。
 	b = field.B().reshape(surface.gamma().shape)
-	
 
 	def fourier_coefficients(points: np.ndarray, order: int) -> np.ndarray:
 		"""周期点列 (t = 0..1 の等間隔) を三角多項式の係数 [3, 2*order+1] に戻す。x(t) = Σ_m [ c_m cos(2πmt) + s_m sin(2πmt) ]。列は simsopt の DOF と同じ [c_0, s_1, c_1, .. s_order, c_order]"""
@@ -140,8 +145,8 @@ def optimize_coil(
 		# stack で s_m, c_m を交互に並べ、先頭の [s_0, c_0] だけ落として c_0 を単独で戻す
 		return np.concatenate([spectrum[:1].real, np.stack([-2 * spectrum.imag, 2 * spectrum.real], 1).reshape(-1, 3)[2:]]).T
 	return {
-		# 入力の要求値をそのまま返す。実際に到達した距離は "curve_surface_distance"
-		"standoff": standoff,
+		# 入力の引数一式をそのまま返す。実際に到達した距離は "curve_*_distance" の 2 つ
+		"parameters": parameters,
 		# 対称像も含めた全 2*nfp*ncoils 本。3D 図と CSV はここから引く
 		"coils": coils,
 		# coils と同じ順序のフーリエ係数 [3, 2*order+1]。対称像 (RotatedCurve) は自前の DOF を持たず x を読むと回転前の係数が返るので、全本を gamma() から一様に起こす
@@ -161,26 +166,26 @@ def optimize_coil(
 
 
 def main(
-	wout: pathlib.Path, out: pathlib.Path, standoffs: list[float], ncoils: int, order: int,
-	b0: float, length_target: float, cc_threshold: float, curvature_threshold: float, msc_threshold: float,
-	weights: dict[str, float], maxiter: int,
+	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc",
+	out: pathlib.Path = pathlib.Path("out") / pathlib.Path(__file__).with_suffix(".pdf").name,
+	threshold_curve_surface_distances: list[float] = [1.5, 2.0, 2.5, 3.0],  # コイル-プラズマ最小距離の要求値 [m]。先頭を 3D 図と CSV に出す
 ) -> list[dict[str, Any]]:
 	surface = make_surface(wout)
 	nfp = surface.nfp
 
 	results = []
-	for standoff in standoffs:
-		result = optimize_coil(surface, standoff, ncoils, order, b0, length_target, cc_threshold, curvature_threshold, msc_threshold, weights, maxiter)
+	for threshold_curve_surface_distance in threshold_curve_surface_distances:
+		result = optimize_coil(surface, threshold_curve_surface_distance=threshold_curve_surface_distance)
 		results.append(result)
 		print(
-			f"standoff {standoff:.1f} m: max |B.n|/|B| = {np.abs(result['error']).max():.2e}, "
+			f"requested {threshold_curve_surface_distance:.1f} m: max |B.n|/|B| = {np.abs(result['error']).max():.2e}, "
 			f"achieved {result['curve_surface_distance']:.2f} m, coil-coil {result['curve_curve_distance']:.2f} m, length {sum(result['lengths']) * 2 * nfp:.0f} m"
 		)
 	baseline = results[0]
 	coils = baseline["coils"]
+	ncoils, order = baseline["parameters"]["ncoils"], baseline["parameters"]["order"]
 
 	# --- コイル形状を Fourier 係数で書き出す。下流の CAD/構造解析はここから読む ---------
-	out.mkdir(parents=True, exist_ok=True)
 	geometry = [coil.curve.gamma() for coil in coils]
 	rows = []
 	for index, (coil, coefficients) in enumerate(zip(coils, baseline["coeffs"])):
@@ -189,7 +194,7 @@ def main(
 		sine = np.vstack([np.zeros(3), coefficients[:, 1::2].T])
 		rows.append(np.column_stack([np.full(order + 1, index), np.full(order + 1, coil.current.get_value()), np.arange(order + 1), cosine, sine]))
 	np.savetxt(
-		out / "al_07_coils.csv", np.concatenate(rows), delimiter=",",
+		out.with_suffix(".csv"), np.concatenate(rows), delimiter=",",
 		header="coil,current_A,m,xc,yc,zc,xs,ys,zs", comments="", fmt="%.9e",  # 係数の単位は m
 	)
 
@@ -219,7 +224,7 @@ def main(
 		f"coil-plasma {baseline['curve_surface_distance']:.2f} m, max |B.n|/|B| = {np.abs(baseline['error']).max():.1e}, "
 		f"total length {sum(baseline['lengths']) * 2 * nfp:.0f} m"
 	)
-	figure.savefig(out / "al_07_coils.png", dpi=150, bbox_inches="tight")
+	figure.savefig(out.with_suffix(".png"), dpi=150, bbox_inches="tight")
 	plt.close(figure)
 
 	figure, (left, right) = plt.subplots(1, 2, figsize=(12, 4.0))
@@ -238,16 +243,14 @@ def main(
 	right.legend()
 	right.grid(alpha=0.3)
 	figure.tight_layout()
-	figure.savefig(out / "al_07_error.png", dpi=150, bbox_inches="tight")
+	figure.savefig(out.with_suffix(".error.png"), dpi=150, bbox_inches="tight")
 	plt.close(figure)
 
-	# --- PDF レポート。本文は隣の al_07_report.typ にあり、ここでは数値だけ差し込む -------
-	fields = {
-		"nfp": nfp, "r_major": surface.get_rc(0, 0), "ncoils": ncoils, "order": order, "b0": b0,
-		"ncoils_total": len(coils), "nimages": 2 * nfp, "maxiter": maxiter,
-		"length_target": length_target, "cc_threshold": cc_threshold,
-		"curvature_threshold": curvature_threshold, "bend_radius": 1 / curvature_threshold,
-		"standoff_min": standoffs[0], "standoff_max": standoffs[-1],
+	# --- PDF レポート。本文は末尾の TEMPLATE にあり、ここでは数値だけ差し込む -------------
+	fields = baseline["parameters"] | {
+		"nfp": nfp, "r_major": surface.get_rc(0, 0),
+		"ncoils_total": len(coils), "nimages": 2 * nfp, "bend_radius": 1 / baseline["parameters"]["threshold_curvature"],
+		"threshold_curve_surface_distance_min": threshold_curve_surface_distances[0], "threshold_curve_surface_distance_max": threshold_curve_surface_distances[-1],
 		"cs_first": baseline["curve_surface_distance"], "cs_last": results[-1]["curve_surface_distance"],
 		"cc_first": baseline["curve_curve_distance"], "cc_last": results[-1]["curve_curve_distance"],
 		"error_first": np.abs(baseline["error"]).max(), "error_last": np.abs(results[-1]["error"]).max(),
@@ -256,30 +259,98 @@ def main(
 			for i in range(ncoils)
 		),
 		"scan_rows": "".join(
-			f"  [{r['standoff']:.1f}], [{r['curve_surface_distance']:.2f}], [{np.abs(r['error']).max():.1e}], [{np.abs(r['error']).mean():.1e}], "
+			f"  [{r['parameters']['threshold_curve_surface_distance']:.1f}], [{r['curve_surface_distance']:.2f}], [{np.abs(r['error']).max():.1e}], [{np.abs(r['error']).mean():.1e}], "
 			f"[{sum(r['lengths']) * 2 * nfp:.0f}], [{r['curve_curve_distance']:.2f}],\n"
 			for r in results
 		),
+		"out_png": out.with_suffix(".png").name,
+		"out_error_png": out.with_suffix(".error.png").name,
+		"out_csv": out.with_suffix(".csv").name,
 	}
-	template = pathlib.Path(__file__).with_name("al_07_report.typ").read_text(encoding="utf-8")
-	(out / "al_07_report.typ").write_text(template.format(**fields), encoding="utf-8")
-	typst.compile(out / "al_07_report.typ", output=out / "al_07_report.pdf")
-	print(f"{out / 'al_07_report.pdf'}: {(out / 'al_07_report.pdf').stat().st_size} bytes")
+	out.with_suffix(".typ").write_text(TEMPLATE.format(**fields), encoding="utf-8")
+	typst.compile(out.with_suffix(".typ"), output=out.with_suffix(".pdf"))
 	return results
 
+# PDF レポートの本文。main() が数値を差し込んで typst でコンパイルする
+TEMPLATE = """
+#set page(paper: "a4", margin: 2cm, numbering: "1")
+#set text(font: ("Yu Gothic", "Meiryo", "Noto Sans CJK JP"), size: 10pt, lang: "ja")
+#set par(justify: true)
+
+= VMEC 平衡を再現するモジュラーコイル (al_07)
+
+VMEC 平衡 `wout_vmec.nc` (nfp={nfp}, R={r_major:.2f} m) の LCFS を固定し、その外側にモジュラーコイルを
+simsopt の stage-2 最適化で置いた。al_06 で PbLi 殻を厚くするほど TBR が上がると分かったので、
+ここではコイルをどこまで離せるか、つまり半径方向にいくら予算があるかを見る。
+
+== 方法
+
+磁気面を動かさずコイルだけを動かす stage-2 である。半周期に {ncoils} 本の独立コイル
+(1 本あたり Fourier {order} 次) を等間隔の円環として置き、stellarator 対称と nfp 回転で
+{ncoils_total} 本に増やす。目的関数は LCFS 上の規格化法線磁場
+
+$ integral (bold(B) dot bold(n))^2 / abs(bold(B))^2 thin d A $
+
+に、コイル長 ({threshold_length} m)・コイル間距離 ({threshold_curve_curve_distance} m)・コイル-プラズマ距離・曲率
+({threshold_curvature} 1/m、曲げ半径 {bend_radius:.0f} m) の各ペナルティを足したもので、L-BFGS-B を {iteration} 反復かけた。
+コイル-プラズマ距離の要求値だけを {threshold_curve_surface_distance_min}〜{threshold_curve_surface_distance_max} m で振っている。
+
+電流の絶対値はこの wout からは決まらない。正味ポロイダル電流を与える `bsubvmnc` が無く、
+`rmnc` / `zmns` / `xm` / `xn` しか持たないためである。R#sub[0] = {r_major:.2f} m で
+B#sub[0] = {b0} T を仮定して総電流を固定した。目的関数が B·n/|B| で電流スケールに不変なので、
+コイル形状はこの仮定に依らず、下表の電流値だけが B#sub[0] に比例する。同じ理由で、virtual casing に
+必要な量が無いため有限ベータ補正も入っておらず、コイルだけで LCFS を作る真空磁場に近い扱いである。
+
+== 結果: どこまでコイルを離せるか
+
+#table(
+  columns: 6,
+  align: (right, right, right, right, right, right),
+  [要求距離 [m]], [実現距離 [m]], [max |B·n|/|B|], [mean |B·n|/|B|], [全コイル長 [m]], [コイル間 [m]],
+{scan_rows})
+
+要求 {threshold_curve_surface_distance_min} m はほぼそのまま実現できる ({cs_first:.2f} m)。別途 1.0 m を要求しても 1.38 m までしか
+近づかないので、この配位のコイルは放っておいても 1.4 m 前後に落ち着く。一方、要求を上げると
+法線磁場誤差は {error_first:.1e} ({cs_first:.2f} m) から {error_last:.1e} ({cs_last:.2f} m) へ 1 桁上がり、
+同時にコイル間距離が {cc_first:.2f} m から {cc_last:.2f} m へ詰まる。離した分を長いコイルで補おうとして
+互いに衝突するためで、2 m 付近が実用上の壁になる。
+
+#figure(image("{out_error_png}", width: 100%), caption: [左: 実現距離 {cs_first:.2f} m での
+LCFS 上の B·n/|B| 分布。右: コイル-プラズマ距離に対する法線磁場誤差。点線は al_06 の PbLi 最大厚み。])
+
+== 結果: コイル形状
+
+以下は要求 {threshold_curve_surface_distance_min} m のコイルである。
+
+#table(
+  columns: 4,
+  align: (center, right, right, right),
+  [コイル], [長さ [m]], [電流 [MA]], [最小曲げ半径 [m]],
+{coil_rows})
+
+#figure(image("{out_png}", width: 92%), caption: [{ncoils_total} 本のモジュラーコイルと LCFS。
+色は独立コイルの番号で、同色の {nimages} 本は対称操作による像である。断面が三角形から楕円へ
+捻れる領域でコイルが強く曲がる。])
+
+== 考察
+
+半径方向の予算は約 1.4 m、無理をして 2 m である。al_06 の PbLi 殻は 70 cm でも TBR が
+飽和していなかったから、残る 70 cm 前後に第一壁・冷却管・背面支持構造・遮蔽・真空容器・
+組立公差の全部を収めなければならない。al_06 の「厚くすれば TBR が上がる」と本節の
+「離すと磁気面が再現できない」は独立した 2 つの結果ではなく、1 つの半径方向予算の奪い合いである。
+コイル本数を増やしてもこの壁は動かない (半周期 5 本・6 本でも max |B·n|/|B| は 1e-2 台に留まり、
+全コイル長だけが 20〜30% 増えた)。al_08 以降で不均質な WCLL 構造を入れるとき、厚みの上限はここで決まる。
+
+コイル形状は `out/{out_csv}` に全 {ncoils_total} 本の Fourier 係数として出してある。
+各コイルは m = 0…{order} の
+
+$ bold(x)(t) = sum_m [ bold(c)_m cos(2 pi m t) + bold(s)_m sin(2 pi m t) ] $
+
+で表され、点列と違って任意の分解能で滑らかに引き直せる。対称操作による像も回転行列を掛けた
+だけで次数は変わらないので、全数を同じ形式で持てる。al_04 と同じ経路で STEP にすれば、
+そのまま構造解析と干渉チェックに渡せる。
+"""
 
 if __name__ == "__main__":
-	main(
-		wout=pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc",
-		out=pathlib.Path("out"),
-		standoffs=[1.5, 2.0, 2.5, 3.0],  # コイル-プラズマ最小距離の要求値 [m]。先頭を 3D 図と CSV に出す
-		ncoils=4,  # 半周期あたりの独立コイル数。全体では 2*nfp*ncoils 個
-		order=6,  # コイル 1 本の Fourier 次数。上げると細かく波打つ
-		b0=5.5,  # 境界の平均大半径での磁場 [T]。電流の絶対値を決めるためだけの仮定
-		length_target=32.0,  # コイル 1 本の長さ上限 [m]
-		cc_threshold=0.8,  # コイル間の最小距離 [m]
-		curvature_threshold=0.5,  # 曲率上限 [1/m]。最小曲げ半径 2 m
-		msc_threshold=0.25,  # 平均二乗曲率の上限 [1/m^2]。局所的でない波打ちを抑える
-		weights={"length": 1e-3, "curve_curve_distance": 3e-1, "curve_surface_distance": 3e-2, "curvature": 1e-2, "msc": 1e-2},
-		maxiter=300,
-	)
+	main()
+
