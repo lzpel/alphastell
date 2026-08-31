@@ -20,10 +20,10 @@ Requirement: cargoが入っていること
 
 ```
 make al-04 # make geometry
-make al-07 # コイル形状 (simsopt)
+make al-08 # コイル形状 (simsopt)
 ```
 
-### simsopt (al_07 以降)
+### simsopt (al_08 以降)
 
 simsopt は PyPI から入らない。Windows wheel が無く、cp314 の wheel は Linux/macOS にも無く、sdist は `thirdparty/` の git submodule を含まないためソースからもビルドできないからである。
 
