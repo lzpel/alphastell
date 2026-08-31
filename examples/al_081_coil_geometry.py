@@ -20,7 +20,7 @@ def main(
 ) -> None:
 	surface = make_surface(wout)
 	result = optimize_coil(surface)
-	solids = geometry(result["coils"], width, height)
+	solids = geometry(result["coils"], wout, width, height)
 	out.parent.mkdir(parents=True, exist_ok=True)
 	for path, write in ((out, solids.write_step), (out.with_suffix(".png"), solids.write_png)):
 		with open(path, "wb") as f:
@@ -35,6 +35,7 @@ def main(
 
 def geometry(
 	coils: list[Any],  # simsopt の Coil (対称像込み)。curve.gamma() の点列を掃引経路にする
+	wout: pathlib.Path,  # VMEC 平衡。inverse でコイル各点を磁束座標 (phi, theta, s) に写す
 	width: float = 0.40,  # 導体断面のトロイダル幅 [m]。断面のローカル x
 	height: float = 0.50,  # 導体断面の半径方向厚み [m]。断面のローカル y
 	npoint: int = 48,  # 1 本あたりの経路点数。gamma() から等間隔に間引く
@@ -46,14 +47,30 @@ def geometry(
 	コイルは R-z 面から最大 57 度傾き、断面が経路と直交せず体積が 1-2 割減る (main の検査で出る)。
 	閉ループなので始点を末尾で繰り返さない (周期性はスプラインの基底に入る)。
 	"""
-	from alphastell import Geometry
+	from alphastell import Geometry, SurfaceFourierRZ
+	with open(wout, "rb") as f:
+		flux_surface = SurfaceFourierRZ.load(f)
+
+	def inverse(point: list[float]) -> list[float]:
+		# コイル点は s ~ 1.3-2.3 の深い外挿域で、外挿面が交差して収束しないことがある
+		try:
+			return flux_surface.inverse(point)
+		except ValueError:
+			return [math.nan] * 3
+
 	profile = [-width / 2, -height / 2, width / 2, -height / 2, width / 2, height / 2, -width / 2, height / 2]
 	paths = []
+	flux = []
 	for coil in coils:
 		points = coil.curve.gamma()
 		points = points[np.linspace(0, len(points), npoint, endpoint=False).astype(int)]
+		flux.append([inverse(p) for p in points.tolist()])
 		phi = math.atan2(*points.mean(axis=0)[[1, 0]])
 		paths.append([-math.sin(phi), math.cos(phi), 0.0] + points.ravel().tolist())
+	# 磁束座標はまだ使わない。収束率だけ見せて捨てる
+	flux_array = np.array(flux)
+	converged = np.isfinite(flux_array[..., 2])
+	print(f"inverse: {converged.sum()}/{converged.size} points converged, s {np.nanmin(flux_array[..., 2]):.2f}..{np.nanmax(flux_array[..., 2]):.2f}")
 	return Geometry.sweep_geometry(True, profile, *paths)
 
 
