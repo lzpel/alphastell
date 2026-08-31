@@ -367,6 +367,47 @@ impl SurfaceFourierRZ {
         .collect()
 	}
 
+	/// (x, y, z) を磁束座標 [φ, θ, s] に逆算する。
+	pub fn inverse(&self, point: [f64; 3]) -> std::result::Result<[f64; 3], String> {
+		let phi = point[1].atan2(point[0]).rem_euclid(TAU);// φ は円柱座標の方位角そのものなので atan2 で解析的に決まる。
+		let r_target = point[0].hypot(point[1]);
+		let z_target = point[2];
+		let axis = self.interpolate_rz(phi, 0.0, 0.0); // s=0 は磁気軸に退化するので θ は不問
+		let mut theta = (z_target - axis.z).atan2(r_target - axis.r);
+		let lcfs = self.interpolate_rz(phi, theta, 1.0);
+		let rho = (r_target - axis.r).hypot(z_target - axis.z);
+		let rho_lcfs = (lcfs.r - axis.r).hypot(lcfs.z - axis.z);
+		let mut s = (rho / rho_lcfs).powi(2).clamp(1e-3, 1.2);
+		for _ in 0..50 {
+			let rz = self.interpolate_rz(phi, theta, s);
+			let (f_r, f_z) = (rz.r - r_target, rz.z - z_target);
+			if f_r.hypot(f_z) < 1e-10 {
+				return Ok([phi, theta.rem_euclid(TAU), s]);
+			}
+			let h = 1e-5;
+			let plus = self.interpolate_rz(phi, theta, s + h);
+			let minus = self.interpolate_rz(phi, theta, s - h);
+			let (dr_ds, dz_ds) = ((plus.r - minus.r) / (2.0 * h), (plus.z - minus.z) / (2.0 * h));
+			// J·δ = f を Cramer で解く。J = [[∂R/∂θ, ∂R/∂s], [∂Z/∂θ, ∂Z/∂s]]
+			let det = rz.dr_dtheta * dz_ds - dr_ds * rz.dz_dtheta;
+			if det.abs() < 1e-14 {
+				return Err(format!("inverse: singular Jacobian at phi={phi:.3}, theta={theta:.3}, s={s:.3}"));
+			}
+			let dtheta = (dz_ds * f_r - dr_ds * f_z) / det;
+			let ds = (rz.dr_dtheta * f_z - rz.dz_dtheta * f_r) / det;
+			// 発散防止の step 制限。方向は保ち大きさだけ縮める
+			let scale = 1.0_f64.min(0.5 / dtheta.abs()).min(0.3 / ds.abs());
+			theta -= scale * dtheta;
+			s -= scale * ds;
+			if s < 0.0 {
+				// (s, θ) は断面内の極座標に近いので、負の s は θ を半周回して正に戻す
+				s = -s;
+				theta += TAU / 2.0;
+			}
+		}
+		Err(format!("inverse: Newton did not converge for point {point:?}"))
+	}
+
 	pub fn interpolate_rz(&self, phi: f64, theta: f64, s: f64) -> RZ {
 		// 各モードごとの s 軸方向スプラインは (s, θ, φ) に依存しないので、SurfaceFourierRZ の
 		// ライフタイムで 1 回だけ構築してメモ化する。初回呼び出しで lazy 初期化。
