@@ -2,7 +2,7 @@
 #set text(font: ("Yu Gothic", "Meiryo", "Noto Sans CJK JP"), size: 10pt, lang: "ja")
 #set par(justify: true)
 
-= 中性子線源モデル 3 種の比較 (al_08)
+= 中性子線源モデル 3 種の比較 (al_07)
 
 al_06 の線源は規格化磁束・ポロイダル角・トロイダル角 (s, θ, φ) の空間に一様に撒いた
 {n_flat} 個の等強度点線源である。しかし実際の中性子発生密度は核融合反応率 $n^2 ⟨sigma v⟩$ に
@@ -44,11 +44,11 @@ $ T = 11.5 (1 - s) "keV", quad n = 4.8 times 10^20 (1 - s^5) "m"^(-3), quad ⟨s
 これには 2 ラン分のショットノイズが必ず乗るので、タリーの標準偏差から期待されるノイズ床を
 「うちノイズ」に併記した。両者の差が線源モデルの違いによる正味の寄与である。
 
-#figure(image("al_08_source_s.png", width: 88%), caption: [規格化磁束 s に対する線源強度の累積分布。
+#figure(image("al_07_source_s.png", width: 88%), caption: [規格化磁束 s に対する線源強度の累積分布。
 case_1 はほぼ直線 (体積一様) で、case_2 と case_3 はコアに集中して立ち上がる。case_3 の s は
 tet の重心なので離散値しか取らず、ヒストグラムにすると空きビンが振動に見えるため累積で描いた。])
 
-#figure(image("al_08_breeding.png", width: 100%), caption: [左: case_3 の R-Z トリチウム生成密度
+#figure(image("al_07_breeding.png", width: 100%), caption: [左: case_3 の R-Z トリチウム生成密度
 (φ 全周積分)。中・右: case_1 と case_2 の同じ量の case_3 に対する比で、全体の平均で規格化して
 形状の違いだけを出してある。3 枚の絶対値を並べても差が見えないので比で描いた。])
 

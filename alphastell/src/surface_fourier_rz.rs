@@ -22,6 +22,10 @@ impl SurfaceFourierRZ {
 			false => vmec::NormalKind::Planar,
 		})
 	}
+	/// (x, y, z) を磁束座標 [phi, theta, s] に逆算する。収束しなければ ValueError。
+	fn inverse(&self, point: [f64; 3]) -> PyResult<[f64; 3]> {
+		self.0.inverse(point).map_err(pyo3::exceptions::PyValueError::new_err)
+	}
 }
 
 pub fn module(m: &Bound<'_, PyModule>) -> PyResult<()> {

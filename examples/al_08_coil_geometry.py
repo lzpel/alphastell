@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""VMEC の LCFS を再現するモジュラーコイルを simsopt の stage-2 最適化で起こす (al_07)。
+"""VMEC の LCFS を再現するモジュラーコイルを simsopt の stage-2 最適化で起こす (al_08)。
 
 手法は optimize_coil() にある。main() はそれをコイル-プラズマ距離について走査し、
 CSV・3D 図・PDF レポート (本文は末尾の TEMPLATE) を出すだけの段取りである。
@@ -7,7 +7,7 @@ CSV・3D 図・PDF レポート (本文は末尾の TEMPLATE) を出すだけの
 al_06 で PbLi 殻を厚くするほど TBR が上がると分かったが、厚みを置く空間はコイルが決める。
 距離を振って磁気面の再現誤差を見ると、ブランケット・遮蔽・真空容器に使える半径方向の予算が出る。
 
-    make al-07
+    make al-08
 """
 
 import math
@@ -277,7 +277,7 @@ TEMPLATE = """
 #set text(font: ("Yu Gothic", "Meiryo", "Noto Sans CJK JP"), size: 10pt, lang: "ja")
 #set par(justify: true)
 
-= VMEC 平衡を再現するモジュラーコイル (al_07)
+= VMEC 平衡を再現するモジュラーコイル (al_08)
 
 VMEC 平衡 `wout_vmec.nc` (nfp={nfp}, R={r_major:.2f} m) の LCFS を固定し、その外側にモジュラーコイルを
 simsopt の stage-2 最適化で置いた。al_06 で PbLi 殻を厚くするほど TBR が上がると分かったので、
@@ -339,7 +339,7 @@ LCFS 上の B·n/|B| 分布。右: コイル-プラズマ距離に対する法�
 組立公差の全部を収めなければならない。al_06 の「厚くすれば TBR が上がる」と本節の
 「離すと磁気面が再現できない」は独立した 2 つの結果ではなく、1 つの半径方向予算の奪い合いである。
 コイル本数を増やしてもこの壁は動かない (半周期 5 本・6 本でも max |B·n|/|B| は 1e-2 台に留まり、
-全コイル長だけが 20〜30% 増えた)。al_08 以降で不均質な WCLL 構造を入れるとき、厚みの上限はここで決まる。
+全コイル長だけが 20〜30% 増えた)。al_09 以降で不均質な WCLL 構造を入れるとき、厚みの上限はここで決まる。
 
 コイル形状は `out/{out_csv}` に全 {ncoils_total} 本の Fourier 係数として出してある。
 各コイルは m = 0…{order} の

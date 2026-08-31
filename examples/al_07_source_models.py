@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""中性子線源モデル 3 種を同じ PbLi 殻で比較する (al_08)。
+"""中性子線源モデル 3 種を同じ PbLi 殻で比較する (al_07)。
 
 al_06 の線源は (φ, θ, s) 一様・等強度の点線源 200 個で、核融合反応率が s≈0 に集中するという
 物理と食い違っている。厚い全周ブランケットの TBR は線源分布にほぼ鈍感なので al_06 の結論は
@@ -11,7 +11,7 @@ al_06 の線源は (φ, θ, s) 一様・等強度の点線源 200 個で、核�
 
 精度・計算時間・実装量の実測でどれに移行すべきかを決めるのが目的。
 
-    make al-08
+    make al-07
 """
 
 import math
@@ -32,10 +32,10 @@ from alphastell import SurfaceFourierRZ, Geometry
 
 WOUT = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc"
 OUT = pathlib.Path("out")
-WORK = OUT / "al_08_openmc"
-STEP = OUT / "al_08_shell.step"
-H5M = OUT / "al_08.h5m"
-VTK = OUT / "al_08_plasma.vtk"
+WORK = OUT / "al_07_openmc"
+STEP = OUT / "al_07_shell.step"
+H5M = OUT / "al_07.h5m"
+VTK = OUT / "al_07_plasma.vtk"
 
 THICKNESS = 0.5  # m。al_06 の中央の厚みに合わせる
 DIV_PHI, DIV_THETA = 96, 40  # 殻の制御点。al_06 と同じにして幾何を一致させる
@@ -285,7 +285,7 @@ def main() -> list[dict[str, Any]]:
 	)
 	axes.legend()
 	axes.grid(alpha=0.3)
-	figure.savefig(OUT / "al_08_source_s.png", dpi=150, bbox_inches="tight")
+	figure.savefig(OUT / "al_07_source_s.png", dpi=150, bbox_inches="tight")
 	plt.close(figure)
 
 	# 絶対値は 3 枚並べてもほぼ同じに見えるので、基準 1 枚と case_3 との比 2 枚にする
@@ -302,11 +302,11 @@ def main() -> list[dict[str, Any]]:
 		)
 		panel.set(xlabel="R [m]", title=f"{result['name']} / case_3")
 	figure.colorbar(image, ax=list(panels[1:]), location="bottom", label="ratio to case_3")
-	figure.savefig(OUT / "al_08_breeding.png", dpi=150)
+	figure.savefig(OUT / "al_07_breeding.png", dpi=150)
 	plt.close(figure)
 
 	# --- PDF レポート ---------------------------------------------------------
-	template = pathlib.Path(__file__).with_name("al_08_report.typ").read_text(encoding="utf-8")
+	template = pathlib.Path(__file__).with_name("al_07_report.typ").read_text(encoding="utf-8")
 	fields = {
 		"thickness": f"{THICKNESS * 100:.0f}",
 		"particles": PARTICLES,
@@ -342,9 +342,9 @@ def main() -> list[dict[str, Any]]:
 		"slowdown_3": (results[2]["t_run"] / results[0]["t_run"] - 1.0) * 100,
 		"init_3": results[2]["t_init"],
 	}
-	(OUT / "al_08_report.typ").write_text(template.format(**fields), encoding="utf-8")
-	typst.compile(OUT / "al_08_report.typ", output=OUT / "al_08_report.pdf")
-	print(f"{OUT / 'al_08_report.pdf'}: {(OUT / 'al_08_report.pdf').stat().st_size} bytes")
+	(OUT / "al_07_report.typ").write_text(template.format(**fields), encoding="utf-8")
+	typst.compile(OUT / "al_07_report.typ", output=OUT / "al_07_report.pdf")
+	print(f"{OUT / 'al_07_report.pdf'}: {(OUT / 'al_07_report.pdf').stat().st_size} bytes")
 	return results
 
 
