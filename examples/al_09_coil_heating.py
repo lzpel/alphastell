@@ -48,8 +48,8 @@ def main(
 	n_source: int = 5000,  # 重み付き点線源の点数。al_07 の case_2 と同じ
 	particles: int = 40000,
 	batches: int = 10,
-	tally_r: int = 40,  # R-Z 発熱マップの分割数
-	tally_z: int = 40,
+	tally_xy: int = 50,  # 3D 発熱マップの水平分割数
+	tally_z: int = 25,  # 同 鉛直分割数
 ) -> dict[str, Any]:
 	out.parent.mkdir(parents=True, exist_ok=True)
 	surface = make_surface(wout)
@@ -89,45 +89,47 @@ def main(
 	source = point_sources(samples, reaction_rate(samples[:, 2]) * volume_elements)
 
 	# --- 輸送とタリー -----------------------------------------------------------------
-	radius, elevation = np.hypot(outer[..., 0], outer[..., 1]), outer[..., 2]
-	span = height / 2 + result["curve_surface_distance"]  # コイルは殻の外側にこれだけ張り出す
-	mesh = openmc.CylindricalMesh(
-		r_grid=np.linspace(max(radius.min() - span, 0.0), radius.max() + span, tally_r + 1) * 100,
-		z_grid=np.linspace(elevation.min() - span, elevation.max() + span, tally_z + 1) * 100,
-		mesh_id=1,
-	)
+	# 3D 散布図用の直交メッシュ。コイル点列の外接箱に断面の張り出しぶんの余白を足す
+	points = np.array(spines)[..., :3].reshape(-1, 3)
+	lower, upper = points.min(axis=0) - height, points.max(axis=0) + height
+	mesh = openmc.RegularMesh(mesh_id=1)
+	mesh.dimension = (tally_xy, tally_xy, tally_z)
+	mesh.lower_left = lower * 100
+	mesh.upper_right = upper * 100
 	pbli, coil_materials = materials(len(solids))
 	tally = heating(out.with_suffix(".h5m"), out.parent / "al_09_openmc", source, mesh, pbli, coil_materials, particles, batches)
 
 	# --- 後処理: eV/線源中性子 → W、W/m^3、n/m^2/フル出力年 -----------------------------
 	watts = tally["heating"] * JOULE_PER_EV * power["rate"]  # コイル別 [W]
 	densities = watts / np.array(volumes)  # コイル別の体積平均 [W/m^3]
-	edge_r, edge_z = np.asarray(mesh.r_grid), np.asarray(mesh.z_grid)
-	bin_volume = (math.pi * np.diff(edge_r**2))[:, None] * np.diff(edge_z)[None, :] * 1e-6  # cm^3 -> m^3
-	density_map = tally["map"] * JOULE_PER_EV * power["rate"] / bin_volume
+	widths = (upper - lower) / np.asarray(mesh.dimension)  # ボクセル寸法 [m]
+	density_map = tally["map"] * JOULE_PER_EV * power["rate"] / float(np.prod(widths))  # ボクセル平均 [W/m^3]
 	fluences = tally["flux"] / (np.array(volumes) * 1e6) * power["rate"] * 1e4 * YEAR  # コイル別 [n/m^2 / フル出力年]
 	relative_error = float(tally["error"].sum() / tally["heating"].sum())
 	print(f"coil heating {watts.sum() / 1e6:.2f} MW total, per-coil mean {densities.mean():.0f} W/m^3 ({densities.min():.0f}..{densities.max():.0f}), map peak {density_map.max():.0f} W/m^3, rel err {relative_error:.1%}")
 	print(f"fast fluence {fluences.max():.2e} n/m^2 per full power year (hottest coil {int(np.argmax(densities))})")
 
-	# --- 図 ----------------------------------------------------------------------------
-	figure, (left, right) = plt.subplots(1, 2, figsize=(12.5, 4.4))
-	image = left.imshow(
-		np.where(density_map > 0, density_map, np.nan).T,
-		origin="lower",
-		extent=[edge_r[0] / 100, edge_r[-1] / 100, edge_z[0] / 100, edge_z[-1] / 100],
-		aspect="equal",
-		norm=matplotlib.colors.LogNorm(),
-	)
-	figure.colorbar(image, ax=left, label="nuclear heating [W/m^3]")
-	left.set(xlabel="R [m]", ylabel="Z [m]", title=f"coil nuclear heating at {power['power'] / 1e9:.1f} GW fusion")
-	right.bar(range(len(densities)), densities, color="#4a90d9")
-	right.axhline(HEATING_LIMIT, color="#c0392b", linestyle=":", label=f"DEMO TFC target {HEATING_LIMIT:.0f} W/m^3 (peak)")
-	right.set(xlabel="coil index", ylabel="volume-averaged heating [W/m^3]", title="which coil takes the heat", yscale="log")
-	right.legend()
-	right.grid(alpha=0.3, axis="y")
-	figure.tight_layout()
+	# --- 図: ボクセル別発熱密度の 3D 散布図 ---------------------------------------------
+	centers = np.meshgrid(*[lower[k] + (np.arange(mesh.dimension[k]) + 0.5) * widths[k] for k in range(3)], indexing="ij")
+	mask = density_map > 0
+	figure = plt.figure(figsize=(8.5, 7.0))
+	axes = figure.add_subplot(projection="3d")
+	image = axes.scatter(centers[0][mask], centers[1][mask], centers[2][mask], c=density_map[mask], norm=matplotlib.colors.LogNorm(), s=4)
+	figure.colorbar(image, ax=axes, label="nuclear heating [W/m^3]", shrink=0.7)
+	axes.set_box_aspect(np.ptp(points, axis=0))
+	axes.set(xlabel="x [m]", ylabel="y [m]", zlabel="z [m]", title=f"coil nuclear heating at {power['power'] / 1e9:.1f} GW fusion")
 	figure.savefig(out.with_suffix(".heating.png"), dpi=150, bbox_inches="tight")
+	plt.close(figure)
+
+	# --- 図: コイル別の体積平均発熱密度 --------------------------------------------------
+	figure, axes = plt.subplots(figsize=(7.5, 4.2))
+	axes.bar(range(len(densities)), densities, color="#4a90d9")
+	axes.axhline(HEATING_LIMIT, color="#c0392b", linestyle=":", label=f"DEMO TFC target {HEATING_LIMIT:.0f} W/m^3 (peak)")
+	axes.set(xlabel="coil index", ylabel="volume-averaged heating [W/m^3]", title="which coil takes the heat", yscale="log")
+	axes.legend()
+	axes.grid(alpha=0.3, axis="y")
+	figure.tight_layout()
+	figure.savefig(out.with_suffix(".percoil.png"), dpi=150, bbox_inches="tight")
 	plt.close(figure)
 
 	# --- PDF レポート ------------------------------------------------------------------
@@ -164,6 +166,7 @@ def main(
 		"fluence_days": f"{FLUENCE_LIMIT / fluences.max() * 365.25:.0f}",
 		"attenuation": f"{math.log(density_map.max() / HEATING_LIMIT) * 8.5:.0f}",
 		"out_heating_png": out.with_suffix(".heating.png").name,
+		"out_percoil_png": out.with_suffix(".percoil.png").name,
 		"out_geometry_png": out.with_suffix(".geometry.png").name,
 	}
 	out.with_suffix(".typ").write_text(TEMPLATE.format(**fields), encoding="utf-8")
@@ -237,7 +240,7 @@ def heating(
 	h5m: pathlib.Path,  # DAGMC 幾何。material タグ pbli / coil00.. が材料名と結線する
 	work: pathlib.Path,  # OpenMC の作業ディレクトリ
 	source: list[openmc.IndependentSource],
-	mesh: openmc.CylindricalMesh,
+	mesh: openmc.RegularMesh,
 	pbli: openmc.Material,
 	coils: list[openmc.Material],
 	particles: int,
@@ -275,8 +278,8 @@ def heating(
 		return {
 			"heating": one.mean.ravel(),  # コイル別 [eV / 線源中性子]。並びは coils と同じ
 			"error": one.std_dev.ravel(),
-			# メッシュフィルタのビンは r が最内で回るので order="F" でないと R と Z が入れ替わる
-			"map": np.squeeze(grid.mean.reshape(mesh.dimension, order="F"), axis=1),
+			# メッシュフィルタのビンは x が最内で回るので order="F" でないと軸が入れ替わる
+			"map": grid.mean.reshape(mesh.dimension, order="F"),
 			"flux": flux.mean.ravel(),  # コイル別 [cm / 線源中性子]。体積で割ると n/cm^2
 			"transport": float(statepoint.runtime["transport"]),
 		}
@@ -339,9 +342,12 @@ $ S = integral (n\\/2)^2 ⟨sigma v⟩ sqrt(g) space d phi space d theta space d
 
 == 結果
 
-#figure(image("{out_heating_png}", width: 100%), caption: [左: コイル材だけに絞った核発熱密度の
-R-Z 分布 (φ 全周積分、対数目盛)。右: コイル別の体積平均発熱密度。点線は DEMO TF コイルの
-ピーク目標 {heating_limit} W/m³。])
+#figure(image("{out_heating_png}", width: 86%), caption: [コイル材に落ちた核発熱密度のボクセル別
+3D 散布図 (対数色)。ボクセルにはコイル外の空間も含まれるため、値は材料の局所密度より薄まる。
+プラズマに面した内側ミッドプレーンで最も高い。])
+
+#figure(image("{out_percoil_png}", width: 78%), caption: [コイル別の体積平均発熱密度 (対数目盛)。
+点線は DEMO TF コイルのピーク目標 {heating_limit} W/m³ で、実測の 3 桁下にある。])
 
 #figure(image("{out_geometry_png}", width: 92%), caption: [増殖材 {thickness} cm と {ncoil_total} 本の
 コイル導体。左上 ISO、右上 +Z、左下 +X、右下 +Y。])
@@ -355,7 +361,7 @@ R-Z 分布 (φ 全周積分、対数目盛)。右: コイル別の体積平均�
   [コイル体積 (全 {ncoil_total} 本)], [{coil_volume} m³],
   [コイル核発熱 合計], [{watts} MW],
   [コイル別平均発熱密度], [{cold_density}〜{hot_density} W/m³ (最大: コイル {hot_coil})],
-  [R-Z マップのピーク], [{peak_density} W/m³],
+  [3D ボクセルのピーク], [{peak_density} W/m³],
   [DEMO TFC 目標], [{heating_limit} W/m³],
   [高速中性子フルエンス (最悪コイル)], [{fluence} n/m² / フル出力年],
   [Nb₃Sn 目標], [{fluence_limit} n/m²],
@@ -392,7 +398,7 @@ material タグをコイルごとに分けたので、旧ドラフトで出せ�
 
 === この計算が答えていないこと
 
-- **ピーク値の統計**。合計は相対誤差 {relative_error} % で決まるが、R-Z マップのビンごとは
+- **ピーク値の統計**。合計は相対誤差 {relative_error} % で決まるが、3D マップのボクセルごとは
   それより粗い。ピーク {peak_density} W/m³ は桁を示す値であって有効数字ではない。
 - **均質化の妥当性**。実際の巻線パックは層構造を持ち、Cu 安定化材と超伝導線で発熱密度が違う。
   局所のホットスポットは均質化では出ない。
