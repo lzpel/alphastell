@@ -4,12 +4,17 @@ al_08 の stage-2 最適化はコイル中心線 (Fourier 係数) までしか�
 その gamma() 点列を sweep_geometry の経路に食わせ、矩形断面の導体ソリッドを STEP に起こす。
 """
 import math
+import os
 import pathlib
 from typing import Any
 
+import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 
 from al_08_coil_geometry import make_surface, optimize_coil
+
+matplotlib.use("TkAgg")  # al_08 が import 時に Agg を強制するので、対話表示に戻す
 
 
 def main(
@@ -20,7 +25,11 @@ def main(
 ) -> None:
 	surface = make_surface(wout)
 	result = optimize_coil(surface)
-	solids = geometry(result["coils"], wout, width, height)
+	spines = spines_with_guide(wout, [coil.curve.gamma().tolist() for coil in result["coils"]], math.sqrt(width**2 + height**2)/2)
+	visualize_spines_with_guide(spines)
+	if 1:
+		print("not yet implemented")
+		return
 	out.parent.mkdir(parents=True, exist_ok=True)
 	for path, write in ((out, solids.write_step), (out.with_suffix(".png"), solids.write_png)):
 		with open(path, "wb") as f:
@@ -33,46 +42,52 @@ def main(
 	print(f"volume {min(volume):.4f}..{max(volume):.4f} m^3, error vs area x length {min(error):+.2f}..{max(error):+.2f} %")
 
 
-def geometry(
-	coils: list[Any],  # simsopt の Coil (対称像込み)。curve.gamma() の点列を掃引経路にする
-	wout: pathlib.Path,  # VMEC 平衡。inverse でコイル各点を磁束座標 (phi, theta, s) に写す
-	width: float = 0.40,  # 導体断面のトロイダル幅 [m]。断面のローカル x
-	height: float = 0.50,  # 導体断面の半径方向厚み [m]。断面のローカル y
-	npoint: int = 48,  # 1 本あたりの経路点数。gamma() から等間隔に間引く
-) -> Any:  # alphastell.Geometry
-	"""コイル中心線に矩形断面を掃引して導体ソリッドにする。
-
-	up はコイル重心のトロイダル角 phi での e_phi にとる。接線が up と平行になる箇所は
-	無いので掃引は通るが、Up 法は断面を「接線の up 直交成分」に立てるため、最適化後の
-	コイルは R-z 面から最大 57 度傾き、断面が経路と直交せず体積が 1-2 割減る (main の検査で出る)。
-	閉ループなので始点を末尾で繰り返さない (周期性はスプラインの基底に入る)。
-	"""
+def spines_with_guide(
+	wout: pathlib.Path,
+	spines_points: list[list[tuple[float, float, float]]],  # コイル 1 本あたりの中心線点列 (x, y, z)。対称像込み
+	distance_between_spine_and_guide: float = 0.40,  # 導体断面のトロイダル幅 [m]。断面のローカル x
+) -> None:  # alphastell.Geometry
 	from alphastell import Geometry, SurfaceFourierRZ
+	ret_spines_with_guide = []
 	with open(wout, "rb") as f:
-		flux_surface = SurfaceFourierRZ.load(f)
+		surface = SurfaceFourierRZ.load(f)
+		for points in spines_points:
+			point_center = np.mean(points, axis=0)
+			phi, theta, s = math.atan2(point_center[1], point_center[0]), 0.0, 1.0
+			points_with_guide = []
+			for point in points:
+				phi, theta = surface.nearest(phi, theta, s, point)  # 前の点の解を次の初期値にする継続法
+				# 射影の足 (LCFS 上の点) は使わず、その点の法線だけもらう
+				(nx, ny, nz) = surface.point_normal(phi, theta, s, True)[1]
+				# spine はコイル点そのもの。guide はコイル点を LCFS 法線方向へずらした平行曲線
+				points_with_guide.append([
+					point[0],
+					point[1],
+					point[2],
+					point[0] + nx * distance_between_spine_and_guide,
+					point[1] + ny * distance_between_spine_and_guide,
+					point[2] + nz * distance_between_spine_and_guide
+				])
+			ret_spines_with_guide.append(points_with_guide)
+	return ret_spines_with_guide
 
-	def inverse(point: list[float]) -> list[float]:
-		# コイル点は s ~ 1.3-2.3 の深い外挿域で、外挿面が交差して収束しないことがある
-		try:
-			return flux_surface.inverse(point)
-		except ValueError:
-			return [math.nan] * 3
-
-	profile = [-width / 2, -height / 2, width / 2, -height / 2, width / 2, height / 2, -width / 2, height / 2]
-	paths = []
-	flux = []
-	for coil in coils:
-		points = coil.curve.gamma()
-		points = points[np.linspace(0, len(points), npoint, endpoint=False).astype(int)]
-		flux.append([inverse(p) for p in points.tolist()])
-		phi = math.atan2(*points.mean(axis=0)[[1, 0]])
-		paths.append([-math.sin(phi), math.cos(phi), 0.0] + points.ravel().tolist())
-	# 磁束座標はまだ使わない。収束率だけ見せて捨てる
-	flux_array = np.array(flux)
-	converged = np.isfinite(flux_array[..., 2])
-	print(f"inverse: {converged.sum()}/{converged.size} points converged, s {np.nanmin(flux_array[..., 2]):.2f}..{np.nanmax(flux_array[..., 2]):.2f}")
-	return Geometry.sweep_geometry(True, profile, *paths)
-
+def visualize_spines_with_guide(spines_with_guide: list[list[tuple[float, float, float]]]) -> None:
+	array = np.array(spines_with_guide)  # [ncoil, npoint, 6]
+	spine, guide = array[..., :3], array[..., 3:]
+	figure = plt.figure()
+	axes = figure.add_subplot(111, projection="3d")
+	for spine_i, guide_i in zip(spine, guide):
+		closed_spine = np.concatenate([spine_i, spine_i[:1]])
+		closed_guide = np.concatenate([guide_i, guide_i[:1]])
+		axes.plot(closed_spine[:, 0], closed_spine[:, 1], closed_spine[:, 2], color="tab:blue", linewidth=0.7)
+		axes.plot(closed_guide[:, 0], closed_guide[:, 1], closed_guide[:, 2], color="tab:orange", linewidth=0.7)
+		for a, b in zip(spine_i[::3], guide_i[::3]):  # 3 点に 1 本だけ描いて密度を抑える
+			axes.plot([a[0], b[0]], [a[1], b[1]], [a[2], b[2]], color="tab:red", linewidth=0.6)
+	flat = spine.reshape(-1, 3)
+	axes.set_box_aspect(np.ptp(flat, axis=0))
+	axes.set(xlabel="x [m]", ylabel="y [m]", zlabel="z [m]", title="coil centerlines (blue), guide curves (orange), LCFS normals (red)")
+	figure.savefig(pathlib.Path("out") / f"{pathlib.Path(__file__).stem}.spines_with_guide.png", dpi=150)
+	len(os.getenv("SHOW","")) and plt.show()
 
 if __name__ == "__main__":
 	main()
