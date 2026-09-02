@@ -2,7 +2,7 @@
 name = "examples"
 version = "0.0.0"
 requires-python = ">=3.14"
-dependencies = ["alphastell", "openmc-anywhere>=0.15.3.0", "cad-to-dagmc", "matplotlib", "typst", "simsopt>=0.1.dev0"]
+dependencies = ["alphastell", "openmc-anywhere>=0.15.3.0", "cad-to-dagmc", "matplotlib", "simsopt>=0.1.dev0"]
 
 # PyPI の simsopt は Windows wheel が無く cp314 の wheel も無い。sdist は thirdparty/ の
 # submodule を含まずビルドもできない。fork が Windows と 3.14 の wheel を CI で焼いて

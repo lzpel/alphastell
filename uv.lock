@@ -338,7 +338,6 @@ dependencies = [
     { name = "matplotlib" },
     { name = "openmc-anywhere" },
     { name = "simsopt" },
-    { name = "typst" },
 ]
 
 [package.metadata]
@@ -348,7 +347,6 @@ requires-dist = [
     { name = "matplotlib" },
     { name = "openmc-anywhere", specifier = ">=0.15.3.0" },
     { name = "simsopt", specifier = ">=0.1.dev0", index = "https://lzpel.github.io/simsopt/simple/" },
-    { name = "typst" },
 ]
 
 [[package]]
@@ -1295,7 +1293,7 @@ wheels = [
 
 [[package]]
 name = "simsopt"
-version = "0.1.dev1+g72907df76"
+version = "1.10.6.post452"
 source = { registry = "https://lzpel.github.io/simsopt/simple/" }
 dependencies = [
     { name = "deprecated" },
@@ -1311,30 +1309,26 @@ dependencies = [
     { name = "sympy" },
 ]
 wheels = [
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:ab5fbbb2acbef55d0de78f4a2418b3cd0a6abc0b361995914f4884fec25caf01" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:035ef3d0ef07affba3a093dc4e90c24ca69f2c06b4341e5e34453f19e818caa6" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:371f9a2a543d42114d1b5e8d5b4c6090b48bb05f0d75e11bebcf20ff023a36e7" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:ef24f9062179fe2d741cc7813b1aceadffe7ab0d09a149d4372e59f344d53fb6" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314-win32.whl", hash = "sha256:000e1922cb548e26266f199fc34b59d318390af738ca05fe90a3787148c273db" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314-win_amd64.whl", hash = "sha256:1dd5a570b65b42a920666bcff2f3c7e3b60cb93f6e02833fa1c5f303e869db4f" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:c3e42566650755da97aeb737bf2411aa029988d323f10a4c0d8cf463df1b756e" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:315eda9f5ef5432208470cf404dce09ab22fb5b85c55d51b7572fc03809391f4" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314t-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:c5f78097e4cfc73afb61393b4011f6683bbf92fde9745c4834bdcfd626f4336e" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:e6cb710559fae631cd65e3459bda8361b649233d66efed81451e86aaeb527578" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314t-win32.whl", hash = "sha256:e58354469e504f4534dddbd4a44d6b544ed8c7d17c58dd112c1c14fbeebf8e30" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp314-cp314t-win_amd64.whl", hash = "sha256:9a4498da25339377cf7043f717630d8cf668da1b0fc2739479abe2e6adf266b1" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315-macosx_10_15_x86_64.whl", hash = "sha256:d1700742028a8ed44b2ebc8f66840ccaef8784185bd27b497cf7b93437fa53c7" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315-macosx_11_0_arm64.whl", hash = "sha256:c30dd3208870d410079c04615ebb9199f763585773ab146dbfe999aaca7ac9da" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:1898574ec05d8260d33e6b858de0ff30f4b71caf3bfd8589e14ea0dc7399b813" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:1a4467ea38fed8f6fc5481de1f54c9cc44af4daec4d9e70f544a61f602b798a8" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315-win32.whl", hash = "sha256:ad31b4e0197cd8343ef8869f33a534e67dc47e6aee1e304d0b7433c466f0581e" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315-win_amd64.whl", hash = "sha256:61f1882249342652d520bafd7d36efcaf8e2428133695605376d37a024095a2c" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315t-macosx_10_15_x86_64.whl", hash = "sha256:25fbdc50eb866029914c8ad4dc21a867085072f082482dc8ad272f6719112e2d" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315t-macosx_11_0_arm64.whl", hash = "sha256:76f6213d62c8b7eaa0c01b5cd3190d13680fbbf278e933d377e5bf9c93097e4f" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315t-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:3a53ec3056b9f2d31c91b444a6830e5a020c25f480c9296d584e2a19a9e69e06" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:19ceaae9579aee6478c4adc4a454aea7e5e4fd324f424a470a6789aadd0fdb96" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315t-win32.whl", hash = "sha256:f5db2ad139c71456760f7ecd971c057b2c7365790e44eb540010a34a52ee43a7" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/wheels-72907df7/simsopt-0.1.dev1%2Bg72907df76-cp315-cp315t-win_amd64.whl", hash = "sha256:937b609d052df1de50728cd01b149881d886e262bc047014f6d7a0287be6b4b9" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:b550319577064dc8f0d1ffdb7dd31d1d13054fed252b34177ebf5474c5bd1f8b" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:a534ddbf54255259d61e09f0ea6d4d029caba491408968cd6ecd3fd561abd407" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp314-cp314-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:182cbe7e286875d877cad3219aec8a6f3bb301dd6f67f857b012618480438353" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:61b032445155956c75ea0d6030b5479486c5a4d118ebedf6e06d6bd091e81b98" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp314-cp314-win_amd64.whl", hash = "sha256:04f32e8f6e2bd4a08d563af06756dcf5823ca506a446976d2b6b1f8d2744ee0b" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:dd385daeb5e8ee70228a96761fcf2f6d20ef414f4c1454cc4f05809b217e188c" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:8ccdab1a0b0f41b1b3c776a0fe74600069d709631634f51e144da21b2471b634" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp314-cp314t-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:956ca2c628a485fd76f6c7c27c0b47eefd5202f7015a1a48ea3bc5757d147d19" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:341dfe3c46e87f9b16f017364a4760e528183887f0f7e63381a7a2d0304d9b9b" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp314-cp314t-win_amd64.whl", hash = "sha256:ca8052c0e8f7057789e01d2248d98e5c751dcff8b3c60b11249c4cd98bca1f87" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp315-cp315-macosx_10_15_x86_64.whl", hash = "sha256:9397353d313395281130fc1a18cd6b5046c0b669f37e3d519e71daf93639f764" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp315-cp315-macosx_11_0_arm64.whl", hash = "sha256:ceecd831872fcb1e57a291f5d05abf5d3bf4a07099f98baab554af2fa06564ba" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp315-cp315-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:bb93ae3c1c64cc491b68632b857349d396aea8e7dd368a85667f0c5c322bff1e" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp315-cp315-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:ca141612aca6f4d9813661f6883d328134f3446d3632e527d827a22a82018e4e" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp315-cp315-win_amd64.whl", hash = "sha256:cdf5bc4ccb604371dd134b386c6df3987174983374f641033fa9998a52c84d29" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp315-cp315t-macosx_10_15_x86_64.whl", hash = "sha256:eadf8d23e92ffb037390ddf15ea03725d9a662d1a871f255ed310b65fd081854" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp315-cp315t-macosx_11_0_arm64.whl", hash = "sha256:0d8002bd8773c08360fd94c6cf88ab8ed7753889a7284a82e6039f562f6aa0f8" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp315-cp315t-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:8ad189ea14182246747348877784d592efa605b24b11a9194349d07b8c05fcc8" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp315-cp315t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:10908fc1954c382bc19197654e0ab2b69115a18157cfdd25d236985a9c4920ca" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp315-cp315t-win_amd64.whl", hash = "sha256:ab8275c98ed8626d7daa993cbe372a5acdc75d13f80be4a478a29a0632c39a8b" },
 ]
 
 [[package]]
@@ -1487,31 +1481,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f6/cc/6253133b5bb138fc3306cebfbda2c520f545d36b5be2c7255cc528bb45d6/typing_extensions-4.16.0.tar.gz", hash = "sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5", size = 113555, upload-time = "2026-07-02T08:40:05.92Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl", hash = "sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8", size = 45571, upload-time = "2026-07-02T08:40:04.659Z" },
-]
-
-[[package]]
-name = "typst"
-version = "0.15.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/95/69/5d6700379124632f243c7eb2b41b3244ef991fe8ff29b27333e0bb655918/typst-0.15.0.tar.gz", hash = "sha256:a60231b55f0a793c2401b26577522dbf7528207407b383de3a7f0cf7fd3ce28a", size = 66887, upload-time = "2026-06-16T13:02:31.809Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/92/8c/53e4acb6095fc20d2ec981155a1b9a1364b34aa86a884a75f9be1addb88d/typst-0.15.0-cp314-cp314t-macosx_10_12_x86_64.whl", hash = "sha256:880da56762b240649492186a24cc53427e8a41108b2e73fa337ac4cb314eb3b0", size = 30925413, upload-time = "2026-06-16T13:01:32.627Z" },
-    { url = "https://files.pythonhosted.org/packages/21/5e/fb330894aa9a80e39a5e9d0a3f6f3ea4fcb44ba883965635a281323a027d/typst-0.15.0-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:89aafbd9f3d788b72486a90106d927f17dba1fe30c55c3522f77a201397bc107", size = 30486424, upload-time = "2026-06-16T13:01:36.322Z" },
-    { url = "https://files.pythonhosted.org/packages/ca/83/32c54f97c2638076a4b5301b0c7d7b282f232c85bcab539ccb80284983dd/typst-0.15.0-cp314-cp314t-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:7152f62e1737d82d55650162f03534be4639ae800921a1a84848387c0f3b0ba4", size = 34917438, upload-time = "2026-06-16T13:01:39.833Z" },
-    { url = "https://files.pythonhosted.org/packages/44/e1/499c395e83ab44da091d51f99ece04dd7edcbb1b6cd5b2ec8ce5906202c6/typst-0.15.0-cp314-cp314t-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:686fdf83684e4ada66a841442c6fcf8dc934e14ba5458fceb5cf50fb2a0c80d6", size = 34356766, upload-time = "2026-06-16T13:01:43.105Z" },
-    { url = "https://files.pythonhosted.org/packages/0f/ae/da45903d5b939a07979e4ba9a360f55cf76f2be1025a2ed3c631f07bbcdd/typst-0.15.0-cp314-cp314t-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:07351f26991ed61e732fe3f1035076ee6b4a241dcdef789e78cbcf3fcdb267d7", size = 36442334, upload-time = "2026-06-16T13:01:47.439Z" },
-    { url = "https://files.pythonhosted.org/packages/7f/5b/ff49f4f2ed7591f76566e1f14fc46f4cfd638bf6be36ca6e0d3c9b54ee7d/typst-0.15.0-cp314-cp314t-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:0e2f5cd0cffc7a0d388ad6c38d7c1d7bc1cf630abfe1bc682e09614e8d203a48", size = 35187180, upload-time = "2026-06-16T13:01:50.775Z" },
-    { url = "https://files.pythonhosted.org/packages/28/58/a78f0620dceabbd4f2e5ee7dc377cfeb331ebaacd8c541de07c6a9892c47/typst-0.15.0-cp314-cp314t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7007ccb3cd3cd3a5fe23876b413eca927b4d210ddbebc087b9394fe0cea8e91a", size = 34139808, upload-time = "2026-06-16T13:01:54.17Z" },
-    { url = "https://files.pythonhosted.org/packages/4b/6b/9715202f2179a00a8be7fee6e9c890d10dc41ac145c03e09ec336906e93f/typst-0.15.0-cp314-cp314t-win_amd64.whl", hash = "sha256:5a942eb7a86885f30cd34c0f42c24bf14bd270fb20fe37e268b2061d7d783daa", size = 29355085, upload-time = "2026-06-16T13:01:57.56Z" },
-    { url = "https://files.pythonhosted.org/packages/0d/30/cce48475a335eced15769252bc5b2631b02196f07c001ab34ccd79664afb/typst-0.15.0-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:a9c02ca7503d1916fb3eaa22aef413bd23b6d54abef5c6c5ecac8d1b804deb8d", size = 30936670, upload-time = "2026-06-16T13:02:01.038Z" },
-    { url = "https://files.pythonhosted.org/packages/2c/a9/8cb66f027d644572836423382a8e063c388c9d87fed474e0f499c4cb17e1/typst-0.15.0-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:98afafa47e372728bce7fe1153b8d3ace4619d6c3a549908989d65f9aec96247", size = 30504579, upload-time = "2026-06-16T13:02:04.481Z" },
-    { url = "https://files.pythonhosted.org/packages/83/b5/29e6218486259056c2649fb245c5066c3a821cb8b56d6710c3007062136a/typst-0.15.0-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:97350fcf5eebe5b6c75415e005ac42136744aa9950f4c0e4c484dc015e38d9de", size = 34934501, upload-time = "2026-06-16T13:02:08.207Z" },
-    { url = "https://files.pythonhosted.org/packages/5c/1c/6134b210a08c929663f7e3913713758fb475ce76696eea92aeba68f62d7f/typst-0.15.0-cp38-abi3-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:a400a27115b85acc020cc514c76ea1d56e607ac40e99e0d3e7413e105ff3485d", size = 34372306, upload-time = "2026-06-16T13:02:11.675Z" },
-    { url = "https://files.pythonhosted.org/packages/a5/dd/ca5c10380b63d3f4914be09b694f34c7c7ba24640f2f0713076c77e6b8bb/typst-0.15.0-cp38-abi3-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:3eadd17f2170e48c73c386b7ccbab2fc1cc4a190969fce8bbad3b3cdc5bc58cf", size = 36463681, upload-time = "2026-06-16T13:02:15.359Z" },
-    { url = "https://files.pythonhosted.org/packages/d6/67/3c78adb30f715cbcd0612039b621033a8a57c1d6053a7618837ddf6c19c4/typst-0.15.0-cp38-abi3-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:bb95304a78d4a068d7d19f036a9ab60872aca4e514a4abf214ff65e657ab9bc0", size = 35199094, upload-time = "2026-06-16T13:02:18.678Z" },
-    { url = "https://files.pythonhosted.org/packages/2b/57/e2bb9b7823c049361c9e7d2d971996430b71260bfc3a7ed289ca4b37c1b0/typst-0.15.0-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:8f33d98451bab132a612b98ffc8d1830c97a076ea3f3fde11f6ff7ab9bcae89c", size = 34161270, upload-time = "2026-06-16T13:02:23.051Z" },
-    { url = "https://files.pythonhosted.org/packages/07/3f/6d526ddd93e6a7dd26c2b180245df8d1957d2723860030a10bcc0f93650c/typst-0.15.0-cp38-abi3-pyemscripten_2026_0_wasm32.whl", hash = "sha256:019b4282daa892e0a540687efdd2909808a07453700332c7f61a2c1455950ec9", size = 25710679, upload-time = "2026-06-16T13:02:26.169Z" },
-    { url = "https://files.pythonhosted.org/packages/f2/5f/7f19bc9f7a2917a52aa39981aff19f86972f4055b432f77f31642ab57625/typst-0.15.0-cp38-abi3-win_amd64.whl", hash = "sha256:7c12706685dbaf5bb7e43f0fa32e57f2a42549b9ec3de539ad0d32bd8d1ca92e", size = 29372618, upload-time = "2026-06-16T13:02:29.651Z" },
 ]
 
 [[package]]

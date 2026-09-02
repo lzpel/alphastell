@@ -25,17 +25,11 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import openmc
-import typst
 from cad_to_dagmc import CadToDagmc, write_vtk
 
 from alphastell import SurfaceFourierRZ, Geometry
 
 WOUT = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc"
-OUT = pathlib.Path("out")
-WORK = OUT / "al_07_openmc"
-STEP = OUT / "al_07_shell.step"
-H5M = OUT / "al_07.h5m"
-VTK = OUT / "al_07_plasma.vtk"
 
 THICKNESS = 0.5  # m。al_06 の中央の厚みに合わせる
 DIV_PHI, DIV_THETA = 96, 40  # 殻の制御点。al_06 と同じにして幾何を一致させる
@@ -51,7 +45,7 @@ with open(WOUT, "rb") as f:
 	surface = SurfaceFourierRZ.load(f)
 
 
-def blanket() -> np.ndarray:
+def blanket(step: pathlib.Path, h5m: pathlib.Path) -> np.ndarray:
 	"""LCFS を法線方向に押し出した PbLi 殻を STEP と DAGMC h5m にする。外側格子を返す。"""
 	inner = np.empty((DIV_PHI, DIV_THETA, 3))
 	outer = np.empty_like(inner)
@@ -59,11 +53,11 @@ def blanket() -> np.ndarray:
 		point, normal = surface.point_normal(math.tau * i / DIV_PHI, math.tau * j / DIV_THETA, 1.0, False)
 		inner[i, j], outer[i, j] = point, np.add(point, np.multiply(normal, THICKNESS))
 	shell = Geometry.bspline_geometry(outer).boolean_subtract(Geometry.bspline_geometry(inner))
-	with open(STEP, "wb") as f:
+	with open(step, "wb") as f:
 		shell.write_step(f)
 	cad = CadToDagmc()
-	cad.add_stp_file(str(STEP), material_tags=["pbli"])
-	cad.export_dagmc_h5m_file(filename=str(H5M), scale_factor=100)  # VMEC は m、OpenMC は cm
+	cad.add_stp_file(str(step), material_tags=["pbli"])
+	cad.export_dagmc_h5m_file(filename=str(h5m), scale_factor=100)  # VMEC は m、OpenMC は cm
 	return outer
 
 
@@ -141,7 +135,7 @@ def plasma_tets() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 	return vertices, np.array(tetrahedra), vertex_s
 
 
-def run(source: openmc.SourceBase, mesh: openmc.CylindricalMesh, name: str) -> dict[str, Any]:
+def run(source: openmc.SourceBase, mesh: openmc.CylindricalMesh, work: pathlib.Path, h5m: pathlib.Path) -> dict[str, Any]:
 	"""線源だけを差し替えて同じ幾何・同じ粒子数で回す。TBR と R-Z マップと実行時間を返す。"""
 	# bounded_universe は id を 10000 番台に固定で振るので、ケースごとに呼ぶと衝突して IDWarning が出る
 	openmc.reset_auto_ids()
@@ -157,12 +151,11 @@ def run(source: openmc.SourceBase, mesh: openmc.CylindricalMesh, name: str) -> d
 	local.scores = ["(n,Xt)"]
 
 	model = openmc.Model(
-		geometry=openmc.Geometry(openmc.DAGMCUniverse(str(H5M)).bounded_universe()),
+		geometry=openmc.Geometry(openmc.DAGMCUniverse(str(h5m)).bounded_universe()),
 		materials=openmc.Materials([pbli]),
 		settings=openmc.Settings(run_mode="fixed source", source=source, particles=PARTICLES, batches=BATCHES),
 		tallies=openmc.Tallies([total, local]),
 	)
-	work = WORK / name
 	work.mkdir(parents=True, exist_ok=True)
 	# 乱数種が同じなので繰り返しても結果は変わらない。時間だけを見る
 	timing = []
@@ -191,7 +184,7 @@ def run(source: openmc.SourceBase, mesh: openmc.CylindricalMesh, name: str) -> d
 		}
 
 
-def case_1(mesh: openmc.CylindricalMesh) -> dict[str, Any]:
+def case_1(mesh: openmc.CylindricalMesh, h5m: pathlib.Path, work: pathlib.Path) -> dict[str, Any]:
 	"""al_06 現行方式。(φ, θ, s) 一様サンプルの点線源を等強度で置く。"""
 	start = time.perf_counter()
 	samples = np.random.default_rng(0).random((N_FLAT, 3)) * [math.tau, math.tau, 1.0]
@@ -199,11 +192,11 @@ def case_1(mesh: openmc.CylindricalMesh) -> dict[str, Any]:
 	source = point_sources(samples, weights)
 	setup = time.perf_counter() - start
 	return {"name": "case_1 uniform points", "s": samples[:, 2], "weights": weights, "t_setup": setup} | run(
-		source, mesh, "case_1"
+		source, mesh, work / "case_1", h5m
 	)
 
 
-def case_2(mesh: openmc.CylindricalMesh) -> dict[str, Any]:
+def case_2(mesh: openmc.CylindricalMesh, h5m: pathlib.Path, work: pathlib.Path) -> dict[str, Any]:
 	"""点数を増やし、強度を反応率 × 体積要素にする。依存も Rust 側の変更も要らない。"""
 	start = time.perf_counter()
 	samples = np.random.default_rng(0).random((N_WEIGHTED, 3)) * [math.tau, math.tau, 1.0]
@@ -211,11 +204,11 @@ def case_2(mesh: openmc.CylindricalMesh) -> dict[str, Any]:
 	source = point_sources(samples, weights)
 	setup = time.perf_counter() - start
 	return {"name": "case_2 weighted points", "s": samples[:, 2], "weights": weights / weights.sum(), "t_setup": setup} | run(
-		source, mesh, "case_2"
+		source, mesh, work / "case_2", h5m
 	)
 
 
-def case_3(mesh: openmc.CylindricalMesh) -> dict[str, Any]:
+def case_3(mesh: openmc.CylindricalMesh, h5m: pathlib.Path, work: pathlib.Path, vtk: pathlib.Path) -> dict[str, Any]:
 	"""parastell と同じ四面体メッシュ線源。tet の強度は重心の反応率 × 四面体体積。"""
 	start = time.perf_counter()
 	vertices, tetrahedra, vertex_s = plasma_tets()
@@ -223,28 +216,31 @@ def case_3(mesh: openmc.CylindricalMesh) -> dict[str, Any]:
 	volumes = np.abs(np.linalg.det(corners[:, 1:] - corners[:, :1])) / 6.0
 	centroid_s = vertex_s[tetrahedra].mean(axis=1)
 	weights = reaction_rate(centroid_s) * volumes
-	write_vtk(str(VTK), vertices, tetrahedra)
+	write_vtk(str(vtk), vertices, tetrahedra)
 	source = openmc.MeshSource(
-		openmc.UnstructuredMesh(str(VTK), library="moab", length_multiplier=100.0, mesh_id=2),
+		openmc.UnstructuredMesh(str(vtk), library="moab", length_multiplier=100.0, mesh_id=2),
 		[openmc.IndependentSource(energy=ENERGY, strength=weight) for weight in weights],
 	)
 	source.normalize_source_strengths()
 	setup = time.perf_counter() - start
 	return {"name": "case_3 tet mesh", "s": centroid_s, "weights": weights / weights.sum(), "t_setup": setup} | run(
-		source, mesh, "case_3"
+		source, mesh, work / "case_3", h5m
 	)
 
 
-def main() -> list[dict[str, Any]]:
-	OUT.mkdir(parents=True, exist_ok=True)
-	outer = blanket()
+def main(
+	out: pathlib.Path = pathlib.Path("out") / pathlib.Path(__file__).with_suffix(".md").name,
+) -> list[dict[str, Any]]:
+	out.parent.mkdir(parents=True, exist_ok=True)
+	outer = blanket(out.with_suffix(".shell.step"), out.with_suffix(".h5m"))
 	radius, height = np.hypot(outer[..., 0], outer[..., 1]), outer[..., 2]
 	mesh = openmc.CylindricalMesh(
 		r_grid=np.linspace(radius.min(), radius.max(), TALLY_R + 1) * 100,
 		z_grid=np.linspace(height.min(), height.max(), TALLY_Z + 1) * 100,
 		mesh_id=1,
 	)
-	results = [case_1(mesh), case_2(mesh), case_3(mesh)]
+	h5m, work = out.with_suffix(".h5m"), out.with_suffix(".openmc")
+	results = [case_1(mesh, h5m, work), case_2(mesh, h5m, work), case_3(mesh, h5m, work, out.with_suffix(".plasma.vtk"))]
 
 	# タリーのビン体積は r とともに増えるので、割って密度にしないと外周が明るく見えるだけになる
 	edge_r, edge_z = np.asarray(mesh.r_grid), np.asarray(mesh.z_grid)
@@ -285,7 +281,7 @@ def main() -> list[dict[str, Any]]:
 	)
 	axes.legend()
 	axes.grid(alpha=0.3)
-	figure.savefig(OUT / "al_07_source_s.png", dpi=150, bbox_inches="tight")
+	figure.savefig(out.with_suffix(".source_s.png"), dpi=150, bbox_inches="tight")
 	plt.close(figure)
 
 	# 絶対値は 3 枚並べてもほぼ同じに見えるので、基準 1 枚と case_3 との比 2 枚にする
@@ -302,12 +298,13 @@ def main() -> list[dict[str, Any]]:
 		)
 		panel.set(xlabel="R [m]", title=f"{result['name']} / case_3")
 	figure.colorbar(image, ax=list(panels[1:]), location="bottom", label="ratio to case_3")
-	figure.savefig(OUT / "al_07_breeding.png", dpi=150)
+	figure.savefig(out.with_suffix(".breeding.png"), dpi=150)
 	plt.close(figure)
 
-	# --- PDF レポート ---------------------------------------------------------
-	template = pathlib.Path(__file__).with_name("al_07_report.typ").read_text(encoding="utf-8")
+	# --- Markdown レポート。PDF 化は make al-07 が md2pdf.py (tectonic) で行う ------------
 	fields = {
+		"source_s_png": out.with_suffix(".source_s.png").name,
+		"breeding_png": out.with_suffix(".breeding.png").name,
 		"thickness": f"{THICKNESS * 100:.0f}",
 		"particles": PARTICLES,
 		"batches": BATCHES,
@@ -318,8 +315,8 @@ def main() -> list[dict[str, Any]]:
 		"mesh_theta": MESH_THETA,
 		"mesh_phi": MESH_PHI,
 		"rows": "".join(
-			f"  [{r['name']}], [{r['mean_s']:.3f}], [{r['tbr']:.3f} ± {r['error']:.3f}], [{r['peaking']:.2f}],"
-			f" [{r['deviation']:.1f}], [{r['noise']:.1f}], [{r['t_setup']:.1f}], [{r['t_init']:.1f}], [{r['t_run']:.0f}],\n"
+			f"| {r['name']} | {r['mean_s']:.3f} | {r['tbr']:.3f} ± {r['error']:.3f} | {r['peaking']:.2f} |"
+			f" {r['deviation']:.1f} | {r['noise']:.1f} | {r['t_setup']:.1f} | {r['t_init']:.1f} | {r['t_run']:.0f} |\n"
 			for r in results
 		),
 		"gap_1_3": (results[2]["tbr"] / results[0]["tbr"] - 1.0) * 100,
@@ -342,11 +339,104 @@ def main() -> list[dict[str, Any]]:
 		"slowdown_3": (results[2]["t_run"] / results[0]["t_run"] - 1.0) * 100,
 		"init_3": results[2]["t_init"],
 	}
-	(OUT / "al_07_report.typ").write_text(template.format(**fields), encoding="utf-8")
-	typst.compile(OUT / "al_07_report.typ", output=OUT / "al_07_report.pdf")
-	print(f"{OUT / 'al_07_report.pdf'}: {(OUT / 'al_07_report.pdf').stat().st_size} bytes")
+	out.write_text(TEMPLATE.format(**fields), encoding="utf-8")
+	print(f"{out}: {out.stat().st_size} bytes")
 	return results
 
+
+# Markdown レポートの本文。main() が数値を差し込み、PDF 化は make al-07 が md2pdf.py で行う
+TEMPLATE = """# 中性子線源モデル 3 種の比較 (al_07)
+
+al_06 の線源は規格化磁束・ポロイダル角・トロイダル角 (s, θ, φ) の空間に一様に撒いた
+{n_flat} 個の等強度点線源である。しかし実際の中性子発生密度は核融合反応率 $n^2 \\langle\\sigma v\\rangle$ に
+比例し、s≈0 に鋭く集中する。この食い違いが結果にどれだけ効くのかを、同じ PbLi 殻
+(厚み {thickness} cm) の上で線源だけを差し替えて測った。
+
+## 方法
+
+3 ケースとも幾何・材料・粒子数 ({particles} 粒子 × {batches} バッチ) は同一で、線源だけが違う。
+
+- **case_1**: al_06 現行方式。(s, θ, φ) 一様サンプルの点線源 {n_flat} 個、等強度。
+- **case_2**: 同じ一様サンプルを {n_weighted} 個に増やし、強度を反応率 × 体積要素 $\\sqrt g$ にする。$\\sqrt g$ は `point_normal` の前進差分だけで作れるので、依存も Rust 側の変更も要らない。
+- **case_3**: parastell と同じ四面体メッシュ線源。(s, θ, φ) を {mesh_s}×{mesh_theta}×{mesh_phi} に切って四面体 {n_tets} 個で埋め、各 tet の強度を重心の反応率 × 四面体体積とする。OpenMC には `MeshSource` として渡す。s 層は等間隔ではなく $s \\propto k^2$、すなわち $s \\propto r^2$ より小半径の等間隔で切ってある。セル内の発生は一様なので、反応率が急な内側を等間隔で切ると線源が外へ寄り、加重平均 s が 7% 高く出る。この刻みならセル数を増やさずに 1.3% に収まる。
+
+プロファイルは parastell の既定と同じ
+
+$$
+T = 11.5 (1 - s)\\ \\mathrm{{keV}}, \\quad n = 4.8 \\times 10^{{20}} (1 - s^5)\\ \\mathrm{{m}}^{{-3}}, \\quad \\langle\\sigma v\\rangle = 3.68 \\times 10^{{-12}}\\, T^{{-2/3}} \\exp(-19.94\\, T^{{-1/3}})\\ \\mathrm{{cm}}^3/\\mathrm{{s}}
+$$
+
+で、エネルギーは 3 ケースとも 14.07 MeV 単色である。
+
+タリーは全体の (n,Xt) と、円筒メッシュ (r×z、φ 全周積分) 上の (n,Xt) の 2 つ。後者はビン体積で
+割ってトリチウム生成密度にしてある。
+
+## 結果
+
+| ケース | 平均 s | TBR | ピーキング | case_3 比 [%] | うちノイズ [%] | setup [s] | init [s] | 輸送 [s] |
+|:--|--:|--:|--:|--:|--:|--:|--:|--:|
+{rows}
+「平均 s」は強度加重平均で、線源がプラズマのどこに居るかを表す。「ピーキング」は非ゼロビンの
+99 パーセンタイル / 平均。「case_3 比」は case_3 の明るいビンに対する局所密度の RMS 相対差で、
+これには 2 ラン分のショットノイズが必ず乗るので、タリーの標準偏差から期待されるノイズ床を
+「うちノイズ」に併記した。両者の差が線源モデルの違いによる正味の寄与である。
+
+![規格化磁束 s に対する線源強度の累積分布。case_1 はほぼ直線 (体積一様) で、case_2 と case_3 はコアに集中して立ち上がる。case_3 の s は tet の重心なので離散値しか取らず、ヒストグラムにすると空きビンが振動に見えるため累積で描いた。]({source_s_png})
+
+![左: case_3 の R-Z トリチウム生成密度 (φ 全周積分)。中・右: case_1 と case_2 の同じ量の case_3 に対する比で、全体の平均で規格化して形状の違いだけを出してある。3 枚の絶対値を並べても差が見えないので比で描いた。]({breeding_png})
+
+## 考察
+
+### TBR は線源モデルをほぼ選ばない
+
+case_1 の TBR は case_3 より {gap_1_3:.1f}% 低い。統計的には {sigma_1_3:.1f}σ あって偶然ではないが、
+差の大きさ自体は構造材を入れたときに起きる変化に比べれば無視できる。厚い殻が全周を閉じていて、
+内部のどこから出ても 4π が増殖材だからである。al_06 のコメントにある「TBR は線源分布にほぼ
+依存しない」は、al_06 の結論を書き換える必要がないという意味では正しい。case_2 と case_3 の差は
+{sigma_2_3:.1f}σ で、統計誤差の範囲に収まる。
+
+なお同じ粒子数でも case_1 の統計誤差は {error_1:.3f} と case_3 の {error_3:.3f} の 2 倍ある。
+線源を {n_flat} 個の点に離散化した分だけ 1 ヒストリあたりのばらつきが増えるためで、
+点線源を少数で済ませることは計算時間の節約になっていない。
+
+### 線源そのものは大きく違う
+
+加重平均 s は case_1 が {mean_s_1:.2f}、case_2 が {mean_s_2:.2f}、case_3 が {mean_s_3:.2f} である。
+case_1 はプラズマ全体に平坦に配ったぶん、本来ほとんど中性子が出ない外周 (s > 0.6) に線源の
+半分近くを置いている。case_2 は一様サンプル + 重みなので偏りが無く、これが基準値になる。
+case_3 が case_2 より僅かに大きいのは前述のセル内一様性によるもので、s 層の刻みで決まる離散化バイアスである。
+
+局所密度の RMS 差は case_1 が {deviation_1:.1f}% (ノイズ床 {noise_1:.1f}%)、case_2 が
+{deviation_2:.1f}% (ノイズ床 {noise_2:.1f}%) である。ノイズ床を二乗で差し引いた正味は case_1 が
+{net_1:.1f}%、case_2 が {net_2:.1f}% になる。case_1 の差は圧倒的で、線源モデルの違いが局所量に
+はっきり現れている。case_2 にも {net_2:.1f}% の正味の差が残っており、これは case_3 の s 方向の
+離散化バイアスと、θ・φ 方向の粗い格子による線源位置のずれと見るのが自然である。どちらが正しいかは
+この表からは決まらないが、加重平均 s では case_2 が不偏の基準値と一致している。
+
+### 計算負荷
+
+輸送時間の差は測れなかった、というのがこの環境での結論である。各ケースを {repeat} 回回して
+OpenMC 自身が報告する輸送時間の最小値を採ったが、それでも同一条件の繰り返しの間で最大
+{spread:.0f}% ばらつく。表の case 間の差 (case_1 に対し case_2 が {slowdown_2:+.0f}%、case_3 が
+{slowdown_3:+.0f}%) はこのばらつきと同程度で、有意な差とは言えない。線源数に比例する線形走査
+(case_2) も、非構造メッシュからの点抽出 (case_3) も、14 MeV 中性子の輸送そのものに比べれば
+小さいということでもある。線源モデルは計算時間で選ぶ話ではない。
+
+初期化時間ははっきりしている。線源やメッシュの構築 (setup) は 3 ケースとも 1 秒未満、
+OpenMC 側の初期化も case_3 で {init_3:.1f} 秒しかない。要素ソースを 1 つずつ XML に書き出す
+コストは実測では問題にならず、四面体メッシュを避ける理由にはならない。
+
+### 結論
+
+case_1 の誤りは TBR という積分量ではほとんど見えず、局所量で初めて出る。第一壁の核発熱・dpa・
+ダイバータ近傍のストリーミングを見る al_09 以降では case_1 は使えない。
+
+移行先としては case_2 で足りる。追加コードは反応率とヤコビアンの数行だけで、依存も増えず、
+線源分布に離散化バイアスが無く、計算時間の差も測定できない程度である。case_3 の
+四面体メッシュは精度で勝るのではなく (むしろ s 方向の離散化バイアスを持つ)、線源をファイルとして
+残せること、parastell と同じ土俵で比較できること、VTK でそのまま可視化できることに価値がある。
+parastell との数値比較を実際に行う段で導入すればよい。
+"""
 
 if __name__ == "__main__":
 	main()
