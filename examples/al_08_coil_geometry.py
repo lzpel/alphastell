@@ -22,6 +22,82 @@ import typst
 
 MU0 = 4e-7 * math.pi
 
+def main(
+	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc",
+	out: pathlib.Path = pathlib.Path("out") / pathlib.Path(__file__).with_suffix(".pdf").name,
+	threshold_curve_surface_distances: list[float] = [1.5, 2.0, 2.5, 3.0],  # コイル-プラズマ最小距離の要求値 [m]。先頭を 3D 図と CSV に出す
+	width: float = 0.40,  # 導体断面のトロイダル幅 [m]。al_081 と同じ parastell 準拠の値
+	height: float = 0.50,  # 導体断面の半径方向厚み [m]。同上
+) -> list[dict[str, Any]]:
+	surface = make_surface(wout, np.linspace(0, 1, 120), np.linspace(0, 1, 48))
+
+	results = []
+	for threshold_curve_surface_distance in threshold_curve_surface_distances:
+		result = optimize_coil(surface, threshold_curve_surface_distance=threshold_curve_surface_distance)
+		results.append(result)
+		print(f"requested {threshold_curve_surface_distance:.1f} m: max |B.n|/|B| = {np.abs(result['error']).max():.2e}, achieved {result['curve_surface_distance']:.2f} m, coil-coil {result['curve_curve_distance']:.2f} m, length {sum(result['lengths']) * 2 * surface.nfp:.0f} m")
+	baseline = results[0]
+	ncoils = baseline["parameters"]["ncoils"]
+
+	# --- コイル形状を Fourier 係数で書き出す。下流の CAD/構造解析はここから読む ---------
+	geometry = [coil.curve.gamma() for coil in baseline["coils"]]
+	# coeffs は [ncoil, 3, 2*order+1] で軸ごとに [c0, s1, c1, .. s_order, c_order]。行 = コイル 1 本に平坦化する
+	np.savetxt(
+		out.with_suffix(".csv"), baseline["coeffs"].reshape(len(baseline["coeffs"]), -1), delimiter=",", fmt="%.9e",
+		header="row = one coil; columns = [c0, s1, c1, .. s_order, c_order] for x, then y, then z [m]",
+	)
+
+	spines = guided_spines(wout, [coil.curve.gamma().tolist() for coil in baseline["coils"]])
+	visualize_guided_spines(spines, out.with_suffix(".png"), surface)
+	# al_081 と同じ矩形断面で掃引した導体ソリッドの 4 面図。ローカル +X が guide (半径) 方向なので x に height を割る
+	solids = sweep_guided_spines([-height / 2, -width / 2, height / 2, -width / 2, height / 2, width / 2, -height / 2, width / 2], spines)
+	with open(out.with_suffix(".sweep.png"), "wb") as f:
+		solids.write_png(f)
+
+	figure, (left, right) = plt.subplots(1, 2, figsize=(12, 4.0))
+	mesh = left.pcolormesh(
+		surface.quadpoints_phi * 360, surface.quadpoints_theta * 360, baseline["error"].T,
+		cmap="coolwarm", norm=matplotlib.colors.CenteredNorm(), shading="nearest",
+	)
+	figure.colorbar(mesh, ax=left, label="B.n / |B|")
+	left.set(xlabel="phi [deg]", ylabel="theta [deg]", title=f"normal field error, coil-plasma {baseline['curve_surface_distance']:.2f} m")
+	right.semilogy([r["curve_surface_distance"] for r in results], [np.abs(r["error"]).max() for r in results], marker="o", label="max")
+	right.semilogy([r["curve_surface_distance"] for r in results], [np.abs(r["error"]).mean() for r in results], marker="x", linestyle="--", label="mean")
+	# al_06 の PbLi 最大厚み。この線とデータ点の差が第一壁・真空容器・遮蔽に使える残りになる
+	right.axvline(0.7, color="#c0392b", linestyle=":", linewidth=1.2)
+	right.text(0.72, right.get_ylim()[0] * 1.3, "al_06 PbLi 70 cm", fontsize=8, color="#c0392b")
+	right.set(xlabel="achieved coil-plasma distance [m]", ylabel="|B.n| / |B|", title="how far the coils can back off")
+	right.legend()
+	right.grid(alpha=0.3)
+	figure.tight_layout()
+	figure.savefig(out.with_suffix(".error.png"), dpi=150, bbox_inches="tight")
+	plt.close(figure)
+
+	# --- PDF レポート。本文は末尾の TEMPLATE にあり、ここでは数値だけ差し込む -------------
+	fields = baseline["parameters"] | {
+		"nfp": surface.nfp, "r_major": surface.get_rc(0, 0), "width": width, "height": height,
+		"ncoils_total": len(baseline["coils"]), "nimages": 2 * surface.nfp, "bend_radius": 1 / baseline["parameters"]["threshold_curvature"],
+		"threshold_curve_surface_distance_min": threshold_curve_surface_distances[0], "threshold_curve_surface_distance_max": threshold_curve_surface_distances[-1],
+		"cs_first": baseline["curve_surface_distance"], "cs_last": results[-1]["curve_surface_distance"],
+		"cc_first": baseline["curve_curve_distance"], "cc_last": results[-1]["curve_curve_distance"],
+		"error_first": np.abs(baseline["error"]).max(), "error_last": np.abs(results[-1]["error"]).max(),
+		"coil_rows": "".join(
+			f"  [{i}], [{baseline['lengths'][i]:.1f}], [{baseline['currents'][i] / 1e6:.2f}], [{baseline['radii'][i]:.2f}],\n"
+			for i in range(ncoils)
+		),
+		"scan_rows": "".join(
+			f"  [{r['parameters']['threshold_curve_surface_distance']:.1f}], [{r['curve_surface_distance']:.2f}], [{np.abs(r['error']).max():.1e}], [{np.abs(r['error']).mean():.1e}], "
+			f"[{sum(r['lengths']) * 2 * surface.nfp:.0f}], [{r['curve_curve_distance']:.2f}],\n"
+			for r in results
+		),
+		"out_png": out.with_suffix(".png").name,
+		"out_sweep_png": out.with_suffix(".sweep.png").name,
+		"out_error_png": out.with_suffix(".error.png").name,
+		"out_csv": out.with_suffix(".csv").name,
+	}
+	out.with_suffix(".typ").write_text(TEMPLATE.format(**fields), encoding="utf-8")
+	typst.compile(out.with_suffix(".typ"), output=out.with_suffix(".pdf"))
+	return results
 
 def make_surface(
 	wout: pathlib.Path, # VMEC の平衡出力 (wout*.nc)。最外殻の Fourier 係数だけを読む
@@ -97,19 +173,18 @@ def optimize_coil(
 	from simsopt.geo import CurveCurveDistance, CurveLength, CurveSurfaceDistance, LpCurveCurvature, MeanSquaredCurvature, create_equally_spaced_curves
 	from simsopt.objectives import QuadraticPenalty, SquaredFlux
 	from scipy.optimize import minimize
-	nfp = surface.nfp
 	r_major = surface.get_rc(0, 0)
-	base_curves = create_equally_spaced_curves(ncoils, nfp, stellsym=True, R0=r_major, R1=3.5 + threshold_curve_surface_distance, order=order)
+	base_curves = create_equally_spaced_curves(ncoils, surface.nfp, stellsym=True, R0=r_major, R1=3.5 + threshold_curve_surface_distance, order=order)
 
 	# 正味ポロイダル電流 2πR·B0/μ0 を半周期に配り、その合計だけを固定する。
 	# 最後の 1 本を「合計 - 残り」にすると本数分の自由度から 1 つだけ減る。
-	half_period_current = 2 * math.pi * r_major * b0 / MU0 / (2 * nfp)
+	half_period_current = 2 * math.pi * r_major * b0 / MU0 / (2 * surface.nfp)
 	base_currents = [Current(half_period_current / ncoils * 1e-5) * 1e5 for _ in range(ncoils - 1)]
 	fixed_total = Current(half_period_current)
 	fixed_total.fix_all()
 	base_currents.append(fixed_total - sum(base_currents))
 
-	coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
+	coils = coils_via_symmetries(base_curves, base_currents, surface.nfp, True)
 	field = BiotSavart(coils)
 	field.set_points(surface.gamma().reshape((-1, 3)))
 
@@ -164,111 +239,86 @@ def optimize_coil(
 	}
 
 
-def main(
-	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc",
-	out: pathlib.Path = pathlib.Path("out") / pathlib.Path(__file__).with_suffix(".pdf").name,
-	threshold_curve_surface_distances: list[float] = [1.5, 2.0, 2.5, 3.0],  # コイル-プラズマ最小距離の要求値 [m]。先頭を 3D 図と CSV に出す
-) -> list[dict[str, Any]]:
-	surface = make_surface(wout)
-	nfp = surface.nfp
+def guided_spines(
+	wout: pathlib.Path,
+	spines_points: list[list[tuple[float, float, float]]],  # コイル 1 本あたりの中心線点列 (x, y, z)。対称像込み
+	distance_between_spine_and_guide: float = 0.40,  # spine と guide の距離 [m]。向きだけが効くので値は任意の正数でよい
+) -> list[list[list[float]]]:
+	from alphastell import SurfaceFourierRZ
+	ret_spines_with_guide = []
+	with open(wout, "rb") as f:
+		surface = SurfaceFourierRZ.load(f)
+		for points in spines_points:
+			point_center = np.mean(points, axis=0)
+			phi, theta, s = math.atan2(point_center[1], point_center[0]), 0.0, 1.0
+			points_with_guide = []
+			for point in points:
+				phi, theta = surface.nearest(phi, theta, s, point)  # 前の点の解を次の初期値にする継続法
+				# 射影の足 (LCFS 上の点) は使わず、その点の法線だけもらう
+				(nx, ny, nz) = surface.point_normal(phi, theta, s, True)[1]
+				# spine はコイル点そのもの。guide はコイル点を LCFS 法線方向へずらした平行曲線
+				points_with_guide.append([
+					point[0],
+					point[1],
+					point[2],
+					point[0] + nx * distance_between_spine_and_guide,
+					point[1] + ny * distance_between_spine_and_guide,
+					point[2] + nz * distance_between_spine_and_guide
+				])
+			ret_spines_with_guide.append(points_with_guide)
+	return ret_spines_with_guide
 
-	results = []
-	for threshold_curve_surface_distance in threshold_curve_surface_distances:
-		result = optimize_coil(surface, threshold_curve_surface_distance=threshold_curve_surface_distance)
-		results.append(result)
-		print(
-			f"requested {threshold_curve_surface_distance:.1f} m: max |B.n|/|B| = {np.abs(result['error']).max():.2e}, "
-			f"achieved {result['curve_surface_distance']:.2f} m, coil-coil {result['curve_curve_distance']:.2f} m, length {sum(result['lengths']) * 2 * nfp:.0f} m"
-		)
-	baseline = results[0]
-	coils = baseline["coils"]
-	ncoils, order = baseline["parameters"]["ncoils"], baseline["parameters"]["order"]
 
-	# --- コイル形状を Fourier 係数で書き出す。下流の CAD/構造解析はここから読む ---------
-	geometry = [coil.curve.gamma() for coil in coils]
-	rows = []
-	for index, (coil, coefficients) in enumerate(zip(coils, baseline["coeffs"])):
-		# CSV は m ごとに 1 行なので、cos 側と sin 側を並べ直す。sin の m=0 は定義上ゼロ
-		cosine = coefficients[:, 0::2].T
-		sine = np.vstack([np.zeros(3), coefficients[:, 1::2].T])
-		rows.append(np.column_stack([np.full(order + 1, index), np.full(order + 1, coil.current.get_value()), np.arange(order + 1), cosine, sine]))
-	np.savetxt(
-		out.with_suffix(".csv"), np.concatenate(rows), delimiter=",",
-		header="coil,current_A,m,xc,yc,zc,xs,ys,zs", comments="", fmt="%.9e",  # 係数の単位は m
-	)
+def sweep_guided_spines(
+	profile: list[float],  # 原点まわりの平面断面 [x0, y0, x1, y1, ...]。矩形なら 4 点 8 要素
+	spines: list[list[list[float]]],  # guided_spines の出力 [ncoil][npoint][x, y, z, guidex, guidey, guidez]
+) -> Any:  # alphastell.Geometry
+	"""spine+guide の 6N 形式を sweep_geometry (Auxiliary) に渡して掃引する。
 
-	# --- 図 ----------------------------------------------------------------------------
+	断面は常に接線と直交し、ローカル +X が guide の方を向く (cadrum 0.8.18 以降)。
+	"""
+	from alphastell import Geometry
+	spines = [[e for p in spine for e in p] for spine in spines]
+	return Geometry.sweep_geometry(True, profile, spines)
+
+
+def visualize_guided_spines(
+	spines_with_guide: list[list[list[float]]],  # guided_spines の出力
+	out: pathlib.Path,  # 図の出力先 (.png)。CSV は同名 .csv
+	surface: SurfaceRZFourier | None = None,  # LCFS を背景に描く場合は渡す
+) -> None:
+	import os
 	colors = plt.get_cmap("tab10")
-	wall = make_surface(wout, np.linspace(0, 1, 120), np.linspace(0, 1, 48)).gamma()  # 端点を含めて φ, θ の継ぎ目を閉じる
-	figure = plt.figure(figsize=(11, 5.5))
-	axes = figure.add_subplot(projection="3d")
-	axes.plot_surface(
-		wall[..., 0], wall[..., 1], wall[..., 2],
-		color="#b8bec7", alpha=0.30, rstride=1, cstride=1, linewidth=0, edgecolor="none", antialiased=False, shade=True,
-	)
-	# 独立コイルは ncoils 本だけで、残りは stellarator 対称と nfp 回転の像。色をその index で振る。
-	for index, points in enumerate(geometry):
-		loop = np.concatenate([points, points[:1]])
-		axes.plot(loop[:, 0], loop[:, 1], loop[:, 2], color=colors(index % ncoils), linewidth=1.5)
-	# トーラスは扁平なので軸ごとの実寸比を保たないと形が嘘になる
-	axes.set_box_aspect((np.ptp(wall[..., 0]), np.ptp(wall[..., 1]), np.ptp(wall[..., 2])), zoom=1.5)
+	array = np.array(spines_with_guide)  # [ncoil, npoint, 6]
+	figure = plt.figure()
+	axes = figure.add_subplot(111, projection="3d")
+	if surface is not None:
+		wall=surface.gamma()
+		axes.plot_surface(
+			wall[..., 0], wall[..., 1], wall[..., 2],
+			color="#b8bec7", alpha=0.30, rstride=1, cstride=1, linewidth=0, edgecolor="none", antialiased=False, shade=True,
+		)
+	for i, (spine_i, guide_i) in enumerate(zip(array[..., :3], array[..., 3:])):
+		closed_spine = np.concatenate([spine_i, spine_i[:1]])
+		closed_guide = np.concatenate([guide_i, guide_i[:1]])
+		color = colors(i%8)
+		axes.plot(closed_spine[:, 0], closed_spine[:, 1], closed_spine[:, 2], color=color, linewidth=0.7)
+		axes.plot(closed_guide[:, 0], closed_guide[:, 1], closed_guide[:, 2], color=color, linewidth=0.7)
+		for a, b in zip(spine_i[::3], guide_i[::3]):  # 3 点に 1 本だけ描いて密度を抑える
+			axes.plot([a[0], b[0]], [a[1], b[1]], [a[2], b[2]], color=color, linewidth=0.6)
+
+	flat = array.reshape(-1, 3)[..., :3]
+	axes.set_box_aspect(np.ptp(flat, axis=0))
 	axes.set(xlabel="x [m]", ylabel="y [m]", zlabel="z [m]")
-	axes.zaxis.set_major_locator(matplotlib.ticker.MaxNLocator(3))
+	axes.zaxis.set_major_locator(matplotlib.ticker.MaxNLocator(3))	
 	axes.view_init(elev=38, azim=-55)
 	axes.grid(False)
-	for pane in (axes.xaxis, axes.yaxis, axes.zaxis):
-		pane.pane.set_alpha(0.0)
-	axes.set_title(
-		f"modular coils from stage-2 optimization: {len(coils)} coils ({ncoils} unique x {2 * nfp} symmetry images)\n"
-		f"coil-plasma {baseline['curve_surface_distance']:.2f} m, max |B.n|/|B| = {np.abs(baseline['error']).max():.1e}, "
-		f"total length {sum(baseline['lengths']) * 2 * nfp:.0f} m"
-	)
-	figure.savefig(out.with_suffix(".png"), dpi=150, bbox_inches="tight")
-	plt.close(figure)
-
-	figure, (left, right) = plt.subplots(1, 2, figsize=(12, 4.0))
-	mesh = left.pcolormesh(
-		surface.quadpoints_phi * 360, surface.quadpoints_theta * 360, baseline["error"].T,
-		cmap="coolwarm", norm=matplotlib.colors.CenteredNorm(), shading="nearest",
-	)
-	figure.colorbar(mesh, ax=left, label="B.n / |B|")
-	left.set(xlabel="phi [deg]", ylabel="theta [deg]", title=f"normal field error, coil-plasma {baseline['curve_surface_distance']:.2f} m")
-	right.semilogy([r["curve_surface_distance"] for r in results], [np.abs(r["error"]).max() for r in results], marker="o", label="max")
-	right.semilogy([r["curve_surface_distance"] for r in results], [np.abs(r["error"]).mean() for r in results], marker="x", linestyle="--", label="mean")
-	# al_06 の PbLi 最大厚み。この線とデータ点の差が第一壁・真空容器・遮蔽に使える残りになる
-	right.axvline(0.7, color="#c0392b", linestyle=":", linewidth=1.2)
-	right.text(0.72, right.get_ylim()[0] * 1.3, "al_06 PbLi 70 cm", fontsize=8, color="#c0392b")
-	right.set(xlabel="achieved coil-plasma distance [m]", ylabel="|B.n| / |B|", title="how far the coils can back off")
-	right.legend()
-	right.grid(alpha=0.3)
+	[pane.pane.set_alpha(0.0) for pane in (axes.xaxis, axes.yaxis, axes.zaxis)]	
 	figure.tight_layout()
-	figure.savefig(out.with_suffix(".error.png"), dpi=150, bbox_inches="tight")
+	figure.savefig(out)
 	plt.close(figure)
-
-	# --- PDF レポート。本文は末尾の TEMPLATE にあり、ここでは数値だけ差し込む -------------
-	fields = baseline["parameters"] | {
-		"nfp": nfp, "r_major": surface.get_rc(0, 0),
-		"ncoils_total": len(coils), "nimages": 2 * nfp, "bend_radius": 1 / baseline["parameters"]["threshold_curvature"],
-		"threshold_curve_surface_distance_min": threshold_curve_surface_distances[0], "threshold_curve_surface_distance_max": threshold_curve_surface_distances[-1],
-		"cs_first": baseline["curve_surface_distance"], "cs_last": results[-1]["curve_surface_distance"],
-		"cc_first": baseline["curve_curve_distance"], "cc_last": results[-1]["curve_curve_distance"],
-		"error_first": np.abs(baseline["error"]).max(), "error_last": np.abs(results[-1]["error"]).max(),
-		"coil_rows": "".join(
-			f"  [{i}], [{baseline['lengths'][i]:.1f}], [{baseline['currents'][i] / 1e6:.2f}], [{baseline['radii'][i]:.2f}],\n"
-			for i in range(ncoils)
-		),
-		"scan_rows": "".join(
-			f"  [{r['parameters']['threshold_curve_surface_distance']:.1f}], [{r['curve_surface_distance']:.2f}], [{np.abs(r['error']).max():.1e}], [{np.abs(r['error']).mean():.1e}], "
-			f"[{sum(r['lengths']) * 2 * nfp:.0f}], [{r['curve_curve_distance']:.2f}],\n"
-			for r in results
-		),
-		"out_png": out.with_suffix(".png").name,
-		"out_error_png": out.with_suffix(".error.png").name,
-		"out_csv": out.with_suffix(".csv").name,
-	}
-	out.with_suffix(".typ").write_text(TEMPLATE.format(**fields), encoding="utf-8")
-	typst.compile(out.with_suffix(".typ"), output=out.with_suffix(".pdf"))
-	return results
+	np.savetxt(out.with_suffix(".csv"), array.reshape(len(array), -1), delimiter=",", fmt="%.9e", header="row = one coil; columns = x,y,z,guidex,guidey,guidez repeated npoint times [m]")
+	len(os.getenv("SHOW", "")) and plt.show()
 
 # PDF レポートの本文。main() が数値を差し込んで typst でコンパイルする
 TEMPLATE = """
@@ -330,6 +380,9 @@ LCFS 上の B·n/|B| 分布。右: コイル-プラズマ距離に対する法�
 #figure(image("{out_png}", width: 92%), caption: [{ncoils_total} 本のモジュラーコイルと LCFS。
 色は独立コイルの番号で、同色の {nimages} 本は対称操作による像である。断面が三角形から楕円へ
 捻れる領域でコイルが強く曲がる。])
+
+#figure(image("{out_sweep_png}", width: 92%), caption: [中心線に {height} m × {width} m の矩形断面を
+掃引した導体ソリッドの 4 面図。断面は常に接線と直交し、LCFS 法線の guide 曲線が捻りを制御する。])
 
 == 考察
 
