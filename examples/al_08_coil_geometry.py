@@ -26,6 +26,8 @@ def main(
 	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc",
 	out: pathlib.Path = pathlib.Path("out") / pathlib.Path(__file__).with_suffix(".pdf").name,
 	threshold_curve_surface_distances: list[float] = [1.5, 2.0, 2.5, 3.0],  # コイル-プラズマ最小距離の要求値 [m]。先頭を 3D 図と CSV に出す
+	width: float = 0.40,  # 導体断面のトロイダル幅 [m]。al_081 と同じ parastell 準拠の値
+	height: float = 0.50,  # 導体断面の半径方向厚み [m]。同上
 ) -> list[dict[str, Any]]:
 	surface = make_surface(wout, np.linspace(0, 1, 120), np.linspace(0, 1, 48))
 
@@ -45,7 +47,12 @@ def main(
 		header="row = one coil; columns = [c0, s1, c1, .. s_order, c_order] for x, then y, then z [m]",
 	)
 
-	visualize_guided_spines(guided_spines(wout, [coil.curve.gamma().tolist() for coil in baseline["coils"]]), out.with_suffix(".png"), surface)
+	spines = guided_spines(wout, [coil.curve.gamma().tolist() for coil in baseline["coils"]])
+	visualize_guided_spines(spines, out.with_suffix(".png"), surface)
+	# al_081 と同じ矩形断面で掃引した導体ソリッドの 4 面図。ローカル +X が guide (半径) 方向なので x に height を割る
+	solids = sweep_guided_spines([-height / 2, -width / 2, height / 2, -width / 2, height / 2, width / 2, -height / 2, width / 2], spines)
+	with open(out.with_suffix(".sweep.png"), "wb") as f:
+		solids.write_png(f)
 
 	figure, (left, right) = plt.subplots(1, 2, figsize=(12, 4.0))
 	mesh = left.pcolormesh(
@@ -68,7 +75,7 @@ def main(
 
 	# --- PDF レポート。本文は末尾の TEMPLATE にあり、ここでは数値だけ差し込む -------------
 	fields = baseline["parameters"] | {
-		"nfp": surface.nfp, "r_major": surface.get_rc(0, 0),
+		"nfp": surface.nfp, "r_major": surface.get_rc(0, 0), "width": width, "height": height,
 		"ncoils_total": len(baseline["coils"]), "nimages": 2 * surface.nfp, "bend_radius": 1 / baseline["parameters"]["threshold_curvature"],
 		"threshold_curve_surface_distance_min": threshold_curve_surface_distances[0], "threshold_curve_surface_distance_max": threshold_curve_surface_distances[-1],
 		"cs_first": baseline["curve_surface_distance"], "cs_last": results[-1]["curve_surface_distance"],
@@ -84,6 +91,7 @@ def main(
 			for r in results
 		),
 		"out_png": out.with_suffix(".png").name,
+		"out_sweep_png": out.with_suffix(".sweep.png").name,
 		"out_error_png": out.with_suffix(".error.png").name,
 		"out_csv": out.with_suffix(".csv").name,
 	}
@@ -372,6 +380,9 @@ LCFS 上の B·n/|B| 分布。右: コイル-プラズマ距離に対する法�
 #figure(image("{out_png}", width: 92%), caption: [{ncoils_total} 本のモジュラーコイルと LCFS。
 色は独立コイルの番号で、同色の {nimages} 本は対称操作による像である。断面が三角形から楕円へ
 捻れる領域でコイルが強く曲がる。])
+
+#figure(image("{out_sweep_png}", width: 92%), caption: [中心線に {height} m × {width} m の矩形断面を
+掃引した導体ソリッドの 4 面図。断面は常に接線と直交し、LCFS 法線の guide 曲線が捻りを制御する。])
 
 == 考察
 
