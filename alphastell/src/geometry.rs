@@ -36,9 +36,9 @@ impl Geometry {
 		file.call_method1("write", (pyo3::types::PyBytes::new(file.py(), data),))?;
 		Ok(())
 	}
-	/// 入力の形が不正なときの Error。cadrum の InvalidEdge に載せると PyValueError になる。
+	/// 入力の形が不正なときの Error。cadrum の Validation に載せると PyValueError になる。
 	fn invalid(message: String) -> Error {
-		Error(cadrum::Error::InvalidEdge(message))
+		Error(cadrum::Error::Validation(message))
 	}
 	fn points_to_dvec3(points: Vec<f64>) -> (usize, usize, Vec<cadrum::DVec3>) {
 		// 最初の2要素は n, m のサイズ 残りは n*m*3のフラットな座標配列
