@@ -105,6 +105,11 @@ impl Geometry {
 	fn boolean_union(&self, other: &Geometry) -> Result<Geometry, Error> {
 		Ok(Geometry((self.expression() + other.expression()).build_vec()?))
 	}
+	/// ブーリアンせずソリッドを連結する。描画や STEP 出力で複数体を 1 つにまとめる用
+	/// (boolean_union の OCCT fuse は本数が多いと分オーダーかかる)。
+	fn concat(&self, other: &Geometry) -> Geometry {
+		Geometry(self.0.iter().chain(other.0.iter()).cloned().collect())
+	}
 	fn boolean_subtract(&self, other: &Geometry) -> Result<Geometry, Error> {
 		Ok(Geometry((self.expression() - other.expression()).build_vec()?))
 	}
