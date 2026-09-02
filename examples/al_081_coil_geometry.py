@@ -25,11 +25,10 @@ def main(
 ) -> None:
 	surface = make_surface(wout)
 	result = optimize_coil(surface)
-	spines = spines_with_guide(wout, [coil.curve.gamma().tolist() for coil in result["coils"]], math.sqrt(width**2 + height**2)/2)
-	visualize_spines_with_guide(spines)
-	if 1:
-		print("not yet implemented")
-		return
+	spines = guided_spines(wout, [coil.curve.gamma().tolist() for coil in result["coils"]], math.sqrt(width**2 + height**2)/2)
+	visualize_guided_spines(spines)
+	# up = guide 方向 = LCFS 法線 (半径方向) が断面のローカル +X になるので、x に height、y に width を割る
+	solids = sweep_guided_spines([-height / 2, -width / 2, height / 2, -width / 2, height / 2, width / 2, -height / 2, width / 2], spines)
 	out.parent.mkdir(parents=True, exist_ok=True)
 	for path, write in ((out, solids.write_step), (out.with_suffix(".png"), solids.write_png)):
 		with open(path, "wb") as f:
@@ -42,7 +41,7 @@ def main(
 	print(f"volume {min(volume):.4f}..{max(volume):.4f} m^3, error vs area x length {min(error):+.2f}..{max(error):+.2f} %")
 
 
-def spines_with_guide(
+def guided_spines(
 	wout: pathlib.Path,
 	spines_points: list[list[tuple[float, float, float]]],  # コイル 1 本あたりの中心線点列 (x, y, z)。対称像込み
 	distance_between_spine_and_guide: float = 0.40,  # 導体断面のトロイダル幅 [m]。断面のローカル x
@@ -71,7 +70,22 @@ def spines_with_guide(
 			ret_spines_with_guide.append(points_with_guide)
 	return ret_spines_with_guide
 
-def visualize_spines_with_guide(spines_with_guide: list[list[tuple[float, float, float]]]) -> None:
+def sweep_guided_spines(
+	profile: list[float],  # 原点まわりの平面断面 [x0, y0, x1, y1, ...]。矩形なら 4 点 8 要素
+	spines: list[list[list[float]]],  # guided_spines の出力 [ncoil][npoint][x, y, z, guidex, guidey, guidez]
+) -> Any:  # alphastell.Geometry
+	"""spine+guide を現行 sweep_geometry (Up 法) に食わせる暫定版。
+
+	現 API は 1 本あたり up 1 個しか受けないので、始点の guide 方向を up に使う。
+	点ごとの guide で捻りを制御する Auxiliary 版は cadrum 側の対応待ち。
+	up = LCFS 法線が接線と平行に近づく箇所があれば掃引は落ちるが、それも診断のうち。
+	"""
+	from alphastell import Geometry
+	spines=[[e for p in spine for e in p] for spine in spines]
+	return Geometry.sweep_geometry(True, profile, spines)
+
+
+def visualize_guided_spines(spines_with_guide: list[list[tuple[float, float, float]]]) -> None:
 	array = np.array(spines_with_guide)  # [ncoil, npoint, 6]
 	spine, guide = array[..., :3], array[..., 3:]
 	figure = plt.figure()
