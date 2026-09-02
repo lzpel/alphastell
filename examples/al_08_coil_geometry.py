@@ -2,7 +2,7 @@
 """VMEC の LCFS を再現するモジュラーコイルを simsopt の stage-2 最適化で起こす (al_08)。
 
 手法は optimize_coil() にある。main() はそれをコイル-プラズマ距離について走査し、
-CSV・3D 図・PDF レポート (本文は末尾の TEMPLATE) を出すだけの段取りである。
+CSV・3D 図・Markdown レポート (本文は末尾の TEMPLATE) を出すだけの段取りである。PDF は make al-08 が md2pdf.py で組む。
 
 al_06 で PbLi 殻を厚くするほど TBR が上がると分かったが、厚みを置く空間はコイルが決める。
 距離を振って磁気面の再現誤差を見ると、ブランケット・遮蔽・真空容器に使える半径方向の予算が出る。
@@ -18,13 +18,12 @@ import matplotlib
 
 import matplotlib.pyplot as plt
 import numpy as np
-import typst
 
 MU0 = 4e-7 * math.pi
 
 def main(
 	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc",
-	out: pathlib.Path = pathlib.Path("out") / pathlib.Path(__file__).with_suffix(".pdf").name,
+	out: pathlib.Path = pathlib.Path("out") / pathlib.Path(__file__).with_suffix(".md").name,
 	threshold_curve_surface_distances: list[float] = [1.5, 2.0, 2.5, 3.0],  # コイル-プラズマ最小距離の要求値 [m]。先頭を 3D 図と CSV に出す
 	width: float = 0.40,  # 導体断面のトロイダル幅 [m]。al_081 と同じ parastell 準拠の値
 	height: float = 0.50,  # 導体断面の半径方向厚み [m]。同上
@@ -43,12 +42,12 @@ def main(
 	geometry = [coil.curve.gamma() for coil in baseline["coils"]]
 	# coeffs は [ncoil, 3, 2*order+1] で軸ごとに [c0, s1, c1, .. s_order, c_order]。行 = コイル 1 本に平坦化する
 	np.savetxt(
-		out.with_suffix(".csv"), baseline["coeffs"].reshape(len(baseline["coeffs"]), -1), delimiter=",", fmt="%.9e",
+		out.with_suffix(".coeffs.csv"), baseline["coeffs"].reshape(len(baseline["coeffs"]), -1), delimiter=",", fmt="%.9e",
 		header="row = one coil; columns = [c0, s1, c1, .. s_order, c_order] for x, then y, then z [m]",
 	)
 
 	spines = guided_spines(wout, [coil.curve.gamma().tolist() for coil in baseline["coils"]])
-	visualize_guided_spines(spines, out.with_suffix(".png"), surface)
+	visualize_guided_spines(spines, out.with_suffix(".guided_spines.png"), surface)
 	# al_081 と同じ矩形断面で掃引した導体ソリッドの 4 面図。ローカル +X が guide (半径) 方向なので x に height を割る
 	solids = sweep_guided_spines([-height / 2, -width / 2, height / 2, -width / 2, height / 2, width / 2, -height / 2, width / 2], spines)
 	with open(out.with_suffix(".sweep.png"), "wb") as f:
@@ -73,7 +72,7 @@ def main(
 	figure.savefig(out.with_suffix(".error.png"), dpi=150, bbox_inches="tight")
 	plt.close(figure)
 
-	# --- PDF レポート。本文は末尾の TEMPLATE にあり、ここでは数値だけ差し込む -------------
+	# --- Markdown レポート。本文は末尾の TEMPLATE にあり、ここでは数値だけ差し込む ----------
 	fields = baseline["parameters"] | {
 		"nfp": surface.nfp, "r_major": surface.get_rc(0, 0), "width": width, "height": height,
 		"ncoils_total": len(baseline["coils"]), "nimages": 2 * surface.nfp, "bend_radius": 1 / baseline["parameters"]["threshold_curvature"],
@@ -82,21 +81,20 @@ def main(
 		"cc_first": baseline["curve_curve_distance"], "cc_last": results[-1]["curve_curve_distance"],
 		"error_first": np.abs(baseline["error"]).max(), "error_last": np.abs(results[-1]["error"]).max(),
 		"coil_rows": "".join(
-			f"  [{i}], [{baseline['lengths'][i]:.1f}], [{baseline['currents'][i] / 1e6:.2f}], [{baseline['radii'][i]:.2f}],\n"
+			f"| {i} | {baseline['lengths'][i]:.1f} | {baseline['currents'][i] / 1e6:.2f} | {baseline['radii'][i]:.2f} |\n"
 			for i in range(ncoils)
 		),
 		"scan_rows": "".join(
-			f"  [{r['parameters']['threshold_curve_surface_distance']:.1f}], [{r['curve_surface_distance']:.2f}], [{np.abs(r['error']).max():.1e}], [{np.abs(r['error']).mean():.1e}], "
-			f"[{sum(r['lengths']) * 2 * surface.nfp:.0f}], [{r['curve_curve_distance']:.2f}],\n"
+			f"| {r['parameters']['threshold_curve_surface_distance']:.1f} | {r['curve_surface_distance']:.2f} | {np.abs(r['error']).max():.1e} | {np.abs(r['error']).mean():.1e} | "
+			f"{sum(r['lengths']) * 2 * surface.nfp:.0f} | {r['curve_curve_distance']:.2f} |\n"
 			for r in results
 		),
-		"out_png": out.with_suffix(".png").name,
+		"out_png": out.with_suffix(".guided_spines.png").name,
 		"out_sweep_png": out.with_suffix(".sweep.png").name,
 		"out_error_png": out.with_suffix(".error.png").name,
-		"out_csv": out.with_suffix(".csv").name,
+		"out_csv": out.with_suffix(".coeffs.csv").name,
 	}
-	out.with_suffix(".typ").write_text(TEMPLATE.format(**fields), encoding="utf-8")
-	typst.compile(out.with_suffix(".typ"), output=out.with_suffix(".pdf"))
+	out.write_text(TEMPLATE.format(**fields), encoding="utf-8")
 	return results
 
 def make_surface(
@@ -320,71 +318,58 @@ def visualize_guided_spines(
 	np.savetxt(out.with_suffix(".csv"), array.reshape(len(array), -1), delimiter=",", fmt="%.9e", header="row = one coil; columns = x,y,z,guidex,guidey,guidez repeated npoint times [m]")
 	len(os.getenv("SHOW", "")) and plt.show()
 
-# PDF レポートの本文。main() が数値を差し込んで typst でコンパイルする
-TEMPLATE = """
-#set page(paper: "a4", margin: 2cm, numbering: "1")
-#set text(font: ("Yu Gothic", "Meiryo", "Noto Sans CJK JP"), size: 10pt, lang: "ja")
-#set par(justify: true)
-
-= VMEC 平衡を再現するモジュラーコイル (al_08)
+# Markdown レポートの本文。main() が数値を差し込み、PDF 化は make al-08 が md2pdf.py で行う
+TEMPLATE = """# VMEC 平衡を再現するモジュラーコイル (al_08)
 
 VMEC 平衡 `wout_vmec.nc` (nfp={nfp}, R={r_major:.2f} m) の LCFS を固定し、その外側にモジュラーコイルを
 simsopt の stage-2 最適化で置いた。al_06 で PbLi 殻を厚くするほど TBR が上がると分かったので、
 ここではコイルをどこまで離せるか、つまり半径方向にいくら予算があるかを見る。
 
-== 方法
+## 方法
 
 磁気面を動かさずコイルだけを動かす stage-2 である。半周期に {ncoils} 本の独立コイル
 (1 本あたり Fourier {order} 次) を等間隔の円環として置き、stellarator 対称と nfp 回転で
 {ncoils_total} 本に増やす。目的関数は LCFS 上の規格化法線磁場
 
-$ integral (bold(B) dot bold(n))^2 / abs(bold(B))^2 thin d A $
+$$
+\\int (\\mathbf B \\cdot \\mathbf n)^2 / |\\mathbf B|^2 \\; dA
+$$
 
 に、コイル長 ({threshold_length} m)・コイル間距離 ({threshold_curve_curve_distance} m)・コイル-プラズマ距離・曲率
 ({threshold_curvature} 1/m、曲げ半径 {bend_radius:.0f} m) の各ペナルティを足したもので、L-BFGS-B を {iteration} 反復かけた。
 コイル-プラズマ距離の要求値だけを {threshold_curve_surface_distance_min}〜{threshold_curve_surface_distance_max} m で振っている。
 
 電流の絶対値はこの wout からは決まらない。正味ポロイダル電流を与える `bsubvmnc` が無く、
-`rmnc` / `zmns` / `xm` / `xn` しか持たないためである。R#sub[0] = {r_major:.2f} m で
-B#sub[0] = {b0} T を仮定して総電流を固定した。目的関数が B·n/|B| で電流スケールに不変なので、
-コイル形状はこの仮定に依らず、下表の電流値だけが B#sub[0] に比例する。同じ理由で、virtual casing に
+`rmnc` / `zmns` / `xm` / `xn` しか持たないためである。$R_0$ = {r_major:.2f} m で
+$B_0$ = {b0} T を仮定して総電流を固定した。目的関数が B·n/|B| で電流スケールに不変なので、
+コイル形状はこの仮定に依らず、下表の電流値だけが $B_0$ に比例する。同じ理由で、virtual casing に
 必要な量が無いため有限ベータ補正も入っておらず、コイルだけで LCFS を作る真空磁場に近い扱いである。
 
-== 結果: どこまでコイルを離せるか
+## 結果: どこまでコイルを離せるか
 
-#table(
-  columns: 6,
-  align: (right, right, right, right, right, right),
-  [要求距離 [m]], [実現距離 [m]], [max |B·n|/|B|], [mean |B·n|/|B|], [全コイル長 [m]], [コイル間 [m]],
-{scan_rows})
-
+| 要求距離 [m] | 実現距離 [m] | max B·n/B | mean B·n/B | 全コイル長 [m] | コイル間 [m] |
+|--:|--:|--:|--:|--:|--:|
+{scan_rows}
 要求 {threshold_curve_surface_distance_min} m はほぼそのまま実現できる ({cs_first:.2f} m)。別途 1.0 m を要求しても 1.38 m までしか
 近づかないので、この配位のコイルは放っておいても 1.4 m 前後に落ち着く。一方、要求を上げると
 法線磁場誤差は {error_first:.1e} ({cs_first:.2f} m) から {error_last:.1e} ({cs_last:.2f} m) へ 1 桁上がり、
 同時にコイル間距離が {cc_first:.2f} m から {cc_last:.2f} m へ詰まる。離した分を長いコイルで補おうとして
 互いに衝突するためで、2 m 付近が実用上の壁になる。
 
-#figure(image("{out_error_png}", width: 100%), caption: [左: 実現距離 {cs_first:.2f} m での
-LCFS 上の B·n/|B| 分布。右: コイル-プラズマ距離に対する法線磁場誤差。点線は al_06 の PbLi 最大厚み。])
+![左: 実現距離 {cs_first:.2f} m での LCFS 上の B·n/|B| 分布。右: コイル-プラズマ距離に対する法線磁場誤差。点線は al_06 の PbLi 最大厚み。]({out_error_png})
 
-== 結果: コイル形状
+## 結果: コイル形状
 
 以下は要求 {threshold_curve_surface_distance_min} m のコイルである。
 
-#table(
-  columns: 4,
-  align: (center, right, right, right),
-  [コイル], [長さ [m]], [電流 [MA]], [最小曲げ半径 [m]],
-{coil_rows})
+| コイル | 長さ [m] | 電流 [MA] | 最小曲げ半径 [m] |
+|:-:|--:|--:|--:|
+{coil_rows}
+![{ncoils_total} 本のモジュラーコイルと LCFS。色は独立コイルの番号で、同色の {nimages} 本は対称操作による像である。断面が三角形から楕円へ捻れる領域でコイルが強く曲がる。]({out_png})
 
-#figure(image("{out_png}", width: 92%), caption: [{ncoils_total} 本のモジュラーコイルと LCFS。
-色は独立コイルの番号で、同色の {nimages} 本は対称操作による像である。断面が三角形から楕円へ
-捻れる領域でコイルが強く曲がる。])
+![中心線に {height} m × {width} m の矩形断面を掃引した導体ソリッドの 4 面図。断面は常に接線と直交し、LCFS 法線の guide 曲線が捻りを制御する。]({out_sweep_png})
 
-#figure(image("{out_sweep_png}", width: 92%), caption: [中心線に {height} m × {width} m の矩形断面を
-掃引した導体ソリッドの 4 面図。断面は常に接線と直交し、LCFS 法線の guide 曲線が捻りを制御する。])
-
-== 考察
+## 考察
 
 半径方向の予算は約 1.4 m、無理をして 2 m である。al_06 の PbLi 殻は 70 cm でも TBR が
 飽和していなかったから、残る 70 cm 前後に第一壁・冷却管・背面支持構造・遮蔽・真空容器・
@@ -393,10 +378,12 @@ LCFS 上の B·n/|B| 分布。右: コイル-プラズマ距離に対する法�
 コイル本数を増やしてもこの壁は動かない (半周期 5 本・6 本でも max |B·n|/|B| は 1e-2 台に留まり、
 全コイル長だけが 20〜30% 増えた)。al_09 以降で不均質な WCLL 構造を入れるとき、厚みの上限はここで決まる。
 
-コイル形状は `out/{out_csv}` に全 {ncoils_total} 本の Fourier 係数として出してある。
+コイル形状は [{out_csv}]({out_csv}) に全 {ncoils_total} 本の Fourier 係数として出してある。
 各コイルは m = 0…{order} の
 
-$ bold(x)(t) = sum_m [ bold(c)_m cos(2 pi m t) + bold(s)_m sin(2 pi m t) ] $
+$$
+\\mathbf x(t) = \\sum_m [\\, \\mathbf c_m \\cos(2 \\pi m t) + \\mathbf s_m \\sin(2 \\pi m t) \\,]
+$$
 
 で表され、点列と違って任意の分解能で滑らかに引き直せる。対称操作による像も回転行列を掛けた
 だけで次数は変わらないので、全数を同じ形式で持てる。al_04 と同じ経路で STEP にすれば、

@@ -23,7 +23,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import openmc
-import typst
 from cad_to_dagmc import CadToDagmc
 
 from al_07_source_models import jacobian, point_sources, reaction_rate
@@ -41,7 +40,7 @@ FLUENCE_LIMIT = 1e22  # Nb3Sn の高速中性子フルエンス許容 [n/m^2]
 
 def main(
 	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc",
-	out: pathlib.Path = pathlib.Path("out") / pathlib.Path(__file__).with_suffix(".pdf").name,
+	out: pathlib.Path = pathlib.Path("out") / pathlib.Path(__file__).with_suffix(".md").name,
 	width: float = 0.40,  # 導体断面のトロイダル幅 [m]。al_08 / al_081 と同じ parastell 準拠の値
 	height: float = 0.50,  # 導体断面の半径方向厚み [m]。同上
 	thickness: float = 0.5,  # PbLi 殻の厚み [m]。al_06 の中央、al_07 と同じ
@@ -97,7 +96,7 @@ def main(
 	mesh.lower_left = lower * 100
 	mesh.upper_right = upper * 100
 	pbli, coil_materials = materials(len(solids))
-	tally = heating(out.with_suffix(".h5m"), out.parent / "al_09_openmc", source, mesh, pbli, coil_materials, particles, batches)
+	tally = heating(out.with_suffix(".h5m"), out.with_suffix(".openmc"), source, mesh, pbli, coil_materials, particles, batches)
 
 	# --- 後処理: eV/線源中性子 → W、W/m^3、n/m^2/フル出力年 -----------------------------
 	watts = tally["heating"] * JOULE_PER_EV * power["rate"]  # コイル別 [W]
@@ -132,7 +131,7 @@ def main(
 	figure.savefig(out.with_suffix(".percoil.png"), dpi=150, bbox_inches="tight")
 	plt.close(figure)
 
-	# --- PDF レポート ------------------------------------------------------------------
+	# --- Markdown レポート。PDF 化は make al-09 が md2pdf.py (tectonic) で行う ------------
 	fields = {
 		"ncoils": result["parameters"]["ncoils"],
 		"ncoil_total": len(solids),
@@ -169,8 +168,7 @@ def main(
 		"out_percoil_png": out.with_suffix(".percoil.png").name,
 		"out_geometry_png": out.with_suffix(".geometry.png").name,
 	}
-	out.with_suffix(".typ").write_text(TEMPLATE.format(**fields), encoding="utf-8")
-	typst.compile(out.with_suffix(".typ"), output=out)
+	out.write_text(TEMPLATE.format(**fields), encoding="utf-8")
 	print(f"{out}: {out.stat().st_size} bytes")
 	return fields
 
@@ -285,11 +283,7 @@ def heating(
 		}
 
 
-TEMPLATE = """#set page(paper: "a4", margin: 2cm, numbering: "1")
-#set text(font: ("Yu Gothic", "Meiryo", "Noto Sans CJK JP"), size: 10pt, lang: "ja")
-#set par(justify: true)
-
-= モジュラーコイルの核発熱 (al_09)
+TEMPLATE = """# モジュラーコイルの核発熱 (al_09)
 
 al_06 は「PbLi 殻を厚くするほど TBR が上がる」と示し、al_08 は「厚みを置ける空間はコイルが決める」と
 示した。その反対側、つまり**コイルが浴びる側**の制約をここで数値にする。超伝導コイルの成立性は
@@ -298,9 +292,9 @@ al_06 は「PbLi 殻を厚くするほど TBR が上がる」と示し、al_08 �
 **遮蔽体は入れていない。** 増殖材 {thickness} cm とその外の真空だけである。遮蔽が要るかどうかではなく、
 どれだけ要るかを決めるための下限値としてこの構成を選んだ。
 
-== 方法
+## 方法
 
-=== 幾何
+### 幾何
 
 コイルは al_08 の stage-2 最適化をそのまま import して起こす。独立コイル {ncoils} 本、対称像込みで
 {ncoil_total} 本。コイル-プラズマ距離は要求 {standoff} m に対し {achieved} m まで寄り、巻線パック
@@ -315,19 +309,21 @@ DAGMC が粒子をロストしたが、この方式で解消した。掃引体�
 
 増殖材は LCFS を面内法線方向へ {thickness} cm 押し出した PbLi 殻 (al_06 / al_07 と同じ作り方) である。
 
-=== 核融合出力
+### 核融合出力
 
 タリーは線源中性子 1 個あたりで出るので、W に直すには線源率が要る。固定値を置かず、
 VMEC 平衡から積分した。
 
-$ S = integral (n\\/2)^2 ⟨sigma v⟩ sqrt(g) space d phi space d theta space d s $
+$$
+S = \\int (n/2)^2 \\langle\\sigma v\\rangle \\sqrt g \\; d\\phi \\, d\\theta \\, ds
+$$
 
-反応率プロファイルとヤコビアン $sqrt(g)$ は al_07 の `reaction_rate` / `jacobian` をそのまま使う。
+反応率プロファイルとヤコビアン $\\sqrt g$ は al_07 の `reaction_rate` / `jacobian` をそのまま使う。
 同じ積分でプラズマ体積が **{volume_mc} m³** と出る。VMEC 自身の `volume_p` が 635.7 m³ なので、
 ヤコビアンと積分が正しいことの検証になっている。得られる出力は **{power} GW**、
 線源率 {rate} n/s である。
 
-=== 中性子輸送
+### 中性子輸送
 
 線源は al_07 の case_2 (一様サンプル {nsample} 点の強度を反応率 × 体積要素にした重み付き点線源)。
 {particles} 粒子 × {batches} バッチ。
@@ -340,38 +336,31 @@ $ S = integral (n\\/2)^2 ⟨sigma v⟩ sqrt(g) space d phi space d theta space d
 コイル材は巻線パックを体積分率で均質化した (**比率は仮定**): SS316 50%、Cu 25%、Nb₃Sn 15%、
 エポキシ 10%。DAGMC の material タグをコイルごとに分けたので、発熱とフルエンスはコイル別に出る。
 
-== 結果
+## 結果
 
-#figure(image("{out_heating_png}", width: 86%), caption: [コイル材に落ちた核発熱密度のボクセル別
-3D 散布図 (対数色)。ボクセルにはコイル外の空間も含まれるため、値は材料の局所密度より薄まる。
-プラズマに面した内側ミッドプレーンで最も高い。])
+![コイル材に落ちた核発熱密度のボクセル別 3D 散布図 (対数色)。ボクセルにはコイル外の空間も含まれるため、値は材料の局所密度より薄まる。プラズマに面した内側ミッドプレーンで最も高い。]({out_heating_png})
 
-#figure(image("{out_percoil_png}", width: 78%), caption: [コイル別の体積平均発熱密度 (対数目盛)。
-点線は DEMO TF コイルのピーク目標 {heating_limit} W/m³ で、実測の 3 桁下にある。])
+![コイル別の体積平均発熱密度 (対数目盛)。点線は DEMO TF コイルのピーク目標 {heating_limit} W/m³ で、実測の 3 桁下にある。]({out_percoil_png})
 
-#figure(image("{out_geometry_png}", width: 92%), caption: [増殖材 {thickness} cm と {ncoil_total} 本の
-コイル導体。左上 ISO、右上 +Z、左下 +X、右下 +Y。])
+![増殖材 {thickness} cm と {ncoil_total} 本のコイル導体。左上 ISO、右上 +Z、左下 +X、右下 +Y。]({out_geometry_png})
 
-#table(
-  columns: 2,
-  align: (left, right),
-  [量], [値],
-  [核融合出力 (VMEC から積分)], [{power} GW],
-  [線源率], [{rate} n/s],
-  [コイル体積 (全 {ncoil_total} 本)], [{coil_volume} m³],
-  [コイル核発熱 合計], [{watts} MW],
-  [コイル別平均発熱密度], [{cold_density}〜{hot_density} W/m³ (最大: コイル {hot_coil})],
-  [3D ボクセルのピーク], [{peak_density} W/m³],
-  [DEMO TFC 目標], [{heating_limit} W/m³],
-  [高速中性子フルエンス (最悪コイル)], [{fluence} n/m² / フル出力年],
-  [Nb₃Sn 目標], [{fluence_limit} n/m²],
-  [コイルタリーの相対誤差], [{relative_error} %],
-  [輸送の計算時間 (wall-clock)], [{transport} s],
-)
+| 量 | 値 |
+|:--|--:|
+| 核融合出力 (VMEC から積分) | {power} GW |
+| 線源率 | {rate} n/s |
+| コイル体積 (全 {ncoil_total} 本) | {coil_volume} m³ |
+| コイル核発熱 合計 | {watts} MW |
+| コイル別平均発熱密度 | {cold_density}〜{hot_density} W/m³ (最大: コイル {hot_coil}) |
+| 3D ボクセルのピーク | {peak_density} W/m³ |
+| DEMO TFC 目標 | {heating_limit} W/m³ |
+| 高速中性子フルエンス (最悪コイル) | {fluence} n/m² / フル出力年 |
+| Nb₃Sn 目標 | {fluence_limit} n/m² |
+| コイルタリーの相対誤差 | {relative_error} % |
+| 輸送の計算時間 (wall-clock) | {transport} s |
 
-== 考察
+## 考察
 
-=== 遮蔽なしでは桁が足りない
+### 遮蔽なしでは桁が足りない
 
 ピーク核発熱密度は **{peak_density} W/m³** で、DEMO TF コイルの目標 {heating_limit} W/m³ の
 **約 {peak_ratio} 倍**である。高速中性子フルエンスは最悪コイルで {fluence} n/m² / フル出力年で、
@@ -380,23 +369,23 @@ Nb₃Sn の許容 {fluence_limit} n/m² に **{fluence_days} 日**で到達す�
 これは失敗ではなく、この構成が答えるべき問いへの答えである。増殖材 {thickness} cm だけでは
 超伝導コイルは成立しない。
 
-=== 必要な遮蔽厚
+### 必要な遮蔽厚
 
 14 MeV 中性子に対する遮蔽材の減衰長は 7〜10 cm である。ピークを {heating_limit} W/m³ まで
-落とすには $ln$({peak_density}/{heating_limit}) ≈ {attenuation} cm 相当の追加減衰が要る。
+落とすには $\ln$({peak_density}/{heating_limit}) ≈ {attenuation} cm 相当の追加減衰が要る。
 parastell の例が遮蔽 50 cm を置いているのと矛盾しない。
 
 ただしこれは指数減衰だけを見た概算で、実際には γ のビルドアップと、増殖材を薄くすることによる
 TBR の低下がトレードオフに入る。al_06 の TBR-厚み曲線と本計算を同じ半径方向予算の上で解くのが
 次段である。
 
-=== コイル間の差
+### コイル間の差
 
 material タグをコイルごとに分けたので、旧ドラフトで出せなかった「どのコイルが最も熱いか」が出る。
 体積平均発熱密度は {cold_density}〜{hot_density} W/m³ に分布し、最大はコイル {hot_coil} である。
 対称像 (2·nfp = 8 像) は統計誤差の範囲で同じ値になるはずで、そこからの逸脱は線源サンプリングの偏りの指標になる。
 
-=== この計算が答えていないこと
+### この計算が答えていないこと
 
 - **ピーク値の統計**。合計は相対誤差 {relative_error} % で決まるが、3D マップのボクセルごとは
   それより粗い。ピーク {peak_density} W/m³ は桁を示す値であって有効数字ではない。
