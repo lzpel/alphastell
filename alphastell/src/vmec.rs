@@ -367,45 +367,47 @@ impl SurfaceFourierRZ {
         .collect()
 	}
 
-	/// (x, y, z) を磁束座標 [φ, θ, s] に逆算する。
-	pub fn inverse(&self, point: [f64; 3]) -> std::result::Result<[f64; 3], String> {
-		let phi = point[1].atan2(point[0]).rem_euclid(TAU);// φ は円柱座標の方位角そのものなので atan2 で解析的に決まる。
-		let r_target = point[0].hypot(point[1]);
-		let z_target = point[2];
-		let axis = self.interpolate_rz(phi, 0.0, 0.0); // s=0 は磁気軸に退化するので θ は不問
-		let mut theta = (z_target - axis.z).atan2(r_target - axis.r);
-		let lcfs = self.interpolate_rz(phi, theta, 1.0);
-		let rho = (r_target - axis.r).hypot(z_target - axis.z);
-		let rho_lcfs = (lcfs.r - axis.r).hypot(lcfs.z - axis.z);
-		let mut s = (rho / rho_lcfs).powi(2).clamp(1e-3, 1.2);
-		for _ in 0..50 {
+	/// 点 p に最も近い、磁束面 s 上の点を与える [φ, θ] をニュートン法で求める。
+	/// 停留条件 g = [(p − x)·∂x/∂φ, (p − x)·∂x/∂θ] = 0 (p − x が両接ベクトルと直交 = 法線に平行)を解く。
+	pub fn nearest(&self, phi_initial: f64, theta_initial: f64, s: f64, p: [f64; 3]) -> std::result::Result<[f64; 2], String> {
+		// 停留条件ベクトル g(φ, θ)
+		let g = |phi: f64, theta: f64| -> [f64; 2] {
 			let rz = self.interpolate_rz(phi, theta, s);
-			let (f_r, f_z) = (rz.r - r_target, rz.z - z_target);
-			if f_r.hypot(f_z) < 1e-10 {
-				return Ok([phi, theta.rem_euclid(TAU), s]);
-			}
-			let h = 1e-5;
-			let plus = self.interpolate_rz(phi, theta, s + h);
-			let minus = self.interpolate_rz(phi, theta, s - h);
-			let (dr_ds, dz_ds) = ((plus.r - minus.r) / (2.0 * h), (plus.z - minus.z) / (2.0 * h));
-			// J·δ = f を Cramer で解く。J = [[∂R/∂θ, ∂R/∂s], [∂Z/∂θ, ∂Z/∂s]]
-			let det = rz.dr_dtheta * dz_ds - dr_ds * rz.dz_dtheta;
+			let (sin_phi, cos_phi) = phi.sin_cos();
+			// 円柱座標 (R, Z) からの持ち上げ。∂x/∂φ には Z 軸まわり回転の項 R·e_phi が入る
+			let x = [rz.r * cos_phi, rz.r * sin_phi, rz.z];
+			let t_phi = [rz.dr_dphi * cos_phi - rz.r * sin_phi, rz.dr_dphi * sin_phi + rz.r * cos_phi, rz.dz_dphi];
+			let t_theta = [rz.dr_dtheta * cos_phi, rz.dr_dtheta * sin_phi, rz.dz_dtheta];
+			let residual = [p[0] - x[0], p[1] - x[1], p[2] - x[2]];
+			let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+			[dot(t_phi, residual), dot(t_theta, residual)]
+		};
+		let (mut phi, mut theta) = (phi_initial, theta_initial);
+		let h = 1e-6;
+		for _ in 0..100 {
+			let g0 = g(phi, theta);
+			// ヤコビアン ∂g/∂(φ, θ) を中心差分で
+			let (gp, gm) = (g(phi + h, theta), g(phi - h, theta));
+			let (gt, gu) = (g(phi, theta + h), g(phi, theta - h));
+			let j = [
+				[(gp[0] - gm[0]) / (2.0 * h), (gt[0] - gu[0]) / (2.0 * h)],
+				[(gp[1] - gm[1]) / (2.0 * h), (gt[1] - gu[1]) / (2.0 * h)],
+			];
+			let det = j[0][0] * j[1][1] - j[0][1] * j[1][0];
 			if det.abs() < 1e-14 {
-				return Err(format!("inverse: singular Jacobian at phi={phi:.3}, theta={theta:.3}, s={s:.3}"));
+				return Err(format!("nearest: singular Jacobian at phi={phi:.3}, theta={theta:.3}, s={s:.3}"));
 			}
-			let dtheta = (dz_ds * f_r - dr_ds * f_z) / det;
-			let ds = (rz.dr_dtheta * f_z - rz.dz_dtheta * f_r) / det;
+			let dphi = (j[1][1] * g0[0] - j[0][1] * g0[1]) / det;
+			let dtheta = (j[0][0] * g0[1] - j[1][0] * g0[0]) / det;
 			// 発散防止の step 制限。方向は保ち大きさだけ縮める
-			let scale = 1.0_f64.min(0.5 / dtheta.abs()).min(0.3 / ds.abs());
+			let scale = 1.0_f64.min(0.5 / dphi.abs()).min(0.5 / dtheta.abs());
+			phi -= scale * dphi;
 			theta -= scale * dtheta;
-			s -= scale * ds;
-			if s < 0.0 {
-				// (s, θ) は断面内の極座標に近いので、負の s は θ を半周回して正に戻す
-				s = -s;
-				theta += TAU / 2.0;
+			if dphi.hypot(dtheta) < 1e-10 {
+				return Ok([phi.rem_euclid(TAU), theta.rem_euclid(TAU)]);
 			}
 		}
-		Err(format!("inverse: Newton did not converge for point {point:?}"))
+		Err(format!("nearest: Newton did not converge for point {p:?}"))
 	}
 
 	pub fn interpolate_rz(&self, phi: f64, theta: f64, s: f64) -> RZ {
