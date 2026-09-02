@@ -66,37 +66,38 @@ impl Geometry {
 		Ok(Geometry(vec![cadrum::Solid::bspline(u, v, true, |i,j| point[i*v+j])?]))
 	}
 	/// 断面を経路に沿って掃引する。profile は原点まわりの平面断面 [x0, y0, x1, y1, ...]、
-	/// 各 path は [upx, upy, upz, x, y, z, ...] の 3+3N 要素。
-	/// periodic なら閉ループとして扱う。周期性はスプラインの基底に入るので、始点を末尾で繰り返さない
-	/// (繰り返すと cadrum が InvalidEdge で弾く)。
-	/// up は経路の接線と平行にならない向き (コイルなら巻線面の法線) を渡す。
+	/// 各 path は [x, y, z, ax, ay, az, ...] の 6N 要素。
 	#[staticmethod]
-	#[pyo3(signature = (periodic, profile, *paths))]
 	fn sweep_geometry(periodic: bool, profile: Vec<f64>, paths: Vec<Vec<f64>>) -> Result<Geometry, Error> {
-		if profile.len() < 6 || profile.len() % 2 != 0 {
+		if profile.len() < 2*3 || profile.len() % 2 != 0 {
 			return Err(Self::invalid(format!("profile needs >=3 xy points as an even count, got {}", profile.len())));
 		}
 		// 断面は XY 平面に置く。align_z が局所 +Z を接線へ向けるので、この向きなら経路と直交する
 		let section: Vec<cadrum::DVec3> = profile.chunks_exact(2).map(|c| cadrum::DVec3::new(c[0], c[1], 0.0)).collect();
 		// sectionsと対になるpathの点群、最初の1点は上方向ベクトルで点群ではないことに注意
-		let paths: Vec<Vec<cadrum::DVec3>>=paths
+		let paths: Vec<[Vec<cadrum::DVec3>; 2]>=paths
 			.iter()
-			.map(|path| -> Result<Vec<cadrum::DVec3>, Error> {
-				if path.len() < 12 || path.len() % 3 != 0 {
+			.map(|path| -> Result<_, Error> {
+				if path.len() < 6*3 || path.len() % 6 != 0 {
 					return Err(Self::invalid(format!("path needs up + >=3 xyz points as 3+3N values, got {}", path.len())));
 				}
-				let point: Vec<cadrum::DVec3> = path.chunks_exact(3).map(|c| cadrum::DVec3::new(c[0], c[1], c[2])).collect();
-				Ok(point)
+				let point_iter=path.chunks_exact(3).map(|c| cadrum::DVec3::new(c[0], c[1], c[2]));
+				Ok([
+					point_iter.clone().step_by(2).collect(), 
+					point_iter.clone().skip(1).step_by(2).collect()
+				])
 			}).collect::<Result<_, Error>>()?;
 		paths
 			.iter()
 			.map(|path| -> Result<cadrum::Solid, Error> {
-				let (up, point) = (path[0].try_normalize().ok_or_else(|| Self::invalid("path up is the zero vector".into()))?, &path[1..]);
-				let spine = cadrum::Edge::bspline(point, if periodic { cadrum::BSplineEnd::Periodic } else { cadrum::BSplineEnd::NotAKnot }).map_err(Error)?;
-				let (tangent, start) = (spine.start_tangent(), spine.start_point());
-				// 断面のローカル +X が up、+Y が tangent x up に乗る
-				let edges: Vec<cadrum::Edge> = cadrum::Edge::polygon(&section).map_err(Error)?.into_iter().map(|e| e.align_z(tangent, up).translate(start)).collect();
-				cadrum::Solid::sweep(&edges, &[spine], cadrum::ProfileOrient::Up(up)).map_err(Error)
+				let spine_points = &path[0];
+				let guide_points = &path[1];
+				let up = guide_points[0]-spine_points[0];
+				let bspline_end=if periodic { cadrum::BSplineEnd::Periodic } else { cadrum::BSplineEnd::NotAKnot };
+				let spine_bspline = cadrum::Edge::bspline(spine_points, bspline_end).map_err(Error)?;
+				let guide_bspline = cadrum::Edge::bspline(guide_points, bspline_end).map_err(Error)?;
+				let edges: Vec<cadrum::Edge> = cadrum::Edge::polygon(&section).map_err(Error)?.into_iter().map(|e| e.align_z(spine_bspline.start_tangent(), up).translate(spine_bspline.start_point())).collect();
+				cadrum::Solid::sweep(&edges, &[spine_bspline], cadrum::ProfileOrient::Auxiliary(&[guide_bspline])).map_err(Error)
 			})
 			.collect::<Result<Vec<cadrum::Solid>, Error>>()
 			.map(Geometry)
