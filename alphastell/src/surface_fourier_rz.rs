@@ -22,9 +22,9 @@ impl SurfaceFourierRZ {
 			false => vmec::NormalKind::Planar,
 		})
 	}
-	/// (x, y, z) を磁束座標 [phi, theta, s] に逆算する。収束しなければ ValueError。
-	fn inverse(&self, point: [f64; 3]) -> PyResult<[f64; 3]> {
-		self.0.inverse(point).map_err(pyo3::exceptions::PyValueError::new_err)
+	/// 点 p に最も近い磁束面 s 上の点の [phi, theta]。初期値の盆地に収束する。
+	fn nearest(&self, phi_initial: f64, theta_initial: f64, s: f64, p: [f64; 3]) -> PyResult<[f64; 2]> {
+		self.0.nearest(phi_initial, theta_initial, s, p).map_err(pyo3::exceptions::PyValueError::new_err)
 	}
 }
 
