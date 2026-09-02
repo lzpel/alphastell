@@ -100,7 +100,8 @@ def visualize_guided_spines(spines_with_guide: list[list[tuple[float, float, flo
 	flat = spine.reshape(-1, 3)
 	axes.set_box_aspect(np.ptp(flat, axis=0))
 	axes.set(xlabel="x [m]", ylabel="y [m]", zlabel="z [m]", title="coil centerlines (blue), guide curves (orange), LCFS normals (red)")
-	figure.savefig(pathlib.Path("out") / f"{pathlib.Path(__file__).stem}.spines_with_guide.png", dpi=150)
+	figure.savefig(pathlib.Path("out") / f"{pathlib.Path(__file__).stem}.guided_spines.png", dpi=150)
+	np.savetxt(pathlib.Path("out") / f"{pathlib.Path(__file__).stem}.guided_spines.csv", array.reshape(len(array), -1), delimiter=",", fmt="%.9e", header="row = one coil; columns = x,y,z,guidex,guidey,guidez repeated npoint times [m]")
 	len(os.getenv("SHOW","")) and plt.show()
 
 if __name__ == "__main__":
