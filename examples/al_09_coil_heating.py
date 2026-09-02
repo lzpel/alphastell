@@ -366,7 +366,7 @@ $ S = integral (n\\/2)^2 ⟨sigma v⟩ sqrt(g) space d phi space d theta space d
   [高速中性子フルエンス (最悪コイル)], [{fluence} n/m² / フル出力年],
   [Nb₃Sn 目標], [{fluence_limit} n/m²],
   [コイルタリーの相対誤差], [{relative_error} %],
-  [輸送時間], [{transport} s],
+  [輸送の計算時間 (wall-clock)], [{transport} s],
 )
 
 == 考察
