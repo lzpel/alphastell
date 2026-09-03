@@ -16,7 +16,7 @@
 
 ### 実験06 `make al-06`
 
-LCFS を法線方向に押し出した純 PbLi 殻 (30/50/70 cm) の TBR を OpenMC で計算。構造材・冷却材・遮蔽なしの上限値で、70 cm でも飽和しない — 厚みは常に正義、という基準線。
+LCFS を法線方向に押し出した純 PbLi 殻 (30/50/70 cm) の TBR を OpenMC で計算。増殖材とTBRは正の相関がある
 
 ![厚みに対する TBR](https://lzpel.github.io/alphastell/al_06_pbli_tbr.tbr.png)
 
@@ -24,7 +24,7 @@ LCFS を法線方向に押し出した純 PbLi 殻 (30/50/70 cm) の TBR を Ope
 
 ### 実験07 `make al-07`
 
-一様点線源 (al_06 方式)・重み付き点線源・parastell 式四面体メッシュ線源を同じ PbLi 殻で比較。TBR は線源モデルをほぼ選ばないが、局所量は 20% 超ずれる。以降の局所量計算は重み付き点線源 (case_2) を採用。
+線源の設置方法を3ケースで比較。A一様点線源 (al_06 方式) B重み付き点線源 C parastell 式四面体メッシュ線源を同じ PbLi 殻で比較。タリーの総量は変わらないが局所量は 20% 超ずれることを可視化。以降の局所量計算は重み付き点線源 (caseB) を採用。
 
 ![線源強度の累積分布](https://lzpel.github.io/alphastell/al_07_source_models.source_s.png)
 
@@ -32,7 +32,8 @@ LCFS を法線方向に押し出した純 PbLi 殻 (30/50/70 cm) の TBR を Ope
 
 ### 実験08 `make al-08`
 
-simsopt の stage-2 最適化でモジュラーコイルを起こし、コイル-プラズマ距離を走査。半径方向の予算は約 1.4 mとして中心線を nearest 射影 + LCFS 法線の guide 曲線で掃引し、40 × 50 cm の巻線パック実体も出す。
+simsopt の 最適化でモジュラーコイルを起こし、コイル-プラズマ距離を走査。LCFSとコイル間の距離を約 1.4 mとした場合のSTEPファイルを生成。
+コイル中心線の各点と最も接近するLCFSの点を反復法で求める。コイルから最接近点を法線として40 × 50 cmのコイル断面を仮定しcadrumのAuxiliary guide付きsweepでコイルCADを生成。
 
 $$
 (\mathbf p - \mathbf x) \cdot \partial_\phi \mathbf x = 0, \quad (\mathbf p - \mathbf x) \cdot \partial_\theta \mathbf x = 0
