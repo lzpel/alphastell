@@ -4,6 +4,7 @@ export OPENMC_CROSS_SECTIONS=out/cross_sections/cross_sections.xml
 al-%: $(OPENMC_CROSS_SECTIONS)
 	uv run $(shell find examples -name "al_$*_*.py")
 	uv run examples/md2pdf.py $(patsubst examples/%.py,out/%.md,$(shell find examples -name "al_$*_*.py"))
+	cd out && find . -maxdepth 1 -regextype posix-extended -iregex '.+(md|png|svg|step)' -exec install -D {} pages/{} \;
 paper:
 	bash ./paper.tex
 $(OPENMC_CROSS_SECTIONS): # curlでFENDL3.2を落としてくる核融合用の評価済みライブラリで ENDF/B より小さい
