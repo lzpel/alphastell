@@ -1,0 +1,57 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+# deploy-pages が OIDC トークンで Pages へ書くのに必要
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: al-06
+          - target: al-07
+          - target: al-08
+          - target: al-09
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Custom make
+        run: make ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4        # 固有名の通常アーティファクト
+        with:
+          name: pages-${{ matrix.target }}
+          path: out/pages
+          retention-days: 1
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    needs: build
+    steps:
+      - uses: actions/download-artifact@v4      # 4 個を 1 ディレクトリに合流
+        with:
+          pattern: pages-*
+          merge-multiple: true
+          path: out/pages
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: out/pages
+      - uses: actions/deploy-pages@v4
+        id: deployment
