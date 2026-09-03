@@ -35,6 +35,12 @@ jobs:
         run: sh -c "which cargo ; which uv ; exit 0"
       - name: UV setup
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: System libraries (gmsh runtime) and CJK font
+        run: sudo apt-get update && sudo apt-get install -y libglu1-mesa libxrender1 libxcursor1 libxft2 libxinerama1 fonts-noto-cjk
+      - name: Tectonic setup (prebuilt binary via cargo-binstall)
+        run: |
+          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+          cargo binstall -y tectonic
       - name: Custom make
         run: make ${{ matrix.target }}
       - uses: actions/upload-artifact@v4        # 固有名の通常アーティファクト

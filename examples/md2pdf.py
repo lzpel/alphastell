@@ -17,8 +17,9 @@ import sys
 PREAMBLE = """\\documentclass{article}
 \\usepackage[a4paper, margin=2cm]{geometry}
 \\usepackage{xeCJK}
-\\setCJKmainfont{Yu Gothic}
-\\setmainfont{Yu Gothic}
+\\IfFontExistsTF{Yu Gothic}
+  {\\setCJKmainfont{Yu Gothic}\\setmainfont{Yu Gothic}}
+  {\\setCJKmainfont{Noto Sans CJK JP}\\setmainfont{Noto Sans CJK JP}}
 
 \\usepackage{amsmath}
 \\usepackage{graphicx}
