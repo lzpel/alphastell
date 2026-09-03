@@ -18,7 +18,7 @@ TBR of pure PbLi shells (30/50/70 cm) extruded along the LCFS normal, computed w
 
 ![al_06_pbli_tbr.tbr.png](https://lzpel.github.io/alphastell/al_06_pbli_tbr.tbr.png)
 
-[al_06_pbli_tbr.md](https://lzpel.github.io/alphastell/al_06_pbli_tbr.md) / [al_06_pbli_tbr.shell.step](https://lzpel.github.io/alphastell/al_06_pbli_tbr.shell.step)
+[al_06_pbli_tbr.md](https://lzpel.github.io/alphastell/al_06_pbli_tbr.md) / [al_06_pbli_tbr.shell.png](https://lzpel.github.io/alphastell/al_06_pbli_tbr.shell.png) / [al_06_pbli_tbr.section.png](https://lzpel.github.io/alphastell/al_06_pbli_tbr.section.png) / [al_06_pbli_tbr.shell.step](https://lzpel.github.io/alphastell/al_06_pbli_tbr.shell.step)
 
 ### Experiment 07 `make al-07`
 
@@ -26,7 +26,7 @@ Three ways of placing the source compared on the same PbLi shell: A uniform poin
 
 ![al_07_source_models.source_s.png](https://lzpel.github.io/alphastell/al_07_source_models.source_s.png)
 
-[al_07_source_models.md](https://lzpel.github.io/alphastell/al_07_source_models.md)
+[al_07_source_models.md](https://lzpel.github.io/alphastell/al_07_source_models.md) / [al_07_source_models.breeding.png](https://lzpel.github.io/alphastell/al_07_source_models.breeding.png) / [al_07_source_models.shell.step](https://lzpel.github.io/alphastell/al_07_source_models.shell.step)
 
 ### Experiment 08 `make al-08`
 
@@ -59,7 +59,7 @@ Nuclear heating of the coils with only a 50 cm breeder in between, tallied per c
 
 ![al_09_coil_heating.geometry.png](https://lzpel.github.io/alphastell/al_09_coil_heating.geometry.png)
 
-[al_09_coil_heating.md](https://lzpel.github.io/alphastell/al_09_coil_heating.md) / [al_09_coil_heating.percoil.png](https://lzpel.github.io/alphastell/al_09_coil_heating.percoil.png) / [al_09_coil_heating.coils.step](https://lzpel.github.io/alphastell/al_09_coil_heating.coils.step)
+[al_09_coil_heating.md](https://lzpel.github.io/alphastell/al_09_coil_heating.md) / [al_09_coil_heating.percoil.png](https://lzpel.github.io/alphastell/al_09_coil_heating.percoil.png) / [al_09_coil_heating.coils.step](https://lzpel.github.io/alphastell/al_09_coil_heating.coils.step) / [al_09_coil_heating.shell.step](https://lzpel.github.io/alphastell/al_09_coil_heating.shell.step)
 
 ## Reference
 
