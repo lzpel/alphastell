@@ -31,6 +31,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Tool check
+        run: sh -c "which cargo ; which uv ; exit 0"
+      - name: UV setup
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
       - name: Custom make
         run: make ${{ matrix.target }}
       - uses: actions/upload-artifact@v4        # 固有名の通常アーティファクト
