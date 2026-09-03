@@ -1,6 +1,7 @@
 # alphastell
 
-Input: VMEC equilibrium (`wout.nc`)
+Input: VMEC equilibrium (`wout.nc`) and parameters
+
 Output: feasibility verdict and design drawings for a stellarator
 
 1. TBR (tritium breeding ratio)<br>does the fuel cycle close at ≥ 1.1–1.15?
@@ -17,7 +18,7 @@ TBR of pure PbLi shells (30/50/70 cm) extruded along the LCFS normal, computed w
 
 ![TBR against thickness](https://lzpel.github.io/alphastell/al_06_pbli_tbr.tbr.png)
 
-[Report](https://lzpel.github.io/alphastell/al_06_pbli_tbr.md) / [Shell STEP](https://lzpel.github.io/alphastell/al_06_pbli_tbr.shell.step)
+[al_06_pbli_tbr.md](https://lzpel.github.io/alphastell/al_06_pbli_tbr.md) / [al_06_pbli_tbr.shell.step](https://lzpel.github.io/alphastell/al_06_pbli_tbr.shell.step)
 
 ### Experiment 07 `make al-07`
 
@@ -25,7 +26,7 @@ Three ways of placing the source compared on the same PbLi shell: A uniform poin
 
 ![Cumulative distribution of source strength](https://lzpel.github.io/alphastell/al_07_source_models.source_s.png)
 
-[Report](https://lzpel.github.io/alphastell/al_07_source_models.md)
+[al_07_source_models.md](https://lzpel.github.io/alphastell/al_07_source_models.md)
 
 ### Experiment 08 `make al-08`
 
@@ -48,7 +49,7 @@ Stationarity condition for simsopt: minimize the area integral of the normalized
 
 ![Four views of the swept winding pack](https://lzpel.github.io/alphastell/al_08_coil_geometry.sweep.png)
 
-[Report](https://lzpel.github.io/alphastell/al_08_coil_geometry.md) / [Distance-error tradeoff](https://lzpel.github.io/alphastell/al_08_coil_geometry.error.png)
+[al_08_coil_geometry.md](https://lzpel.github.io/alphastell/al_08_coil_geometry.md) / [al_08_coil_geometry.error.png](https://lzpel.github.io/alphastell/al_08_coil_geometry.error.png)
 
 ### Experiment 09 `make al-09`
 
@@ -58,7 +59,7 @@ Nuclear heating of the coils with only a 50 cm breeder in between, tallied per c
 
 ![Four views of the 50 cm breeder and the coil conductors](https://lzpel.github.io/alphastell/al_09_coil_heating.geometry.png)
 
-[Report](https://lzpel.github.io/alphastell/al_09_coil_heating.md) / [Heating per coil](https://lzpel.github.io/alphastell/al_09_coil_heating.percoil.png) / [Conductor STEP](https://lzpel.github.io/alphastell/al_09_coil_heating.coils.step)
+[al_09_coil_heating.md](https://lzpel.github.io/alphastell/al_09_coil_heating.md) / [al_09_coil_heating.percoil.png](https://lzpel.github.io/alphastell/al_09_coil_heating.percoil.png) / [al_09_coil_heating.coils.step](https://lzpel.github.io/alphastell/al_09_coil_heating.coils.step)
 
 ## Reference
 
