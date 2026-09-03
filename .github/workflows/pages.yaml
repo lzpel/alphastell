@@ -24,7 +24,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: al-05
           - target: al-06
           - target: al-07
           - target: al-08
