@@ -14,14 +14,6 @@
 
 成果物は GitHub Actions が [GitHub Pages](https://lzpel.github.io/alphastell/) に公開する。
 
-### 実験05 `make al-05`
-
-ブランケット流路の向きを (φ, θ) 平面の巻き数 (n_phi, n_theta) ひとつで表し、流路接線と磁力線の成す角の $\sin^2$ (MHD 圧損の代用指標) を比較。ポロイダル流路は全長で磁力線と直交 (指標 1.00)、トロイダルでも捻れのせいで 0.21 残る。
-
-![トロイダル流路と磁力線の成す角](https://lzpel.github.io/alphastell/al_05_blanket_3dplot.toroidal.png)
-
-[レポート](https://lzpel.github.io/alphastell/al_05_blanket_3dplot.md) / [ポロイダル](https://lzpel.github.io/alphastell/al_05_blanket_3dplot.poloidal.png) / [ヘリカル](https://lzpel.github.io/alphastell/al_05_blanket_3dplot.helical.png)
-
 ### 実験06 `make al-06`
 
 LCFS を法線方向に押し出した純 PbLi 殻 (30/50/70 cm) の TBR を OpenMC で計算。構造材・冷却材・遮蔽なしの上限値で、70 cm でも飽和しない — 厚みは常に正義、という基準線。
