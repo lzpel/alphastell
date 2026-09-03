@@ -48,6 +48,8 @@ simsopt の停留条件: LCFS 上の規格化法線磁場の面積積分を最�
 
 ![モジュラーコイルと LCFS](https://lzpel.github.io/alphastell/al_08_coil_geometry.guided_spines.png)
 
+![掃引した巻線パックの 4 面図](https://lzpel.github.io/alphastell/al_08_coil_geometry.sweep.png)
+
 [レポート](https://lzpel.github.io/alphastell/al_08_coil_geometry.md) / [距離-誤差トレードオフ](https://lzpel.github.io/alphastell/al_08_coil_geometry.error.png)
 
 ### 実験09 `make al-09`
@@ -55,6 +57,8 @@ simsopt の停留条件: LCFS 上の規格化法線磁場の面積積分を最�
 増殖材 50 cm だけを挟んだコイルの核発熱をコイル別タリーで計算。合計 94 MW、体積平均は DEMO TF コイル目標の約 1000 倍で、遮蔽必須を数字で確定。核融合出力は VMEC 平衡からの積分 (3.1 GW) で校正。
 
 ![コイル核発熱の 3D 分布](https://lzpel.github.io/alphastell/al_09_coil_heating.heating.png)
+
+![増殖材 50 cm とコイル導体の 4 面図](https://lzpel.github.io/alphastell/al_09_coil_heating.geometry.png)
 
 [レポート](https://lzpel.github.io/alphastell/al_09_coil_heating.md) / [コイル別発熱](https://lzpel.github.io/alphastell/al_09_coil_heating.percoil.png) / [導体 STEP](https://lzpel.github.io/alphastell/al_09_coil_heating.coils.step)
 
