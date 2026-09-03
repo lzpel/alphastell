@@ -10,96 +10,61 @@
 
 ![img](figure/image.png)
 
-きれいな 3D 可視化は副産物であって製品ではない。製品は「この磁場配位・この流路トポロジーで、ブランケットとして成立するか」への Yes/No と、TBR–圧損の Pareto フロントである。
+## 進捗
 
-> Status: pre-alpha. コードはまだない。設計文書([notes/](notes/))とプレプリント草稿([paper.tex](paper.tex)、現状モック結果)が先行している。
+成果物は GitHub Actions が [GitHub Pages](https://lzpel.github.io/alphastell/) に公開する。
 
-## 使い方
+### 実験06 `make al-06`
 
-Requirement: cargoが入っていること
+LCFS を法線方向に押し出した純 PbLi 殻 (30/50/70 cm) の TBR を OpenMC で計算。構造材・冷却材・遮蔽なしの上限値で、70 cm でも飽和しない — 厚みは常に正義、という基準線。
 
-```
-make al-04 # make geometry
-make al-08 # コイル形状 (simsopt)
-```
+![厚みに対する TBR](https://lzpel.github.io/alphastell/al_06_pbli_tbr.tbr.png)
 
-### simsopt (al_08 以降)
+[レポート](https://lzpel.github.io/alphastell/al_06_pbli_tbr.md) / [殻の STEP](https://lzpel.github.io/alphastell/al_06_pbli_tbr.shell.step)
 
-simsopt は PyPI から入らない。Windows wheel が無く、cp314 の wheel は Linux/macOS にも無く、sdist は `thirdparty/` の git submodule を含まないためソースからもビルドできないからである。
+### 実験07 `make al-07`
 
-代わりに [lzpel/simsopt](https://github.com/lzpel/simsopt) が cibuildwheel で Windows と CPython 3.14/3.15 の wheel を焼き、GitHub Pages を PEP 503 index として公開しているので、`pyproject.toml` の `[[tool.uv.index]]` でそこを見ている。`explicit = true` を付けてあるので simsopt 以外はこの index を見に行かない。ビルドツールチェーンは不要で `uv sync` だけで入る。
+一様点線源 (al_06 方式)・重み付き点線源・parastell 式四面体メッシュ線源を同じ PbLi 殻で比較。TBR は線源モデルをほぼ選ばないが、局所量は 20% 超ずれる。以降の局所量計算は重み付き点線源 (case_2) を採用。
 
-Windows wheel は MSVC ビルドで、`msvcp140.dll` / `vcomp140.dll` を同梱済みである。
+![線源強度の累積分布](https://lzpel.github.io/alphastell/al_07_source_models.source_s.png)
 
-## なぜ作るか
+[レポート](https://lzpel.github.io/alphastell/al_07_source_models.md)
 
-トカマク向けブランケット設計手法は EU で確立済みだが、ステラレータの 3D にねじれた磁気面へ液体金属流路を配置する問題は未解決であり、各社・各機関の内部資料に留まっている。ジオメトリ側は [ParaStell][parastell] が均一厚シェル+中性子計算の基盤を提供しているが、その内側を流れる液体金属の MHD 圧損と TBR を連成して評価する公開ツールは存在しない。本プロジェクトは既存 OSS(OpenMC, epotFoam)を配管し、未実施の計算を最初に実行する。
+### 実験08 `make al-08`
 
-## パイプライン
+simsopt の stage-2 最適化でモジュラーコイルを起こし、コイル-プラズマ距離を走査。半径方向の予算は約 1.4 mとして中心線を nearest 射影 + LCFS 法線の guide 曲線で掃引し、40 × 50 cm の巻線パック実体も出す。
 
-```
-wout.nc (VMEC 平衡)
-   │  フーリエ評価・解析導関数・オフセット面
-   ▼
-流路ジオメトリ生成(磁気面追従ダクト・マニホールド)
-   │
-   ├─▶ 材料色付き STEP ──▶ DAGMC / OpenMC ──▶ 中性子束・核発熱・TBR
-   │      (cadrum: B-rep, boolean, sweep)
-   │
-   ├─▶ 相関式 MHD 圧損ネットワーク(1D ダクト網)──▶ 総Δp・ポンプ動力比   ← 高速スキャン(分単位)
-   │      B(r) を各ダクト区間に写像、Miyazaki/Smolentsev 系相関式
-   │
-   └─▶ パラメトリック座標から直接生成する構造格子(polyMesh)
-          └─▶ epotFoam (OpenFOAM) ──▶ フル MHD CFD                    ← 検証の錨(代表ダクトのみ)
-```
+$$
+(\mathbf p - \mathbf x) \cdot \partial_\phi \mathbf x = 0, \quad (\mathbf p - \mathbf x) \cdot \partial_\theta \mathbf x = 0
+$$
 
-- **高速系(相関式ネットワーク)が主力**: 設計案を1日に何十件も回すための分単位の判定機
-- **フル CFD は検証専用**: Hartmann 層を解像した代表計算で相関式との一致(目標: 数%)を示す
-- CAD カーネルは [cadrum][cadrum](OCCT 静的リンクの Rust ライブラリ、STEP のソリッド色=材料タグ)
+nearest の停留条件: コイル点 $\mathbf p$ から磁気面上の点 $\mathbf x(\phi, \theta)$ への残差が両接ベクトルと直交 (= 法線に平行) なら $\mathbf x$ が最近点で、その法線を guide に使う。
 
-## 検証方針
+$$
+\int (\mathbf B \cdot \mathbf n)^2 / |\mathbf B|^2 \; dA \to 0
+$$
 
-ツールの妥当性は既知の解析解・実験で事前に証明する:
+simsopt の停留条件: LCFS 上の規格化法線磁場の面積積分を最小化し、0 に達すればコイルの作る磁場が磁気面を厳密に再現する ($\mathbf B \cdot \mathbf n = 0$)。
 
-| ケース | 内容 | 出典 |
-|--------|------|------|
-| Hartmann flow | 一様磁場下の平行平板流 | Hartmann 1937 |
-| Shercliff flow | 矩形ダクト・非導体壁 | Shercliff 1953 |
-| Hunt flow | 矩形ダクト・導体/非導体混合壁 | Hunt 1965 |
+![モジュラーコイルと LCFS](https://lzpel.github.io/alphastell/al_08_coil_geometry.guided_spines.png)
 
-新規性の主張は「ソルバーを作った」ではなく「**検証済みツール群をステラレータ 3D 磁場に最初に適用した**」に置く。
+[レポート](https://lzpel.github.io/alphastell/al_08_coil_geometry.md) / [距離-誤差トレードオフ](https://lzpel.github.io/alphastell/al_08_coil_geometry.error.png)
 
-## 関連プロジェクト
+### 実験09 `make al-09`
 
-- cadrum 自作RustCADカーネル step出力
-- OpenMC モンテカルロ中性子輸送 — TBR・核発熱
-- OpenMC-anywhere windows版PIPでもうごくようにした自前ビルドのOpenMC
-- parastell
-	- ステラレータ炉構造のパラメトリックCAD
-- epotFoam (OpenFOAM) | 低磁気レイノルズ数 MHD の標準実装 — 検証用フル CFD
+増殖材 50 cm だけを挟んだコイルの核発熱をコイル別タリーで計算。合計 94 MW、体積平均は DEMO TF コイル目標の約 1000 倍で、遮蔽必須を数字で確定。核融合出力は VMEC 平衡からの積分 (3.1 GW) で校正。
 
-## ドキュメント
+![コイル核発熱の 3D 分布](https://lzpel.github.io/alphastell/al_09_coil_heating.heating.png)
 
-- [notes/20260714-全体構成.md](notes/20260714-全体構成.md) — レイヤー分業とリポジトリ構成
-- [notes/20260714-3カ月で作り上げる計画.md](notes/20260714-3カ月で作り上げる計画.md) — 週次マイルストーン
-- [notes/20260714-CTO論評.md](notes/20260714-CTO論評.md) — 製品定義に至った戦略論評の記録
+[レポート](https://lzpel.github.io/alphastell/al_09_coil_heating.md) / [コイル別発熱](https://lzpel.github.io/alphastell/al_09_coil_heating.percoil.png) / [導体 STEP](https://lzpel.github.io/alphastell/al_09_coil_heating.coils.step)
 
-## 参考資料
+## Reference
 
 - Lion, J., Anglès, J.-C., Bonauer, L., Bañón Navarro, A., Cadena Ceron, S. A., Davies, R., Drevlak, M., Foppiani, N., Geiger, J., Goodman, A., Guo, W., Guiraud, E., Hernández, F., Henneberg, S., Herrero, R., Höchter, J., Jelonnek, J., Jenko, F., Jorge, R., ... Xanthopoulos, P., & Zheng, M. (2025). Stellaris: A high-field quasi-isodynamic stellarator for a prototypical fusion power plant. Fusion Engineering and Design, 214, 114868. PDF[https://github.com/user-attachments/files/31101341/Lion2025_Stellaris_A_high-field_quasi-isodynamic_stellarator_for_a_prototypical_fusion_power_plant.pdf]
-	- Proximaの設計論文
-	- 3.2 Further improvements and ongoing research
-		- full neutronics and structural calculations of a blanket design that is not fully homogenized and includes open ports, including thermal stress analysis and estimation of pumping requirements (完全には均質化されておらず、開いたポートを含むブランケット設計の、完全な中性子工学計算および構造計算。熱応力解析とポンプ動力要求の見積もりを含む)
-		- further tritium blanket analyses, including simulating MHD effects in the PbLi, estimations of corrosion, simulation of tritium transport and a respective TBR target, water activation and safety relevant analyses(トリチウムブランケットに関するさらなる解析。これには、PbLiにおけるMHD効果のシミュレーション、腐食の推定、トリチウム輸送および対応するTBRターゲットのシミュレーション、水の活性化、ならびに安全性に関する解析が含まれる。)
-
 - Smolentsev, S., Morley, N. B., Abdou, M. A., & Malang, S. (2015).Dual-coolant lead–lithium (DCLL) blanket status and R&D needs. Fusion Engineering and Design, 100, 44–54. [PDF](https://bpb-us-w2.wpmucdn.com/research.seas.ucla.edu/dist/d/39/files/2019/08/FED-v100-Smolentsev-Dual_Coolant_Lead_Lithium_Blanket_Status2015.pdf)
 	- カジュアルな解説：PbLiを流す流路の一つDCLLのレビュー論文　図が分かりやすい
 - Martelli, E., Del Nevo, A., Arena, P., Bongiovì, G., Caruso, G., Di Maio, P. A., Eboli, M., Mariano, G., Marinari, R., Moro, F., Mozzillo, R., Giannetti, F., Di Gironimo, G., Tarallo, A., Tassone, A., & Villari, R. (2017). Advancements in DEMO WCLL breeding blanket design and integration [Preprint]. EUROfusion. [PDF](https://scipub.euro-fusion.org/wp-content/uploads/eurofusion/WPBBPR17_17326_submitted.pdf)
 	- カジュアルな解説：PbLiをポンプで流さず溜池にするWCLLの論文 CAD図が分かりやすい
-
-## License
-
-MIT
 
 [parastell]: https://github.com/svalinn/parastell
 [openmc]: https://github.com/openmc-dev/openmc
