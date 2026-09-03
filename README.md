@@ -8,7 +8,7 @@ Output: feasibility verdict and design drawings for a stellarator
 2. Is the dose to the coils shielded well enough?
 3. Does the same conclusion hold once the structure is resolved instead of homogenizing the materials?
 
-![img](figure/image.png)
+![image.png](figure/image.png)
 
 ## Progress
 
@@ -16,7 +16,7 @@ Output: feasibility verdict and design drawings for a stellarator
 
 TBR of pure PbLi shells (30/50/70 cm) extruded along the LCFS normal, computed with OpenMC. Breeder thickness and TBR are positively correlated.
 
-![TBR against thickness](https://lzpel.github.io/alphastell/al_06_pbli_tbr.tbr.png)
+![al_06_pbli_tbr.tbr.png](https://lzpel.github.io/alphastell/al_06_pbli_tbr.tbr.png)
 
 [al_06_pbli_tbr.md](https://lzpel.github.io/alphastell/al_06_pbli_tbr.md) / [al_06_pbli_tbr.shell.step](https://lzpel.github.io/alphastell/al_06_pbli_tbr.shell.step)
 
@@ -24,7 +24,7 @@ TBR of pure PbLi shells (30/50/70 cm) extruded along the LCFS normal, computed w
 
 Three ways of placing the source compared on the same PbLi shell: A uniform point source (the al_06 approach), B weighted point source, C parastell-style tetrahedral mesh source. The tally totals are unchanged, but local quantities are shown to differ by over 20%. Later local-quantity calculations use the weighted point source (case B).
 
-![Cumulative distribution of source strength](https://lzpel.github.io/alphastell/al_07_source_models.source_s.png)
+![al_07_source_models.source_s.png](https://lzpel.github.io/alphastell/al_07_source_models.source_s.png)
 
 [al_07_source_models.md](https://lzpel.github.io/alphastell/al_07_source_models.md)
 
@@ -45,9 +45,9 @@ $$
 
 Stationarity condition for simsopt: minimize the area integral of the normalized normal field on the LCFS; reaching 0 means the field produced by the coils reproduces the flux surface exactly ($\mathbf B \cdot \mathbf n = 0$).
 
-![Modular coils and the LCFS](https://lzpel.github.io/alphastell/al_08_coil_geometry.guided_spines.png)
+![al_08_coil_geometry.guided_spines.png](https://lzpel.github.io/alphastell/al_08_coil_geometry.guided_spines.png)
 
-![Four views of the swept winding pack](https://lzpel.github.io/alphastell/al_08_coil_geometry.sweep.png)
+![al_08_coil_geometry.sweep.png](https://lzpel.github.io/alphastell/al_08_coil_geometry.sweep.png)
 
 [al_08_coil_geometry.md](https://lzpel.github.io/alphastell/al_08_coil_geometry.md) / [al_08_coil_geometry.error.png](https://lzpel.github.io/alphastell/al_08_coil_geometry.error.png)
 
@@ -55,9 +55,9 @@ Stationarity condition for simsopt: minimize the area integral of the normalized
 
 Nuclear heating of the coils with only a 50 cm breeder in between, tallied per coil. 94 MW in total; the volume average is about 1000 times the DEMO TF coil target, settling in numbers that shielding is mandatory. Fusion power is calibrated by integrating the VMEC equilibrium (3.1 GW).
 
-![3D distribution of coil nuclear heating](https://lzpel.github.io/alphastell/al_09_coil_heating.heating.png)
+![al_09_coil_heating.heating.png](https://lzpel.github.io/alphastell/al_09_coil_heating.heating.png)
 
-![Four views of the 50 cm breeder and the coil conductors](https://lzpel.github.io/alphastell/al_09_coil_heating.geometry.png)
+![al_09_coil_heating.geometry.png](https://lzpel.github.io/alphastell/al_09_coil_heating.geometry.png)
 
 [al_09_coil_heating.md](https://lzpel.github.io/alphastell/al_09_coil_heating.md) / [al_09_coil_heating.percoil.png](https://lzpel.github.io/alphastell/al_09_coil_heating.percoil.png) / [al_09_coil_heating.coils.step](https://lzpel.github.io/alphastell/al_09_coil_heating.coils.step)
 
