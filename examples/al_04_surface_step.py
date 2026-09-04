@@ -17,7 +17,7 @@ import numpy as np
 
 from alphastell import SurfaceFourierRZ, Geometry
 
-WOUT = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc"
+WOUT = pathlib.Path(__file__).resolve().parent / "wout_vmec.nc"
 OUT_STEP = pathlib.Path("out/al_04_surface.step")
 
 S = 1.0  # LCFS (プラズマ最外縁)

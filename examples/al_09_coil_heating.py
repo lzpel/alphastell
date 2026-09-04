@@ -39,7 +39,7 @@ FLUENCE_LIMIT = 1e22  # Nb3Sn の高速中性子フルエンス許容 [n/m^2]
 
 
 def main(
-	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc",
+	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent / "wout_vmec.nc",
 	out: pathlib.Path = pathlib.Path("out") / pathlib.Path(__file__).with_suffix(".md").name,
 	width: float = 0.40,  # 導体断面のトロイダル幅 [m]。al_08 / al_081 と同じ parastell 準拠の値
 	height: float = 0.50,  # 導体断面の半径方向厚み [m]。同上
@@ -291,6 +291,11 @@ al_06 は「PbLi 殻を厚くするほど TBR が上がる」と示し、al_08 �
 
 **遮蔽体は入れていない。** 増殖材 {thickness} cm とその外の真空だけである。遮蔽が要るかどうかではなく、
 どれだけ要るかを決めるための下限値としてこの構成を選んだ。
+
+配位は ParaStell 同梱の `examples/wout_vmec.nc` をそのまま使う。nfp=4 の準ヘリカル配位で
+R=11.08 m、a=1.70 m、⟨B⟩=5.87 T、β=5.1%。simsopt の
+`wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc` と
+4 桁一致する同じ配位で、al_03 以降のスクリプトはすべてこれを読む。
 
 ## 方法
 

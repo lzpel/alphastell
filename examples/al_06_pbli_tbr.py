@@ -23,7 +23,7 @@ from cad_to_dagmc import CadToDagmc
 
 from alphastell import SurfaceFourierRZ, Geometry
 
-WOUT = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc"
+WOUT = pathlib.Path(__file__).resolve().parent / "wout_vmec.nc"
 
 DIV_PHI, DIV_THETA = 96, 40  # 制御点。中性子の平均自由行程は PbLi で約 7 cm なのでこれで足りる
 THICKNESS = [0.3, 0.5, 0.7]  # m
@@ -130,9 +130,14 @@ def main(
 	rows = "".join(f"| {t * 100:.0f} | {v:.3f} | {e:.3f} |\n" for t, v, e in results)
 	report = f"""# 純 PbLi 殻の TBR (al_06)
 
-VMEC 平衡 `wout_vmec.nc` (nfp=4, R≈11 m) の LCFS を法線方向にオフセットして PbLi 殻を作り、
+VMEC 平衡の LCFS を法線方向にオフセットして PbLi 殻を作り、
 OpenMC で TBR を計算した。構造材・冷却材・遮蔽を含まないので、この配位で到達しうる TBR の
 上限にあたる。
+
+配位は ParaStell 同梱の `examples/wout_vmec.nc` をそのまま使う。nfp=4 の準ヘリカル配位で
+R=11.08 m、a=1.70 m、⟨B⟩=5.87 T、β=5.1%。simsopt の
+`wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc` と
+4 桁一致する同じ配位で、al_03 以降のスクリプトはすべてこれを読む。
 
 ## 方法
 

@@ -29,7 +29,7 @@ from cad_to_dagmc import CadToDagmc, write_vtk
 
 from alphastell import SurfaceFourierRZ, Geometry
 
-WOUT = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc"
+WOUT = pathlib.Path(__file__).resolve().parent / "wout_vmec.nc"
 
 THICKNESS = 0.5  # m。al_06 の中央の厚みに合わせる
 DIV_PHI, DIV_THETA = 96, 40  # 殻の制御点。al_06 と同じにして幾何を一致させる
@@ -351,6 +351,11 @@ al_06 の線源は規格化磁束・ポロイダル角・トロイダル角 (s, 
 {n_flat} 個の等強度点線源である。しかし実際の中性子発生密度は核融合反応率 $n^2 \\langle\\sigma v\\rangle$ に
 比例し、s≈0 に鋭く集中する。この食い違いが結果にどれだけ効くのかを、同じ PbLi 殻
 (厚み {thickness} cm) の上で線源だけを差し替えて測った。
+
+配位は ParaStell 同梱の `examples/wout_vmec.nc` をそのまま使う。nfp=4 の準ヘリカル配位で
+R=11.08 m、a=1.70 m、⟨B⟩=5.87 T、β=5.1%。simsopt の
+`wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc` と
+4 桁一致する同じ配位で、al_03 以降のスクリプトはすべてこれを読む。
 
 ## 方法
 
