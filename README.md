@@ -18,9 +18,9 @@ Every experiment below reads the same VMEC equilibrium, [`examples/wout_vmec.nc`
 
 It is a four-field-period quasi-helical configuration.
 
-| `nfp` | `Rmajor_p` | `Aminor_p` | `aspect` | `volavgB` | `betatotal` | `iotaf` (axis → edge) |
+| period (nfp) | major radius (Rmajor_p) | minor radius (Aminor_p) | aspect ratio (aspect) | volume-average field (volavgB) | beta (betatotal) | rotational transform (iotaf) |
 |---|---|---|---|---|---|---|
-| 4 | 11.08 m | 1.70 m | 6.50 | 5.87 T | 5.1% | −1.33 → −1.06 |
+| 4 | 11.08 m | 1.70 m | 6.50 | 5.87 T | 5.1% | −1.33 (axis) → −1.06 (edge) |
 
 Note that it is not the WISTELL-D of the ParaStell paper, which is quoted there at 10.1 m, 1.5 m and 8.3 T.
 
