@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 from alphastell import SurfaceFourierRZ
 
 # cwd に依存しないよう、wout はこのファイルからの相対で引く。
-WOUT = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc"
+WOUT = pathlib.Path(__file__).resolve().parent / "wout_vmec.nc"
 OUT_CSV = pathlib.Path("out/al_03_surface_points.csv")
 OUT_PNG = pathlib.Path("out/al_03_surface_points.png")
 
