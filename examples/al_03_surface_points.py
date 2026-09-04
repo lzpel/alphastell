@@ -1,15 +1,3 @@
-#!/usr/bin/env python3
-"""VMEC の LCFS (s=1) を (φ, θ) 格子で走査し、3D 点と法線を CSV と PNG に出す。
-
-rust 側 SurfaceFourierRZ の python 経路 (load → point_normal) の疎通確認を兼ねる。
-CSV は x,y,z,nx,ny,nz の 6 列。行の並びは φ 外側・θ 内側のループ順なので、
-ポロイダル分割数ぶんずつ切り出せば constant-φ の断面 1 枚になる。
-
-リポジトリルートで:
-
-    make al-03
-"""
-
 import csv
 import math
 import pathlib
