@@ -13,9 +13,6 @@ s>1 の Fourier 外挿は s=1.08 でも 2〜17 cm しか稼げず、s を上げ�
 import math
 import pathlib
 
-import matplotlib
-
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import openmc
@@ -23,22 +20,13 @@ from cad_to_dagmc import CadToDagmc
 
 from alphastell import SurfaceFourierRZ, Geometry
 
-WOUT = pathlib.Path(__file__).resolve().parent / "wout_vmec.nc"
 
-DIV_PHI, DIV_THETA = 96, 40  # 制御点。中性子の平均自由行程は PbLi で約 7 cm なのでこれで足りる
-THICKNESS = [0.3, 0.5, 0.7]  # m
-SOURCES, PARTICLES, BATCHES = 200, 40000, 10
-
-with open(WOUT, "rb") as f:
-	surface = SurfaceFourierRZ.load(f)
-
-
-def offset_grid(thickness: float) -> tuple[np.ndarray, np.ndarray]:
+def offset_grid(surface: SurfaceFourierRZ, thickness: float, div_phi: int, div_theta: int) -> tuple[np.ndarray, np.ndarray]:
 	"""LCFS の点と、それを面内法線方向に thickness だけ押した点を (φ, θ) 格子で返す。"""
-	inner = np.empty((DIV_PHI, DIV_THETA, 3))
+	inner = np.empty((div_phi, div_theta, 3))
 	outer = np.empty_like(inner)
-	for i, j in np.ndindex(DIV_PHI, DIV_THETA):
-		point, normal = surface.point_normal(math.tau * i / DIV_PHI, math.tau * j / DIV_THETA, 1.0, False)
+	for i, j in np.ndindex(div_phi, div_theta):
+		point, normal = surface.point_normal(math.tau * i / div_phi, math.tau * j / div_theta, 1.0, False)
 		inner[i, j], outer[i, j] = point, np.add(point, np.multiply(normal, thickness))
 	return inner, outer
 
@@ -53,7 +41,7 @@ def shell_step(inner: np.ndarray, outer: np.ndarray, step: pathlib.Path) -> Geom
 	return shell
 
 
-def tbr(step: pathlib.Path, h5m: pathlib.Path, work: pathlib.Path) -> tuple[float, float]:
+def tbr(surface: SurfaceFourierRZ, step: pathlib.Path, h5m: pathlib.Path, work: pathlib.Path, sources: int, particles: int, batches: int) -> tuple[float, float]:
 	"""CAD → DAGMC → OpenMC。material_tags の文字列と Material.name の一致だけが両者の結線。"""
 	# bounded_universe は id を 10000 番台に固定で振るので、厚みごとに呼ぶと衝突して IDWarning が出る
 	openmc.reset_auto_ids()
@@ -73,9 +61,9 @@ def tbr(step: pathlib.Path, h5m: pathlib.Path, work: pathlib.Path) -> tuple[floa
 		openmc.IndependentSource(
 			space=openmc.stats.Point(np.multiply(surface.point_normal(phi, theta, s, False)[0], 100)),
 			energy=openmc.stats.Discrete([14.07e6], [1.0]),
-			strength=1.0 / SOURCES,
+			strength=1.0 / sources,
 		)
-		for phi, theta, s in rng.random((SOURCES, 3)) * [math.tau, math.tau, 1.0]
+		for phi, theta, s in rng.random((sources, 3)) * [math.tau, math.tau, 1.0]
 	]
 	tally = openmc.Tally(name="tbr")
 	tally.scores = ["(n,Xt)"]
@@ -84,7 +72,7 @@ def tbr(step: pathlib.Path, h5m: pathlib.Path, work: pathlib.Path) -> tuple[floa
 	model = openmc.Model(
 		geometry=openmc.Geometry(openmc.DAGMCUniverse(str(h5m)).bounded_universe()),
 		materials=openmc.Materials([pbli]),
-		settings=openmc.Settings(run_mode="fixed source", source=source, particles=PARTICLES, batches=BATCHES),
+		settings=openmc.Settings(run_mode="fixed source", source=source, particles=particles, batches=batches),
 		tallies=openmc.Tallies([tally]),
 	)
 	work.mkdir(parents=True, exist_ok=True)
@@ -94,14 +82,24 @@ def tbr(step: pathlib.Path, h5m: pathlib.Path, work: pathlib.Path) -> tuple[floa
 
 
 def main(
+	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent / "wout_vmec.nc",
 	out: pathlib.Path = pathlib.Path("out") / pathlib.Path(__file__).with_suffix(".md").name,
+	thicknesses: list[float] = [0.3, 0.5, 0.7],  # PbLi 殻の厚み [m]
+	div_phi: int = 96,  # 制御点。中性子の平均自由行程は PbLi で約 7 cm なのでこれで足りる
+	div_theta: int = 40,
+	sources: int = 200,  # プラズマ内に散らす点線源の数
+	particles: int = 40000,
+	batches: int = 10,
 ) -> None:
+	with open(wout, "rb") as f:
+		surface = SurfaceFourierRZ.load(f)
+
 	out.parent.mkdir(parents=True, exist_ok=True)
 	results = []
-	for thickness in THICKNESS:
-		inner, outer = offset_grid(thickness)
+	for thickness in thicknesses:
+		inner, outer = offset_grid(surface, thickness, div_phi, div_theta)
 		shell = shell_step(inner, outer, out.with_suffix(".shell.step"))
-		value, error = tbr(out.with_suffix(".shell.step"), out.with_suffix(".h5m"), out.with_suffix(".openmc"))
+		value, error = tbr(surface, out.with_suffix(".shell.step"), out.with_suffix(".h5m"), out.with_suffix(".openmc"), sources, particles, batches)
 		results.append((thickness, value, error))
 		print(f"{thickness * 100:.0f} cm: TBR = {value:.3f} +/- {error:.3f}")
 
@@ -111,7 +109,7 @@ def main(
 	for grid, style in ((inner, "-"), (outer, "--")):
 		loop = np.concatenate([grid[0], grid[0][:1]])
 		axes.plot(np.hypot(loop[:, 0], loop[:, 1]), loop[:, 2], style, color="#2b2b2b", linewidth=1.2)
-	axes.set(xlabel="R [m]", ylabel="Z [m]", aspect="equal", title=f"phi=0 section: LCFS and +{THICKNESS[-1] * 100:.0f} cm normal offset")
+	axes.set(xlabel="R [m]", ylabel="Z [m]", aspect="equal", title=f"phi=0 section: LCFS and +{thicknesses[-1] * 100:.0f} cm normal offset")
 	figure.savefig(out.with_suffix(".section.png"), dpi=150, bbox_inches="tight")
 	plt.close(figure)
 
@@ -140,9 +138,9 @@ OpenMC で TBR を計算した。構造材・冷却材・遮蔽を含まない�
 稼げず、s を上げると外挿が発散して同じ s でも場所により 5 cm と 138 cm が混在するためである。
 法線オフセットはこの配位では 70 cm まで断面の自己交差を起こさない。
 
-![PbLi 殻 ({DIV_PHI}×{DIV_THETA} 制御点、厚み {THICKNESS[-1] * 100:.0f} cm) の四面図。cadrum が STEP と同じソリッドから直接描いたもので、nfp=4 のねじれと断面の三角形状が確認できる。]({out.with_suffix(".shell.png").name})
+![PbLi 殻 ({div_phi}×{div_theta} 制御点、厚み {thicknesses[-1] * 100:.0f} cm) の四面図。cadrum が STEP と同じソリッドから直接描いたもので、nfp=4 のねじれと断面の三角形状が確認できる。]({out.with_suffix(".shell.png").name})
 
-線源はプラズマ内部に散らした {SOURCES} 個の 14.07 MeV 点線源、{PARTICLES} 粒子 × {BATCHES} バッチ。
+線源はプラズマ内部に散らした {sources} 個の 14.07 MeV 点線源、{particles} 粒子 × {batches} バッチ。
 増殖材は Li$_{{17}}$Pb$_{{83}}$ (⁶Li 90% 濃縮、9.4 g/cm³)。
 
 ## 結果

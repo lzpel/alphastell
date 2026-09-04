@@ -26,9 +26,8 @@ import openmc
 from cad_to_dagmc import CadToDagmc
 
 from al_07_source_models import jacobian, point_sources, reaction_rate
-from al_07_source_models import surface as lcfs
 from al_08_coil_geometry import guided_spines, make_surface, optimize_coil, sweep_guided_spines
-from alphastell import Geometry
+from alphastell import SurfaceFourierRZ, Geometry
 
 JOULE_PER_EV = 1.602176634e-19
 DT_ENERGY = 17.6e6  # DT 反応 1 回あたりの発生エネルギー [eV]。出力の換算に使う
@@ -51,6 +50,8 @@ def main(
 	tally_z: int = 25,  # 同 鉛直分割数
 ) -> dict[str, Any]:
 	out.parent.mkdir(parents=True, exist_ok=True)
+	with open(wout, "rb") as f:
+		lcfs = SurfaceFourierRZ.load(f)
 	surface = make_surface(wout)
 	result = optimize_coil(surface)
 	# コイルが増殖材に食い込んでいたら黙って壊れた h5m ができるので、ここで止める
@@ -61,7 +62,7 @@ def main(
 	# --- 幾何: guided spines 掃引のコイルと法線オフセットの増殖材殻 --------------------
 	spines = guided_spines(wout, [coil.curve.gamma().tolist() for coil in result["coils"]])
 	solids = sweep_guided_spines([-height / 2, -width / 2, height / 2, -width / 2, height / 2, width / 2, -height / 2, width / 2], spines)
-	shell, outer = blanket(thickness)
+	shell, outer = blanket(lcfs, thickness)
 	for geometry, path in ((solids, out.with_suffix(".coils.step")), (shell, out.with_suffix(".shell.step"))):
 		with open(path, "wb") as f:
 			geometry.write_step(f)
@@ -82,10 +83,10 @@ def main(
 
 	# --- 線源: al_07 case_2 の重み付き点線源と、W 換算のための核融合出力 -----------------
 	samples = np.random.default_rng(0).random((n_source, 3)) * [math.tau, math.tau, 1.0]
-	volume_elements = np.array([jacobian(*sample) for sample in samples])
+	volume_elements = np.array([jacobian(lcfs, *sample) for sample in samples])
 	power = fusion_power(samples, volume_elements)
 	print(f"plasma volume {power['volume']:.1f} m^3 (VMEC volume_p 635.7), P_fus {power['power'] / 1e9:.2f} GW, S {power['rate']:.3e} n/s")
-	source = point_sources(samples, reaction_rate(samples[:, 2]) * volume_elements)
+	source = point_sources(lcfs, samples, reaction_rate(samples[:, 2]) * volume_elements)
 
 	# --- 輸送とタリー -----------------------------------------------------------------
 	# 3D 散布図用の直交メッシュ。コイル点列の外接箱に断面の張り出しぶんの余白を足す
@@ -173,6 +174,7 @@ def main(
 	return fields
 
 def blanket(
+	lcfs: SurfaceFourierRZ,
 	thickness: float,  # PbLi 殻の厚み [m]
 	div_phi: int = 96,  # 制御点。al_06 / al_07 と同じにして幾何を揃える
 	div_theta: int = 40,

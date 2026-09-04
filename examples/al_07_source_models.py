@@ -19,9 +19,6 @@ import pathlib
 import time
 from typing import Any
 
-import matplotlib
-
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import openmc
@@ -29,29 +26,14 @@ from cad_to_dagmc import CadToDagmc, write_vtk
 
 from alphastell import SurfaceFourierRZ, Geometry
 
-WOUT = pathlib.Path(__file__).resolve().parent / "wout_vmec.nc"
 
-THICKNESS = 0.5  # m。al_06 の中央の厚みに合わせる
-DIV_PHI, DIV_THETA = 96, 40  # 殻の制御点。al_06 と同じにして幾何を一致させる
-PARTICLES, BATCHES = 40000, 10
-REPEAT = 2  # 実行時間は他プロセスの負荷で数十 % 平気で伸びるので、繰り返して最小値を採る
-N_FLAT, N_WEIGHTED = 200, 5000
-MESH_S, MESH_THETA, MESH_PHI = 8, 16, 32  # 約 23000 tet。tet 数が settings.xml のサイズを決める
-S_MAX = 0.98  # LCFS 上に線源を置くと幾何境界に乗るので手前で切る (n, T → 0 なので損失は無い)
-TALLY_R, TALLY_Z = 48, 48
-ENERGY = openmc.stats.Discrete([14.07e6], [1.0])
-
-with open(WOUT, "rb") as f:
-	surface = SurfaceFourierRZ.load(f)
-
-
-def blanket(step: pathlib.Path, h5m: pathlib.Path) -> np.ndarray:
+def blanket(surface: SurfaceFourierRZ, step: pathlib.Path, h5m: pathlib.Path, thickness: float, div_phi: int, div_theta: int) -> np.ndarray:
 	"""LCFS を法線方向に押し出した PbLi 殻を STEP と DAGMC h5m にする。外側格子を返す。"""
-	inner = np.empty((DIV_PHI, DIV_THETA, 3))
+	inner = np.empty((div_phi, div_theta, 3))
 	outer = np.empty_like(inner)
-	for i, j in np.ndindex(DIV_PHI, DIV_THETA):
-		point, normal = surface.point_normal(math.tau * i / DIV_PHI, math.tau * j / DIV_THETA, 1.0, False)
-		inner[i, j], outer[i, j] = point, np.add(point, np.multiply(normal, THICKNESS))
+	for i, j in np.ndindex(div_phi, div_theta):
+		point, normal = surface.point_normal(math.tau * i / div_phi, math.tau * j / div_theta, 1.0, False)
+		inner[i, j], outer[i, j] = point, np.add(point, np.multiply(normal, thickness))
 	shell = Geometry.bspline_geometry(outer).boolean_subtract(Geometry.bspline_geometry(inner))
 	with open(step, "wb") as f:
 		shell.write_step(f)
@@ -69,7 +51,7 @@ def reaction_rate(s: np.ndarray) -> np.ndarray:
 	return density**2 * sigma_v
 
 
-def jacobian(phi: float, theta: float, s: float) -> float:
+def jacobian(surface: SurfaceFourierRZ, phi: float, theta: float, s: float) -> float:
 	"""体積要素 √g = |∂p/∂s · (∂p/∂θ × ∂p/∂φ)|。point_normal の前進差分だけで作る。"""
 	delta = 1e-4
 	origin = np.array(surface.point_normal(phi, theta, s, False)[0])
@@ -79,19 +61,19 @@ def jacobian(phi: float, theta: float, s: float) -> float:
 	return abs(float(np.dot(d_s, np.cross(d_theta, d_phi)))) / delta**3
 
 
-def point_sources(samples: np.ndarray, weights: np.ndarray) -> list[openmc.IndependentSource]:
+def point_sources(surface: SurfaceFourierRZ, samples: np.ndarray, weights: np.ndarray) -> list[openmc.IndependentSource]:
 	"""(φ, θ, s) の並びを点線源の並びにする。強度の合計は 1 に規格化する。"""
 	return [
 		openmc.IndependentSource(
 			space=openmc.stats.Point(np.multiply(surface.point_normal(phi, theta, s, False)[0], 100)),
-			energy=ENERGY,
+			energy=openmc.stats.Discrete([14.07e6], [1.0]),
 			strength=weight,
 		)
 		for (phi, theta, s), weight in zip(samples, weights / weights.sum())
 	]
 
 
-def plasma_tets() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def plasma_tets(surface: SurfaceFourierRZ, mesh_s: int, mesh_theta: int, mesh_phi: int, s_max: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 	"""(s, θ, φ) 格子からプラズマ体積を四面体で埋める。頂点 [m]、四面体、頂点の s を返す。
 
 	最内層は磁気軸との間の三角柱を 3 分割、外側は六面体を主対角 v0-v6 まわりに 6 分割する。
@@ -99,34 +81,34 @@ def plasma_tets() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
 	s 層は等間隔ではなく s ∝ k² に切る。s ∝ r² なので、これは小半径方向の等間隔にあたる。
 	セル内の発生は一様なので、反応率が急な内側を等間隔で切ると線源が外へ寄る。この刻みなら
-	加重平均 s の離散化バイアスが 7% から 1.3% に下がる (MESH_S を増やさずに)。
+	加重平均 s の離散化バイアスが 7% から 1.3% に下がる (mesh_s を増やさずに)。
 	"""
-	levels = S_MAX * ((np.arange(MESH_S) + 1) / MESH_S) ** 2
-	axis = np.array([surface.point_normal(math.tau * p / MESH_PHI, 0.0, 0.0, False)[0] for p in range(MESH_PHI)])
+	levels = s_max * ((np.arange(mesh_s) + 1) / mesh_s) ** 2
+	axis = np.array([surface.point_normal(math.tau * p / mesh_phi, 0.0, 0.0, False)[0] for p in range(mesh_phi)])
 	shell = np.array([
-		surface.point_normal(math.tau * p / MESH_PHI, math.tau * t / MESH_THETA, levels[k], False)[0]
-		for p in range(MESH_PHI)
-		for k in range(MESH_S)
-		for t in range(MESH_THETA)
+		surface.point_normal(math.tau * p / mesh_phi, math.tau * t / mesh_theta, levels[k], False)[0]
+		for p in range(mesh_phi)
+		for k in range(mesh_s)
+		for t in range(mesh_theta)
 	])
 	vertices = np.concatenate([axis, shell])
-	vertex_s = np.concatenate([np.zeros(MESH_PHI), np.tile(np.repeat(levels, MESH_THETA), MESH_PHI)])
+	vertex_s = np.concatenate([np.zeros(mesh_phi), np.tile(np.repeat(levels, mesh_theta), mesh_phi)])
 
 	def index(p: int, k: int, t: int) -> int:
-		p, t = p % MESH_PHI, t % MESH_THETA
-		return p if k < 0 else MESH_PHI + (p * MESH_S + k) * MESH_THETA + t
+		p, t = p % mesh_phi, t % mesh_theta
+		return p if k < 0 else mesh_phi + (p * mesh_s + k) * mesh_theta + t
 
 	prism_split = [(0, 1, 2, 5), (0, 1, 5, 4), (0, 4, 5, 3)]
 	hex_split = [(0, 1, 2, 6), (0, 2, 3, 6), (0, 3, 7, 6), (0, 7, 4, 6), (0, 4, 5, 6), (0, 5, 1, 6)]
 	tetrahedra = []
-	for p in range(MESH_PHI):
-		for t in range(MESH_THETA):
+	for p in range(mesh_phi):
+		for t in range(mesh_theta):
 			prism = [
 				index(p, -1, 0), index(p, 0, t), index(p, 0, t + 1),
 				index(p + 1, -1, 0), index(p + 1, 0, t), index(p + 1, 0, t + 1),
 			]
 			tetrahedra += [[prism[v] for v in tet] for tet in prism_split]
-			for k in range(MESH_S - 1):
+			for k in range(mesh_s - 1):
 				cell = [
 					index(p, k, t), index(p, k, t + 1), index(p, k + 1, t + 1), index(p, k + 1, t),
 					index(p + 1, k, t), index(p + 1, k, t + 1), index(p + 1, k + 1, t + 1), index(p + 1, k + 1, t),
@@ -135,7 +117,7 @@ def plasma_tets() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 	return vertices, np.array(tetrahedra), vertex_s
 
 
-def run(source: openmc.SourceBase, mesh: openmc.CylindricalMesh, work: pathlib.Path, h5m: pathlib.Path) -> dict[str, Any]:
+def run(source: openmc.SourceBase, mesh: openmc.CylindricalMesh, work: pathlib.Path, h5m: pathlib.Path, particles: int, batches: int, repeat: int) -> dict[str, Any]:
 	"""線源だけを差し替えて同じ幾何・同じ粒子数で回す。TBR と R-Z マップと実行時間を返す。"""
 	# bounded_universe は id を 10000 番台に固定で振るので、ケースごとに呼ぶと衝突して IDWarning が出る
 	openmc.reset_auto_ids()
@@ -153,13 +135,13 @@ def run(source: openmc.SourceBase, mesh: openmc.CylindricalMesh, work: pathlib.P
 	model = openmc.Model(
 		geometry=openmc.Geometry(openmc.DAGMCUniverse(str(h5m)).bounded_universe()),
 		materials=openmc.Materials([pbli]),
-		settings=openmc.Settings(run_mode="fixed source", source=source, particles=PARTICLES, batches=BATCHES),
+		settings=openmc.Settings(run_mode="fixed source", source=source, particles=particles, batches=batches),
 		tallies=openmc.Tallies([total, local]),
 	)
 	work.mkdir(parents=True, exist_ok=True)
 	# 乱数種が同じなので繰り返しても結果は変わらない。時間だけを見る
 	timing = []
-	for _ in range(REPEAT):
+	for _ in range(repeat):
 		statepoint_path = model.run(cwd=work, output=False)
 		with openmc.StatePoint(statepoint_path) as statepoint:
 			timing.append((statepoint.runtime["transport"], statepoint.runtime["total initialization"]))
@@ -184,34 +166,34 @@ def run(source: openmc.SourceBase, mesh: openmc.CylindricalMesh, work: pathlib.P
 		}
 
 
-def case_1(mesh: openmc.CylindricalMesh, h5m: pathlib.Path, work: pathlib.Path) -> dict[str, Any]:
+def case_1(surface: SurfaceFourierRZ, mesh: openmc.CylindricalMesh, h5m: pathlib.Path, work: pathlib.Path, n_flat: int, particles: int, batches: int, repeat: int) -> dict[str, Any]:
 	"""al_06 現行方式。(φ, θ, s) 一様サンプルの点線源を等強度で置く。"""
 	start = time.perf_counter()
-	samples = np.random.default_rng(0).random((N_FLAT, 3)) * [math.tau, math.tau, 1.0]
-	weights = np.full(N_FLAT, 1.0 / N_FLAT)
-	source = point_sources(samples, weights)
+	samples = np.random.default_rng(0).random((n_flat, 3)) * [math.tau, math.tau, 1.0]
+	weights = np.full(n_flat, 1.0 / n_flat)
+	source = point_sources(surface, samples, weights)
 	setup = time.perf_counter() - start
 	return {"name": "case_1 uniform points", "s": samples[:, 2], "weights": weights, "t_setup": setup} | run(
-		source, mesh, work / "case_1", h5m
+		source, mesh, work / "case_1", h5m, particles, batches, repeat
 	)
 
 
-def case_2(mesh: openmc.CylindricalMesh, h5m: pathlib.Path, work: pathlib.Path) -> dict[str, Any]:
+def case_2(surface: SurfaceFourierRZ, mesh: openmc.CylindricalMesh, h5m: pathlib.Path, work: pathlib.Path, n_weighted: int, particles: int, batches: int, repeat: int) -> dict[str, Any]:
 	"""点数を増やし、強度を反応率 × 体積要素にする。依存も Rust 側の変更も要らない。"""
 	start = time.perf_counter()
-	samples = np.random.default_rng(0).random((N_WEIGHTED, 3)) * [math.tau, math.tau, 1.0]
-	weights = reaction_rate(samples[:, 2]) * [jacobian(*sample) for sample in samples]
-	source = point_sources(samples, weights)
+	samples = np.random.default_rng(0).random((n_weighted, 3)) * [math.tau, math.tau, 1.0]
+	weights = reaction_rate(samples[:, 2]) * [jacobian(surface, *sample) for sample in samples]
+	source = point_sources(surface, samples, weights)
 	setup = time.perf_counter() - start
 	return {"name": "case_2 weighted points", "s": samples[:, 2], "weights": weights / weights.sum(), "t_setup": setup} | run(
-		source, mesh, work / "case_2", h5m
+		source, mesh, work / "case_2", h5m, particles, batches, repeat
 	)
 
 
-def case_3(mesh: openmc.CylindricalMesh, h5m: pathlib.Path, work: pathlib.Path, vtk: pathlib.Path) -> dict[str, Any]:
+def case_3(surface: SurfaceFourierRZ, mesh: openmc.CylindricalMesh, h5m: pathlib.Path, work: pathlib.Path, vtk: pathlib.Path, mesh_s: int, mesh_theta: int, mesh_phi: int, s_max: float, particles: int, batches: int, repeat: int) -> dict[str, Any]:
 	"""parastell と同じ四面体メッシュ線源。tet の強度は重心の反応率 × 四面体体積。"""
 	start = time.perf_counter()
-	vertices, tetrahedra, vertex_s = plasma_tets()
+	vertices, tetrahedra, vertex_s = plasma_tets(surface, mesh_s, mesh_theta, mesh_phi, s_max)
 	corners = vertices[tetrahedra]
 	volumes = np.abs(np.linalg.det(corners[:, 1:] - corners[:, :1])) / 6.0
 	centroid_s = vertex_s[tetrahedra].mean(axis=1)
@@ -219,28 +201,50 @@ def case_3(mesh: openmc.CylindricalMesh, h5m: pathlib.Path, work: pathlib.Path, 
 	write_vtk(str(vtk), vertices, tetrahedra)
 	source = openmc.MeshSource(
 		openmc.UnstructuredMesh(str(vtk), library="moab", length_multiplier=100.0, mesh_id=2),
-		[openmc.IndependentSource(energy=ENERGY, strength=weight) for weight in weights],
+		[openmc.IndependentSource(energy=openmc.stats.Discrete([14.07e6], [1.0]), strength=weight) for weight in weights],
 	)
 	source.normalize_source_strengths()
 	setup = time.perf_counter() - start
 	return {"name": "case_3 tet mesh", "s": centroid_s, "weights": weights / weights.sum(), "t_setup": setup} | run(
-		source, mesh, work / "case_3", h5m
+		source, mesh, work / "case_3", h5m, particles, batches, repeat
 	)
 
 
 def main(
+	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent / "wout_vmec.nc",
 	out: pathlib.Path = pathlib.Path("out") / pathlib.Path(__file__).with_suffix(".md").name,
+	thickness: float = 0.5,  # PbLi 殻の厚み [m]。al_06 の中央の厚みに合わせる
+	div_phi: int = 96,  # 殻の制御点。al_06 と同じにして幾何を一致させる
+	div_theta: int = 40,
+	particles: int = 40000,
+	batches: int = 10,
+	repeat: int = 2,  # 実行時間は他プロセスの負荷で数十 % 平気で伸びるので、繰り返して最小値を採る
+	n_flat: int = 200,  # case_1 の一様点線源の数
+	n_weighted: int = 5000,  # case_2 の重み付き点線源の数
+	mesh_s: int = 8,  # 約 23000 tet。tet 数が settings.xml のサイズを決める
+	mesh_theta: int = 16,
+	mesh_phi: int = 32,
+	s_max: float = 0.98,  # LCFS 上に線源を置くと幾何境界に乗るので手前で切る (n, T → 0 なので損失は無い)
+	tally_r: int = 48,
+	tally_z: int = 48,
 ) -> list[dict[str, Any]]:
+	with open(wout, "rb") as f:
+		surface = SurfaceFourierRZ.load(f)
+
 	out.parent.mkdir(parents=True, exist_ok=True)
-	outer = blanket(out.with_suffix(".shell.step"), out.with_suffix(".h5m"))
+	outer = blanket(surface, out.with_suffix(".shell.step"), out.with_suffix(".h5m"), thickness, div_phi, div_theta)
 	radius, height = np.hypot(outer[..., 0], outer[..., 1]), outer[..., 2]
 	mesh = openmc.CylindricalMesh(
-		r_grid=np.linspace(radius.min(), radius.max(), TALLY_R + 1) * 100,
-		z_grid=np.linspace(height.min(), height.max(), TALLY_Z + 1) * 100,
+		r_grid=np.linspace(radius.min(), radius.max(), tally_r + 1) * 100,
+		z_grid=np.linspace(height.min(), height.max(), tally_z + 1) * 100,
 		mesh_id=1,
 	)
 	h5m, work = out.with_suffix(".h5m"), out.with_suffix(".openmc")
-	results = [case_1(mesh, h5m, work), case_2(mesh, h5m, work), case_3(mesh, h5m, work, out.with_suffix(".plasma.vtk"))]
+	results = [
+		case_1(surface, mesh, h5m, work, n_flat, particles, batches, repeat),
+		case_2(surface, mesh, h5m, work, n_weighted, particles, batches, repeat),
+		case_3(surface, mesh, h5m, work, out.with_suffix(".plasma.vtk"), mesh_s, mesh_theta, mesh_phi, s_max, particles, batches, repeat),
+	]
 
 	# タリーのビン体積は r とともに増えるので、割って密度にしないと外周が明るく見えるだけになる
 	edge_r, edge_z = np.asarray(mesh.r_grid), np.asarray(mesh.z_grid)
@@ -305,15 +309,15 @@ def main(
 	fields = {
 		"source_s_png": out.with_suffix(".source_s.png").name,
 		"breeding_png": out.with_suffix(".breeding.png").name,
-		"thickness": f"{THICKNESS * 100:.0f}",
-		"particles": PARTICLES,
-		"batches": BATCHES,
-		"n_flat": N_FLAT,
-		"n_weighted": N_WEIGHTED,
+		"thickness": f"{thickness * 100:.0f}",
+		"particles": particles,
+		"batches": batches,
+		"n_flat": n_flat,
+		"n_weighted": n_weighted,
 		"n_tets": len(results[2]["s"]),
-		"mesh_s": MESH_S,
-		"mesh_theta": MESH_THETA,
-		"mesh_phi": MESH_PHI,
+		"mesh_s": mesh_s,
+		"mesh_theta": mesh_theta,
+		"mesh_phi": mesh_phi,
 		"rows": "".join(
 			f"| {r['name']} | {r['mean_s']:.3f} | {r['tbr']:.3f} ± {r['error']:.3f} | {r['peaking']:.2f} |"
 			f" {r['deviation']:.1f} | {r['noise']:.1f} | {r['t_setup']:.1f} | {r['t_init']:.1f} | {r['t_run']:.0f} |\n"
@@ -333,7 +337,7 @@ def main(
 		"mean_s_3": results[2]["mean_s"],
 		"error_1": results[0]["error"],
 		"error_3": results[2]["error"],
-		"repeat": REPEAT,
+		"repeat": repeat,
 		"spread": max(r["t_spread"] for r in results),
 		"slowdown_2": (results[1]["t_run"] / results[0]["t_run"] - 1.0) * 100,
 		"slowdown_3": (results[2]["t_run"] / results[0]["t_run"] - 1.0) * 100,
