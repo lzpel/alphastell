@@ -12,6 +12,12 @@ Output: feasibility verdict and design drawings for a stellarator
 
 ## Progress
 
+### The equilibrium
+
+Every experiment below reads the same VMEC equilibrium, [`examples/wout_vmec.nc`](examples/wout_vmec.nc), copied verbatim from [ParaStell's `examples/wout_vmec.nc`](https://github.com/svalinn/parastell/blob/main/examples/wout_vmec.nc). simsopt ships [`wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc`](https://github.com/hiddenSymmetries/simsopt/blob/master/tests/test_files/wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc), which is the same configuration at a different Fourier resolution — the two agree to four digits on `Rmajor_p`, `Aminor_p`, `aspect`, `volavgB` and `betatotal`.
+
+It is a four-field-period quasi-helical configuration: `Rmajor_p` 11.08 m, `Aminor_p` 1.70 m, `aspect` 6.50, `volavgB` 5.87 T, `betatotal` 5.1%, `iotaf` −1.33 on axis to −1.06 at the edge. Note that it is not the WISTELL-D of the ParaStell paper, which is quoted there at 10.1 m, 1.5 m and 8.3 T.
+
 ### Experiment 06 `make al-06`
 
 TBR of pure PbLi shells (30/50/70 cm) extruded along the LCFS normal, computed with OpenMC. Breeder thickness and TBR are positively correlated.
