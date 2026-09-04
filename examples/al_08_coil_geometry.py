@@ -321,14 +321,9 @@ def visualize_guided_spines(
 # Markdown レポートの本文。main() が数値を差し込み、PDF 化は make al-08 が md2pdf.py で行う
 TEMPLATE = """# VMEC 平衡を再現するモジュラーコイル (al_08)
 
-VMEC 平衡 (nfp={nfp}, R={r_major:.2f} m) の LCFS を固定し、その外側にモジュラーコイルを
+VMEC 平衡 `wout_vmec.nc` (nfp={nfp}, R={r_major:.2f} m) の LCFS を固定し、その外側にモジュラーコイルを
 simsopt の stage-2 最適化で置いた。al_06 で PbLi 殻を厚くするほど TBR が上がると分かったので、
 ここではコイルをどこまで離せるか、つまり半径方向にいくら予算があるかを見る。
-
-配位は ParaStell 同梱の `examples/wout_vmec.nc` をそのまま使う。nfp=4 の準ヘリカル配位で
-R=11.08 m、a=1.70 m、⟨B⟩=5.87 T、β=5.1%。simsopt の
-`wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc` と
-4 桁一致する同じ配位で、al_03 以降のスクリプトはすべてこれを読む。
 
 ## 方法
 
