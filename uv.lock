@@ -1293,7 +1293,7 @@ wheels = [
 
 [[package]]
 name = "simsopt"
-version = "1.10.6.post452"
+version = "1.10.6.post474"
 source = { registry = "https://lzpel.github.io/simsopt/simple/" }
 dependencies = [
     { name = "deprecated" },
@@ -1309,26 +1309,26 @@ dependencies = [
     { name = "sympy" },
 ]
 wheels = [
-    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:b550319577064dc8f0d1ffdb7dd31d1d13054fed252b34177ebf5474c5bd1f8b" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:a534ddbf54255259d61e09f0ea6d4d029caba491408968cd6ecd3fd561abd407" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp314-cp314-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:182cbe7e286875d877cad3219aec8a6f3bb301dd6f67f857b012618480438353" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:61b032445155956c75ea0d6030b5479486c5a4d118ebedf6e06d6bd091e81b98" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp314-cp314-win_amd64.whl", hash = "sha256:04f32e8f6e2bd4a08d563af06756dcf5823ca506a446976d2b6b1f8d2744ee0b" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:dd385daeb5e8ee70228a96761fcf2f6d20ef414f4c1454cc4f05809b217e188c" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:8ccdab1a0b0f41b1b3c776a0fe74600069d709631634f51e144da21b2471b634" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp314-cp314t-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:956ca2c628a485fd76f6c7c27c0b47eefd5202f7015a1a48ea3bc5757d147d19" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:341dfe3c46e87f9b16f017364a4760e528183887f0f7e63381a7a2d0304d9b9b" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp314-cp314t-win_amd64.whl", hash = "sha256:ca8052c0e8f7057789e01d2248d98e5c751dcff8b3c60b11249c4cd98bca1f87" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp315-cp315-macosx_10_15_x86_64.whl", hash = "sha256:9397353d313395281130fc1a18cd6b5046c0b669f37e3d519e71daf93639f764" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp315-cp315-macosx_11_0_arm64.whl", hash = "sha256:ceecd831872fcb1e57a291f5d05abf5d3bf4a07099f98baab554af2fa06564ba" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp315-cp315-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:bb93ae3c1c64cc491b68632b857349d396aea8e7dd368a85667f0c5c322bff1e" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp315-cp315-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:ca141612aca6f4d9813661f6883d328134f3446d3632e527d827a22a82018e4e" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp315-cp315-win_amd64.whl", hash = "sha256:cdf5bc4ccb604371dd134b386c6df3987174983374f641033fa9998a52c84d29" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp315-cp315t-macosx_10_15_x86_64.whl", hash = "sha256:eadf8d23e92ffb037390ddf15ea03725d9a662d1a871f255ed310b65fd081854" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp315-cp315t-macosx_11_0_arm64.whl", hash = "sha256:0d8002bd8773c08360fd94c6cf88ab8ed7753889a7284a82e6039f562f6aa0f8" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp315-cp315t-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:8ad189ea14182246747348877784d592efa605b24b11a9194349d07b8c05fcc8" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp315-cp315t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:10908fc1954c382bc19197654e0ab2b69115a18157cfdd25d236985a9c4920ca" },
-    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post452/simsopt-1.10.6.post452-cp315-cp315t-win_amd64.whl", hash = "sha256:ab8275c98ed8626d7daa993cbe372a5acdc75d13f80be4a478a29a0632c39a8b" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post474/simsopt-1.10.6.post474-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:6f622ae7a5a11907176acaa38e9bcb4ca20ebdbf6961a3a7048c9ed63b26b66e" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post474/simsopt-1.10.6.post474-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:d264faa147e99a3540752236e5753acd514890d7a8d3bcf70b42a5849220970f" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post474/simsopt-1.10.6.post474-cp314-cp314-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:cea21d7e94336efd0e6b47c43aeb32231788254f0f28ee919b09096801d4b466" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post474/simsopt-1.10.6.post474-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:de7c6f1f003bd7047371745172d817abbfab937487944825968aa2df822998cd" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post474/simsopt-1.10.6.post474-cp314-cp314-win_amd64.whl", hash = "sha256:8817fc59ec9924133f2da896059987da10c437f7674f8154c9c6848136182ee1" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post474/simsopt-1.10.6.post474-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:f924d0f66afeefa017b7977150bc3ab1f7f09a2cc4b3320700f4277522ee0c6d" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post474/simsopt-1.10.6.post474-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:edb586e824dfe4c77c6d2c3ab4390dec63025c3053c3eb56f9153b48d307039a" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post474/simsopt-1.10.6.post474-cp314-cp314t-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:793929c186e9b8ac24f1c1ee97629b92aee0941e8994d9803245dcdd4e60748e" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post474/simsopt-1.10.6.post474-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:0a0757b8597e896ab1403129853a08112be474dd3dba8f08b7e5a75ea7219ffa" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post474/simsopt-1.10.6.post474-cp314-cp314t-win_amd64.whl", hash = "sha256:99365024e44539848df4513de97fbd20b091ec4ec175c20fd54c86fd84d36467" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post474/simsopt-1.10.6.post474-cp315-cp315-macosx_10_15_x86_64.whl", hash = "sha256:a6114fa2fcadfbbe81fc3043aeeaa9328df8057faa1fe8c7f5231c5730d52268" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post474/simsopt-1.10.6.post474-cp315-cp315-macosx_11_0_arm64.whl", hash = "sha256:338acce0ed033bfedf70b0c4a8e4a99e74bd681a18af3038200c0fc88af3b53b" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post474/simsopt-1.10.6.post474-cp315-cp315-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:901ad7a0764328ec38b0b88cc5311e909daaa02304951b1b736a3193dbf8e7a1" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post474/simsopt-1.10.6.post474-cp315-cp315-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:cb5f8690008349390e8e954c395f9fca66a4d04ae80a61512092185af5b381cd" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post474/simsopt-1.10.6.post474-cp315-cp315-win_amd64.whl", hash = "sha256:01fa8c97b534554b4565daeee57b41a7d72740e0ea0f75881e782894c05f5f86" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post474/simsopt-1.10.6.post474-cp315-cp315t-macosx_10_15_x86_64.whl", hash = "sha256:0767b4994f4dccabef2ec6ef0833d455d742685d71a791e19372754080f9faae" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post474/simsopt-1.10.6.post474-cp315-cp315t-macosx_11_0_arm64.whl", hash = "sha256:353c461ee94188e6745f13552c9c485c11a691afee0dd723a94131e5c163bc03" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post474/simsopt-1.10.6.post474-cp315-cp315t-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:8d86111e12ab6408203b6bbe46c36831b87064ab3009658b1ff67d10e2a308ed" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post474/simsopt-1.10.6.post474-cp315-cp315t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:0a8e5b27bf71f251c5bc168cb54601e6e1ac2ad4b526b87d4df62542301f12be" },
+    { url = "https://github.com/lzpel/simsopt/releases/download/1.10.6.post474/simsopt-1.10.6.post474-cp315-cp315t-win_amd64.whl", hash = "sha256:8283afb572848e1db1815b2abeed4127adecbeab9970a7bf371a8f5608b7d2df" },
 ]
 
 [[package]]
