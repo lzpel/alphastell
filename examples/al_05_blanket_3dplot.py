@@ -21,39 +21,18 @@ import math
 import pathlib
 
 import matplotlib
-import numpy as np
-
-matplotlib.use("Agg")  # 画面の無い環境でも PNG を書けるようにする
 import matplotlib.pyplot as plt
+import numpy as np
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
 from alphastell import SurfaceFourierRZ
-
-WOUT = pathlib.Path(__file__).resolve().parent / "wout_vmec.nc"
-
-S_FIRST_WALL = 1.0
-S_BACK = 1.08  # alphastell の wall_s。s>1 はスプライン外挿になる
-S_CHANNEL = (S_FIRST_WALL + S_BACK) / 2  # 流路中心が乗る面
-
-DIV_PHI, DIV_THETA = 160, 48  # 背景に敷く第一壁の格子
-DIV_PATH = 300  # 流路 1 本あたりの点数
-
-# 名前, (トロイダル巻き数, ポロイダル巻き数), 本数。この 2 数だけが流路の向きを決める。
-DIRECTIONS = [
-	("poloidal", (0, 1), 16),  # W2 v0: 曲がり最小・B にほぼ直交
-	("toroidal", (1, 0), 14),  # QTS 相当: B とほぼ平行
-	("helical", (1, 1), 14),  # 中間。iota に合わせれば field-aligned になる
-]
-
-with open(WOUT, "rb") as f:
-	surface = SurfaceFourierRZ.load(f)
 
 
 def unit(vectors: np.ndarray) -> np.ndarray:
 	return vectors / np.linalg.norm(vectors, axis=-1, keepdims=True)
 
 
-def surface_points(phi: np.ndarray, theta: np.ndarray, s: float) -> tuple[np.ndarray, np.ndarray]:
+def surface_points(surface: SurfaceFourierRZ, phi: np.ndarray, theta: np.ndarray, s: float) -> tuple[np.ndarray, np.ndarray]:
 	"""同じ shape の (φ, θ) 配列を点と法線にする。末尾に xyz の軸が増える。"""
 	points = np.empty(np.shape(phi) + (3,))
 	normals = np.empty_like(points)
@@ -77,26 +56,42 @@ def perp_fraction(points: np.ndarray, normals: np.ndarray) -> np.ndarray:
 
 
 def main(
+	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent / "wout_vmec.nc",
 	out: pathlib.Path = pathlib.Path("out") / pathlib.Path(__file__).with_suffix(".md").name,
+	s_first_wall: float = 1.0,
+	s_back: float = 1.08,  # alphastell の wall_s。s>1 はスプライン外挿になる
+	div_phi: int = 160,  # 背景に敷く第一壁の格子
+	div_theta: int = 48,
+	div_path: int = 300,  # 流路 1 本あたりの点数
+	# 名前, (トロイダル巻き数, ポロイダル巻き数), 本数。この 2 数だけが流路の向きを決める。
+	directions: list[tuple[str, tuple[int, int], int]] = [
+		("poloidal", (0, 1), 16),  # W2 v0: 曲がり最小・B にほぼ直交
+		("toroidal", (1, 0), 14),  # QTS 相当: B とほぼ平行
+		("helical", (1, 1), 14),  # 中間。iota に合わせれば field-aligned になる
+	],
 ) -> None:
+	with open(wout, "rb") as f:
+		surface = SurfaceFourierRZ.load(f)
+	s_channel = (s_first_wall + s_back) / 2  # 流路中心が乗る面
+
 	# --- 背景: 第一壁とブランケット厚み ---------------------------------------
 	phi_grid, theta_grid = np.meshgrid(
-		np.linspace(0, math.tau, DIV_PHI, endpoint=False),
-		np.linspace(0, math.tau, DIV_THETA, endpoint=False),
+		np.linspace(0, math.tau, div_phi, endpoint=False),
+		np.linspace(0, math.tau, div_theta, endpoint=False),
 		indexing="ij",
 	)
-	wall, _ = surface_points(phi_grid, theta_grid, S_FIRST_WALL)
+	wall, _ = surface_points(surface, phi_grid, theta_grid, s_first_wall)
 	# φ=0 と φ=2π、θ=0 と θ=2π は同一点なので先頭を末尾に足して継ぎ目を閉じる
 	wall = np.concatenate([wall, wall[:1]], axis=0)
 	wall = np.concatenate([wall, wall[:, :1]], axis=1)
 
 	# φ=0 での第一壁と背面の輪郭。この 2 本の間隙がブランケットで、流路はその中を通る。
 	theta_line = np.linspace(0, math.tau, 200)
-	sections = [surface_points(np.zeros_like(theta_line), theta_line, s)[0] for s in (S_FIRST_WALL, S_BACK)]
+	sections = [surface_points(surface, np.zeros_like(theta_line), theta_line, s)[0] for s in (s_first_wall, s_back)]
 
 	# 磁力線の矢印は外周側 (θ=0) に数本だけ立てる。全点に生やすと面が見えなくなる。
 	arrow_phi = np.linspace(0, math.tau, 10, endpoint=False)
-	arrow_at, arrow_normal = surface_points(arrow_phi, np.zeros_like(arrow_phi), S_FIRST_WALL)
+	arrow_at, arrow_normal = surface_points(surface, arrow_phi, np.zeros_like(arrow_phi), s_first_wall)
 	arrow_dir = field_direction(arrow_at, arrow_normal)
 
 	norm = plt.Normalize(0.0, 1.0)
@@ -104,13 +99,13 @@ def main(
 	out.parent.mkdir(parents=True, exist_ok=True)
 	summary = []
 
-	for name, (n_phi, n_theta), count in DIRECTIONS:
+	for name, (n_phi, n_theta), count in directions:
 		# 巻き数が 0 でない側に沿って流路を並べる。ポロイダル流路なら φ 方向に等間隔。
 		start = np.linspace(0, math.tau, count, endpoint=False)
 		phi0, theta0 = (start, np.zeros(count)) if n_phi == 0 else (np.zeros(count), start)
 
-		t = np.linspace(0, 1, DIV_PATH)
-		traced = [surface_points(p + math.tau * n_phi * t, q + math.tau * n_theta * t, S_CHANNEL) for p, q in zip(phi0, theta0)]
+		t = np.linspace(0, 1, div_path)
+		traced = [surface_points(surface, p + math.tau * n_phi * t, q + math.tau * n_theta * t, s_channel) for p, q in zip(phi0, theta0)]
 		channels = [points for points, _ in traced]
 		perp = [perp_fraction(points, normals) for points, normals in traced]
 		mean_perp2 = float(np.mean([np.mean(p**2) for p in perp]))
@@ -150,7 +145,7 @@ def main(
 		# 図中の文字は ASCII に寄せる。matplotlib 既定の DejaVu Sans は日本語グリフを持たない。
 		ax.set_title(
 			f"blanket channels: {name} (n_phi={n_phi}, n_theta={n_theta}), {count} ducts\n"
-			f"s={S_FIRST_WALL}-{S_BACK} shell, mean sin^2 = {mean_perp2:.2f}  (MHD dp proxy, higher is worse)"
+			f"s={s_first_wall}-{s_back} shell, mean sin^2 = {mean_perp2:.2f}  (MHD dp proxy, higher is worse)"
 		)
 		fig.colorbar(
 			plt.cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax,
@@ -161,7 +156,7 @@ def main(
 		fig.savefig(out_png, dpi=150, bbox_inches="tight")
 		plt.close(fig)
 		summary.append((name, (n_phi, n_theta), count, mean_perp2, out_png))
-		print(f"{out_png}: {count} 本 x {DIV_PATH} 点, mean sin^2 = {mean_perp2:.3f}")
+		print(f"{out_png}: {count} 本 x {div_path} 点, mean sin^2 = {mean_perp2:.3f}")
 
 	worst = max(row[3] for row in summary)
 
@@ -174,7 +169,7 @@ def main(
 	)
 	report = f"""# ブランケット流路方向の比較 (al_05)
 
-VMEC 平衡 `wout_vmec.nc` (nfp=4, R≈11 m) の磁気面 s={S_FIRST_WALL}〜{S_BACK} をブランケット殻とし、
+VMEC 平衡 `wout_vmec.nc` (nfp=4, R≈11 m) の磁気面 s={s_first_wall}〜{s_back} をブランケット殻とし、
 その中を通る流路の向きを変えて MHD 圧損の代用指標を比べた。
 
 ## 方法
