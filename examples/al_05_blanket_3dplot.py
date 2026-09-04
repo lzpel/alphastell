@@ -1,22 +1,3 @@
-#!/usr/bin/env python3
-"""ブランケット流路の向きを (φ, θ) 平面の巻き数 (n_phi, n_theta) ひとつで表し、向きごとに PNG を出す。
-
-PNG を貼った Markdown レポート (out/al_05_blanket_3dplot.md) も書き出す。PDF は make al-05 が
-続けて呼ぶ examples/md2pdf.py (tectonic) が md から組む。
-
-W2 v0 は単一パス・ポロイダルだが、HELIAS の QTS は PbLi を B と概ね平行に流して MHD 圧損を
-落とす。どちらが正解かを決め打ちせず「向きはパラメータ」であることを図にする。
-
-色は流路の接線と磁力線の成す角の sin。MHD 圧損は流れに直交する磁場成分の 2 乗で効くので
-赤いほど不利。磁力線は e_phi を磁気面の接平面に落として代用する (B は磁気面に接するため)。
-iota が python 側に出ていないのでポロイダル成分は入っておらず、真の field-aligned を描くには
-iota の露出が要る。
-
-リポジトリルートで:
-
-    make al-05
-"""
-
 import math
 import pathlib
 
@@ -26,33 +7,6 @@ import numpy as np
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
 from alphastell import SurfaceFourierRZ
-
-
-def unit(vectors: np.ndarray) -> np.ndarray:
-	return vectors / np.linalg.norm(vectors, axis=-1, keepdims=True)
-
-
-def surface_points(surface: SurfaceFourierRZ, phi: np.ndarray, theta: np.ndarray, s: float) -> tuple[np.ndarray, np.ndarray]:
-	"""同じ shape の (φ, θ) 配列を点と法線にする。末尾に xyz の軸が増える。"""
-	points = np.empty(np.shape(phi) + (3,))
-	normals = np.empty_like(points)
-	for index in np.ndindex(np.shape(phi)):
-		points[index], normals[index] = surface.point_normal(float(phi[index]), float(theta[index]), s, True)
-	return points, normals
-
-
-def field_direction(points: np.ndarray, normals: np.ndarray) -> np.ndarray:
-	"""磁力線方向の代用。B は磁気面に接するので e_phi を接平面に落とす。iota は未使用。"""
-	e_phi = np.stack([-points[..., 1], points[..., 0], np.zeros(points.shape[:-1])], axis=-1)
-	normal = unit(normals)
-	return unit(e_phi - (e_phi * normal).sum(axis=-1, keepdims=True) * normal)
-
-
-def perp_fraction(points: np.ndarray, normals: np.ndarray) -> np.ndarray:
-	"""流路接線と磁力線の成す角の sin。0 で磁場平行、1 で直交。"""
-	tangent = unit(np.gradient(points, axis=0))
-	field = field_direction(points, normals)
-	return np.linalg.norm(tangent - (tangent * field).sum(axis=-1, keepdims=True) * field, axis=-1)
 
 
 def main(
@@ -196,6 +150,33 @@ iota が python 側に出ていないためポロイダル成分は入ってい�
 {figures}"""
 	out.write_text(report, encoding="utf-8")
 	print(f"\n{out}: {out.stat().st_size} bytes")
+
+
+def unit(vectors: np.ndarray) -> np.ndarray:
+	return vectors / np.linalg.norm(vectors, axis=-1, keepdims=True)
+
+
+def surface_points(surface: SurfaceFourierRZ, phi: np.ndarray, theta: np.ndarray, s: float) -> tuple[np.ndarray, np.ndarray]:
+	"""同じ shape の (φ, θ) 配列を点と法線にする。末尾に xyz の軸が増える。"""
+	points = np.empty(np.shape(phi) + (3,))
+	normals = np.empty_like(points)
+	for index in np.ndindex(np.shape(phi)):
+		points[index], normals[index] = surface.point_normal(float(phi[index]), float(theta[index]), s, True)
+	return points, normals
+
+
+def field_direction(points: np.ndarray, normals: np.ndarray) -> np.ndarray:
+	"""磁力線方向の代用。B は磁気面に接するので e_phi を接平面に落とす。iota は未使用。"""
+	e_phi = np.stack([-points[..., 1], points[..., 0], np.zeros(points.shape[:-1])], axis=-1)
+	normal = unit(normals)
+	return unit(e_phi - (e_phi * normal).sum(axis=-1, keepdims=True) * normal)
+
+
+def perp_fraction(points: np.ndarray, normals: np.ndarray) -> np.ndarray:
+	"""流路接線と磁力線の成す角の sin。0 で磁場平行、1 で直交。"""
+	tangent = unit(np.gradient(points, axis=0))
+	field = field_direction(points, normals)
+	return np.linalg.norm(tangent - (tangent * field).sum(axis=-1, keepdims=True) * field, axis=-1)
 
 
 if __name__ == "__main__":

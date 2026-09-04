@@ -1,19 +1,3 @@
-#!/usr/bin/env python3
-"""中性子線源モデル 3 種を同じ PbLi 殻で比較する (al_07)。
-
-al_06 の線源は (φ, θ, s) 一様・等強度の点線源 200 個で、核融合反応率が s≈0 に集中するという
-物理と食い違っている。厚い全周ブランケットの TBR は線源分布にほぼ鈍感なので al_06 の結論は
-変わらないが、al_09 以降で不均質 WCLL の局所量 (壁負荷・核発熱) を見る段では効いてくる。
-
-    case_1  al_06 現行方式         : 一様サンプル 200 点、等強度
-    case_2  重み付き点線源         : 一様サンプル 5000 点、強度 = 反応率 × 体積要素
-    case_3  四面体メッシュ線源     : parastell と同じ方式。tet ごとに反応率 × 体積
-
-精度・計算時間・実装量の実測でどれに移行すべきかを決めるのが目的。
-
-    make al-07
-"""
-
 import math
 import pathlib
 import time
@@ -25,6 +9,144 @@ import openmc
 from cad_to_dagmc import CadToDagmc, write_vtk
 
 from alphastell import SurfaceFourierRZ, Geometry
+
+
+def main(
+	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent / "wout_vmec.nc",
+	out: pathlib.Path = pathlib.Path("out") / pathlib.Path(__file__).with_suffix(".md").name,
+	thickness: float = 0.5,  # PbLi 殻の厚み [m]。al_06 の中央の厚みに合わせる
+	div_phi: int = 96,  # 殻の制御点。al_06 と同じにして幾何を一致させる
+	div_theta: int = 40,
+	particles: int = 40000,
+	batches: int = 10,
+	repeat: int = 2,  # 実行時間は他プロセスの負荷で数十 % 平気で伸びるので、繰り返して最小値を採る
+	n_flat: int = 200,  # case_1 の一様点線源の数
+	n_weighted: int = 5000,  # case_2 の重み付き点線源の数
+	mesh_s: int = 8,  # 約 23000 tet。tet 数が settings.xml のサイズを決める
+	mesh_theta: int = 16,
+	mesh_phi: int = 32,
+	s_max: float = 0.98,  # LCFS 上に線源を置くと幾何境界に乗るので手前で切る (n, T → 0 なので損失は無い)
+	tally_r: int = 48,
+	tally_z: int = 48,
+) -> list[dict[str, Any]]:
+	with open(wout, "rb") as f:
+		surface = SurfaceFourierRZ.load(f)
+
+	out.parent.mkdir(parents=True, exist_ok=True)
+	outer = blanket(surface, out.with_suffix(".shell.step"), out.with_suffix(".h5m"), thickness, div_phi, div_theta)
+	radius, height = np.hypot(outer[..., 0], outer[..., 1]), outer[..., 2]
+	mesh = openmc.CylindricalMesh(
+		r_grid=np.linspace(radius.min(), radius.max(), tally_r + 1) * 100,
+		z_grid=np.linspace(height.min(), height.max(), tally_z + 1) * 100,
+		mesh_id=1,
+	)
+	h5m, work = out.with_suffix(".h5m"), out.with_suffix(".openmc")
+	results = [
+		case_1(surface, mesh, h5m, work, n_flat, particles, batches, repeat),
+		case_2(surface, mesh, h5m, work, n_weighted, particles, batches, repeat),
+		case_3(surface, mesh, h5m, work, out.with_suffix(".plasma.vtk"), mesh_s, mesh_theta, mesh_phi, s_max, particles, batches, repeat),
+	]
+
+	# タリーのビン体積は r とともに増えるので、割って密度にしないと外周が明るく見えるだけになる
+	edge_r, edge_z = np.asarray(mesh.r_grid), np.asarray(mesh.z_grid)
+	volume = (math.pi * np.diff(edge_r**2))[:, None] * np.diff(edge_z)[None, :]
+	for result in results:
+		density = result["rz_map"] / volume
+		alive = density[density > 0]
+		result["density"] = density
+		result["peaking"] = float(np.percentile(alive, 99) / alive.mean())
+		result["mean_s"] = float(np.average(result["s"], weights=result["weights"]))
+	# case_3 を基準に、統計の乗っているビンだけで局所量のずれを測る。2 ラン分のショットノイズが
+	# 必ず乗るので、タリーの std_dev から期待されるノイズ床も出して切り分ける
+	bright = results[-1]["density"] > 0.1 * results[-1]["density"].max()
+	scatter = results[-1]["rz_error"][bright] / results[-1]["rz_map"][bright]
+	for result in results:
+		ratio = result["density"][bright] / results[-1]["density"][bright]
+		own = result["rz_error"][bright] / np.maximum(result["rz_map"][bright], 1e-30)
+		result["deviation"] = float(np.sqrt(np.mean((ratio / ratio.mean() - 1.0) ** 2)) * 100)
+		result["noise"] = 0.0 if result is results[-1] else float(np.sqrt(np.mean(own**2 + scatter**2)) * 100)
+		print(
+			f"{result['name']}: TBR = {result['tbr']:.3f} +/- {result['error']:.3f}"
+			f"  setup {result['t_setup']:.1f} s  init {result['t_init']:.1f} s  transport {result['t_run']:.0f} s"
+		)
+
+	# --- 図 -------------------------------------------------------------------
+	# case_3 の s は tet の重心なので離散値しか取らない。ヒストグラムにすると空きビンが
+	# 振動に見えるので、ビン分割の要らない累積分布で描く
+	figure, axes = plt.subplots(figsize=(6.0, 4.0))
+	for result in results:
+		order = np.argsort(result["s"])
+		axes.plot(result["s"][order], np.cumsum(result["weights"][order]), label=result["name"])
+	axes.set(
+		xlabel="normalized flux s",
+		ylabel="cumulative source fraction",
+		title="Where the neutrons are born",
+		xlim=(0.0, 1.0),
+		ylim=(0.0, 1.0),
+	)
+	axes.legend()
+	axes.grid(alpha=0.3)
+	figure.savefig(out.with_suffix(".source_s.png"), dpi=150, bbox_inches="tight")
+	plt.close(figure)
+
+	# 絶対値は 3 枚並べてもほぼ同じに見えるので、基準 1 枚と case_3 との比 2 枚にする
+	figure, panels = plt.subplots(1, 3, figsize=(11.0, 4.6), sharey=True, layout="constrained")
+	extent = [edge_r[0] / 100, edge_r[-1] / 100, edge_z[0] / 100, edge_z[-1] / 100]
+	reference = results[-1]["density"]
+	absolute = panels[0].imshow(reference.T, origin="lower", extent=extent, aspect="equal")
+	panels[0].set(xlabel="R [m]", ylabel="Z [m]", title=f"{results[-1]['name']} (reference)")
+	figure.colorbar(absolute, ax=panels[0], location="bottom", label="tritium production density [a.u.]")
+	for panel, result in zip(panels[1:], results[:2]):
+		ratio = np.where(bright, result["density"] / np.maximum(reference, 1e-30), np.nan)
+		image = panel.imshow(
+			(ratio / np.nanmean(ratio)).T, origin="lower", extent=extent, vmin=0.7, vmax=1.3, cmap="coolwarm", aspect="equal"
+		)
+		panel.set(xlabel="R [m]", title=f"{result['name']} / case_3")
+	figure.colorbar(image, ax=list(panels[1:]), location="bottom", label="ratio to case_3")
+	figure.savefig(out.with_suffix(".breeding.png"), dpi=150)
+	plt.close(figure)
+
+	# --- Markdown レポート。PDF 化は make al-07 が md2pdf.py (tectonic) で行う ------------
+	fields = {
+		"source_s_png": out.with_suffix(".source_s.png").name,
+		"breeding_png": out.with_suffix(".breeding.png").name,
+		"thickness": f"{thickness * 100:.0f}",
+		"particles": particles,
+		"batches": batches,
+		"n_flat": n_flat,
+		"n_weighted": n_weighted,
+		"n_tets": len(results[2]["s"]),
+		"mesh_s": mesh_s,
+		"mesh_theta": mesh_theta,
+		"mesh_phi": mesh_phi,
+		"rows": "".join(
+			f"| {r['name']} | {r['mean_s']:.3f} | {r['tbr']:.3f} ± {r['error']:.3f} | {r['peaking']:.2f} |"
+			f" {r['deviation']:.1f} | {r['noise']:.1f} | {r['t_setup']:.1f} | {r['t_init']:.1f} | {r['t_run']:.0f} |\n"
+			for r in results
+		),
+		"gap_1_3": (results[2]["tbr"] / results[0]["tbr"] - 1.0) * 100,
+		"sigma_1_3": abs(results[0]["tbr"] - results[2]["tbr"]) / math.hypot(results[0]["error"], results[2]["error"]),
+		"sigma_2_3": abs(results[1]["tbr"] - results[2]["tbr"]) / math.hypot(results[1]["error"], results[2]["error"]),
+		"deviation_1": results[0]["deviation"],
+		"deviation_2": results[1]["deviation"],
+		"noise_1": results[0]["noise"],
+		"noise_2": results[1]["noise"],
+		"net_1": math.sqrt(max(results[0]["deviation"] ** 2 - results[0]["noise"] ** 2, 0.0)),
+		"net_2": math.sqrt(max(results[1]["deviation"] ** 2 - results[1]["noise"] ** 2, 0.0)),
+		"mean_s_1": results[0]["mean_s"],
+		"mean_s_2": results[1]["mean_s"],
+		"mean_s_3": results[2]["mean_s"],
+		"error_1": results[0]["error"],
+		"error_3": results[2]["error"],
+		"repeat": repeat,
+		"spread": max(r["t_spread"] for r in results),
+		"slowdown_2": (results[1]["t_run"] / results[0]["t_run"] - 1.0) * 100,
+		"slowdown_3": (results[2]["t_run"] / results[0]["t_run"] - 1.0) * 100,
+		"init_3": results[2]["t_init"],
+	}
+	out.write_text(TEMPLATE.format(**fields), encoding="utf-8")
+	print(f"{out}: {out.stat().st_size} bytes")
+	return results
 
 
 def blanket(surface: SurfaceFourierRZ, step: pathlib.Path, h5m: pathlib.Path, thickness: float, div_phi: int, div_theta: int) -> np.ndarray:
@@ -210,144 +332,6 @@ def case_3(surface: SurfaceFourierRZ, mesh: openmc.CylindricalMesh, h5m: pathlib
 	)
 
 
-def main(
-	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent / "wout_vmec.nc",
-	out: pathlib.Path = pathlib.Path("out") / pathlib.Path(__file__).with_suffix(".md").name,
-	thickness: float = 0.5,  # PbLi 殻の厚み [m]。al_06 の中央の厚みに合わせる
-	div_phi: int = 96,  # 殻の制御点。al_06 と同じにして幾何を一致させる
-	div_theta: int = 40,
-	particles: int = 40000,
-	batches: int = 10,
-	repeat: int = 2,  # 実行時間は他プロセスの負荷で数十 % 平気で伸びるので、繰り返して最小値を採る
-	n_flat: int = 200,  # case_1 の一様点線源の数
-	n_weighted: int = 5000,  # case_2 の重み付き点線源の数
-	mesh_s: int = 8,  # 約 23000 tet。tet 数が settings.xml のサイズを決める
-	mesh_theta: int = 16,
-	mesh_phi: int = 32,
-	s_max: float = 0.98,  # LCFS 上に線源を置くと幾何境界に乗るので手前で切る (n, T → 0 なので損失は無い)
-	tally_r: int = 48,
-	tally_z: int = 48,
-) -> list[dict[str, Any]]:
-	with open(wout, "rb") as f:
-		surface = SurfaceFourierRZ.load(f)
-
-	out.parent.mkdir(parents=True, exist_ok=True)
-	outer = blanket(surface, out.with_suffix(".shell.step"), out.with_suffix(".h5m"), thickness, div_phi, div_theta)
-	radius, height = np.hypot(outer[..., 0], outer[..., 1]), outer[..., 2]
-	mesh = openmc.CylindricalMesh(
-		r_grid=np.linspace(radius.min(), radius.max(), tally_r + 1) * 100,
-		z_grid=np.linspace(height.min(), height.max(), tally_z + 1) * 100,
-		mesh_id=1,
-	)
-	h5m, work = out.with_suffix(".h5m"), out.with_suffix(".openmc")
-	results = [
-		case_1(surface, mesh, h5m, work, n_flat, particles, batches, repeat),
-		case_2(surface, mesh, h5m, work, n_weighted, particles, batches, repeat),
-		case_3(surface, mesh, h5m, work, out.with_suffix(".plasma.vtk"), mesh_s, mesh_theta, mesh_phi, s_max, particles, batches, repeat),
-	]
-
-	# タリーのビン体積は r とともに増えるので、割って密度にしないと外周が明るく見えるだけになる
-	edge_r, edge_z = np.asarray(mesh.r_grid), np.asarray(mesh.z_grid)
-	volume = (math.pi * np.diff(edge_r**2))[:, None] * np.diff(edge_z)[None, :]
-	for result in results:
-		density = result["rz_map"] / volume
-		alive = density[density > 0]
-		result["density"] = density
-		result["peaking"] = float(np.percentile(alive, 99) / alive.mean())
-		result["mean_s"] = float(np.average(result["s"], weights=result["weights"]))
-	# case_3 を基準に、統計の乗っているビンだけで局所量のずれを測る。2 ラン分のショットノイズが
-	# 必ず乗るので、タリーの std_dev から期待されるノイズ床も出して切り分ける
-	bright = results[-1]["density"] > 0.1 * results[-1]["density"].max()
-	scatter = results[-1]["rz_error"][bright] / results[-1]["rz_map"][bright]
-	for result in results:
-		ratio = result["density"][bright] / results[-1]["density"][bright]
-		own = result["rz_error"][bright] / np.maximum(result["rz_map"][bright], 1e-30)
-		result["deviation"] = float(np.sqrt(np.mean((ratio / ratio.mean() - 1.0) ** 2)) * 100)
-		result["noise"] = 0.0 if result is results[-1] else float(np.sqrt(np.mean(own**2 + scatter**2)) * 100)
-		print(
-			f"{result['name']}: TBR = {result['tbr']:.3f} +/- {result['error']:.3f}"
-			f"  setup {result['t_setup']:.1f} s  init {result['t_init']:.1f} s  transport {result['t_run']:.0f} s"
-		)
-
-	# --- 図 -------------------------------------------------------------------
-	# case_3 の s は tet の重心なので離散値しか取らない。ヒストグラムにすると空きビンが
-	# 振動に見えるので、ビン分割の要らない累積分布で描く
-	figure, axes = plt.subplots(figsize=(6.0, 4.0))
-	for result in results:
-		order = np.argsort(result["s"])
-		axes.plot(result["s"][order], np.cumsum(result["weights"][order]), label=result["name"])
-	axes.set(
-		xlabel="normalized flux s",
-		ylabel="cumulative source fraction",
-		title="Where the neutrons are born",
-		xlim=(0.0, 1.0),
-		ylim=(0.0, 1.0),
-	)
-	axes.legend()
-	axes.grid(alpha=0.3)
-	figure.savefig(out.with_suffix(".source_s.png"), dpi=150, bbox_inches="tight")
-	plt.close(figure)
-
-	# 絶対値は 3 枚並べてもほぼ同じに見えるので、基準 1 枚と case_3 との比 2 枚にする
-	figure, panels = plt.subplots(1, 3, figsize=(11.0, 4.6), sharey=True, layout="constrained")
-	extent = [edge_r[0] / 100, edge_r[-1] / 100, edge_z[0] / 100, edge_z[-1] / 100]
-	reference = results[-1]["density"]
-	absolute = panels[0].imshow(reference.T, origin="lower", extent=extent, aspect="equal")
-	panels[0].set(xlabel="R [m]", ylabel="Z [m]", title=f"{results[-1]['name']} (reference)")
-	figure.colorbar(absolute, ax=panels[0], location="bottom", label="tritium production density [a.u.]")
-	for panel, result in zip(panels[1:], results[:2]):
-		ratio = np.where(bright, result["density"] / np.maximum(reference, 1e-30), np.nan)
-		image = panel.imshow(
-			(ratio / np.nanmean(ratio)).T, origin="lower", extent=extent, vmin=0.7, vmax=1.3, cmap="coolwarm", aspect="equal"
-		)
-		panel.set(xlabel="R [m]", title=f"{result['name']} / case_3")
-	figure.colorbar(image, ax=list(panels[1:]), location="bottom", label="ratio to case_3")
-	figure.savefig(out.with_suffix(".breeding.png"), dpi=150)
-	plt.close(figure)
-
-	# --- Markdown レポート。PDF 化は make al-07 が md2pdf.py (tectonic) で行う ------------
-	fields = {
-		"source_s_png": out.with_suffix(".source_s.png").name,
-		"breeding_png": out.with_suffix(".breeding.png").name,
-		"thickness": f"{thickness * 100:.0f}",
-		"particles": particles,
-		"batches": batches,
-		"n_flat": n_flat,
-		"n_weighted": n_weighted,
-		"n_tets": len(results[2]["s"]),
-		"mesh_s": mesh_s,
-		"mesh_theta": mesh_theta,
-		"mesh_phi": mesh_phi,
-		"rows": "".join(
-			f"| {r['name']} | {r['mean_s']:.3f} | {r['tbr']:.3f} ± {r['error']:.3f} | {r['peaking']:.2f} |"
-			f" {r['deviation']:.1f} | {r['noise']:.1f} | {r['t_setup']:.1f} | {r['t_init']:.1f} | {r['t_run']:.0f} |\n"
-			for r in results
-		),
-		"gap_1_3": (results[2]["tbr"] / results[0]["tbr"] - 1.0) * 100,
-		"sigma_1_3": abs(results[0]["tbr"] - results[2]["tbr"]) / math.hypot(results[0]["error"], results[2]["error"]),
-		"sigma_2_3": abs(results[1]["tbr"] - results[2]["tbr"]) / math.hypot(results[1]["error"], results[2]["error"]),
-		"deviation_1": results[0]["deviation"],
-		"deviation_2": results[1]["deviation"],
-		"noise_1": results[0]["noise"],
-		"noise_2": results[1]["noise"],
-		"net_1": math.sqrt(max(results[0]["deviation"] ** 2 - results[0]["noise"] ** 2, 0.0)),
-		"net_2": math.sqrt(max(results[1]["deviation"] ** 2 - results[1]["noise"] ** 2, 0.0)),
-		"mean_s_1": results[0]["mean_s"],
-		"mean_s_2": results[1]["mean_s"],
-		"mean_s_3": results[2]["mean_s"],
-		"error_1": results[0]["error"],
-		"error_3": results[2]["error"],
-		"repeat": repeat,
-		"spread": max(r["t_spread"] for r in results),
-		"slowdown_2": (results[1]["t_run"] / results[0]["t_run"] - 1.0) * 100,
-		"slowdown_3": (results[2]["t_run"] / results[0]["t_run"] - 1.0) * 100,
-		"init_3": results[2]["t_init"],
-	}
-	out.write_text(TEMPLATE.format(**fields), encoding="utf-8")
-	print(f"{out}: {out.stat().st_size} bytes")
-	return results
-
-
 # Markdown レポートの本文。main() が数値を差し込み、PDF 化は make al-07 が md2pdf.py で行う
 TEMPLATE = """# 中性子線源モデル 3 種の比較 (al_07)
 
@@ -441,6 +425,7 @@ case_1 の誤りは TBR という積分量ではほとんど見えず、局所�
 残せること、parastell と同じ土俵で比較できること、VTK でそのまま可視化できることに価値がある。
 parastell との数値比較を実際に行う段で導入すればよい。
 """
+
 
 if __name__ == "__main__":
 	main()

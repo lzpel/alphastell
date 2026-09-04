@@ -1,25 +1,11 @@
-#!/usr/bin/env python3
-"""VMEC の LCFS を再現するモジュラーコイルを simsopt の stage-2 最適化で起こす (al_08)。
-
-手法は optimize_coil() にある。main() はそれをコイル-プラズマ距離について走査し、
-CSV・3D 図・Markdown レポート (本文は末尾の TEMPLATE) を出すだけの段取りである。PDF は make al-08 が md2pdf.py で組む。
-
-al_06 で PbLi 殻を厚くするほど TBR が上がると分かったが、厚みを置く空間はコイルが決める。
-距離を振って磁気面の再現誤差を見ると、ブランケット・遮蔽・真空容器に使える半径方向の予算が出る。
-
-    make al-08
-"""
-
 import math
 import pathlib
 from typing import Any
 
 import matplotlib
-
 import matplotlib.pyplot as plt
 import numpy as np
 
-MU0 = 4e-7 * math.pi
 
 def main(
 	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent / "wout_vmec.nc",
@@ -27,12 +13,13 @@ def main(
 	threshold_curve_surface_distances: list[float] = [1.5, 2.0, 2.5, 3.0],  # コイル-プラズマ最小距離の要求値 [m]。先頭を 3D 図と CSV に出す
 	width: float = 0.40,  # 導体断面のトロイダル幅 [m]。al_081 と同じ parastell 準拠の値
 	height: float = 0.50,  # 導体断面の半径方向厚み [m]。同上
+	mu0: float = 4e-7 * math.pi,
 ) -> list[dict[str, Any]]:
 	surface = make_surface(wout, np.linspace(0, 1, 120), np.linspace(0, 1, 48))
 
 	results = []
 	for threshold_curve_surface_distance in threshold_curve_surface_distances:
-		result = optimize_coil(surface, threshold_curve_surface_distance=threshold_curve_surface_distance)
+		result = optimize_coil(surface, mu0, threshold_curve_surface_distance=threshold_curve_surface_distance)
 		results.append(result)
 		print(f"requested {threshold_curve_surface_distance:.1f} m: max |B.n|/|B| = {np.abs(result['error']).max():.2e}, achieved {result['curve_surface_distance']:.2f} m, coil-coil {result['curve_curve_distance']:.2f} m, length {sum(result['lengths']) * 2 * surface.nfp:.0f} m")
 	baseline = results[0]
@@ -97,6 +84,7 @@ def main(
 	out.write_text(TEMPLATE.format(**fields), encoding="utf-8")
 	return results
 
+
 def make_surface(
 	wout: pathlib.Path, # VMEC の平衡出力 (wout*.nc)。最外殻の Fourier 係数だけを読む
 	quadpoints_phi: np.ndarray | None = None, # トロイダル角の評価点。既定は半周期 0..1/(2*nfp) の 32 点
@@ -140,6 +128,7 @@ def make_surface(
 
 def optimize_coil(
 	surface: SurfaceRZFourier, # 固定する LCFS。この面上の B·n を消すようにコイルが動く
+	mu0: float, # 真空の透磁率 [H/m]。正味ポロイダル電流の換算にだけ使う
 	ncoils: int = 4, # 半周期あたりの独立コイル数。全体では 2*nfp*ncoils 本になる
 	order: int = 6, # コイル 1 本の Fourier 次数。自由度は 1 本あたり 3*(2*order+1) 個。上げると細かく波打つ
 	b0: float = 5.5, # 大半径での磁場 [T]。正味ポロイダル電流の総量を決めるためだけに使う
@@ -176,7 +165,7 @@ def optimize_coil(
 
 	# 正味ポロイダル電流 2πR·B0/μ0 を半周期に配り、その合計だけを固定する。
 	# 最後の 1 本を「合計 - 残り」にすると本数分の自由度から 1 つだけ減る。
-	half_period_current = 2 * math.pi * r_major * b0 / MU0 / (2 * surface.nfp)
+	half_period_current = 2 * math.pi * r_major * b0 / mu0 / (2 * surface.nfp)
 	base_currents = [Current(half_period_current / ncoils * 1e-5) * 1e5 for _ in range(ncoils - 1)]
 	fixed_total = Current(half_period_current)
 	fixed_total.fix_all()
@@ -318,6 +307,9 @@ def visualize_guided_spines(
 	np.savetxt(out.with_suffix(".csv"), array.reshape(len(array), -1), delimiter=",", fmt="%.9e", header="row = one coil; columns = x,y,z,guidex,guidey,guidez repeated npoint times [m]")
 	len(os.getenv("SHOW", "")) and plt.show()
 
+
+
+
 # Markdown レポートの本文。main() が数値を差し込み、PDF 化は make al-08 が md2pdf.py で行う
 TEMPLATE = """# VMEC 平衡を再現するモジュラーコイル (al_08)
 
@@ -390,6 +382,6 @@ $$
 そのまま構造解析と干渉チェックに渡せる。
 """
 
+
 if __name__ == "__main__":
 	main()
-

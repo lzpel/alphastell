@@ -1,15 +1,3 @@
-#!/usr/bin/env python3
-"""VMEC の LCFS (s=1) を (φ, θ) 格子で走査し、bspline_geometry で CAD ソリッドにして STEP に書く。
-
-al_03 が出した点群を、そのまま W2 の geometry モジュールに流すだけの経路確認。
-cadrum の bspline は u (軸0, トロイダル) が u_periodic=true、v (軸1, ポロイダル) は常に閉じるので、
-φ=2π と θ=2π の重複点は入れない (al_03 の格子と同じ並び)。
-
-リポジトリルートで:
-
-    make al-04
-"""
-
 import math
 import pathlib
 

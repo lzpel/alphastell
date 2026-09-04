@@ -1,8 +1,3 @@
-"""実験8.1 コイル形状を掃引できるか
-
-al_08 の stage-2 最適化はコイル中心線 (Fourier 係数) までしか出さない。
-その gamma() 点列を sweep_geometry の経路に食わせ、矩形断面の導体ソリッドを STEP に起こす。
-"""
 import math
 import pathlib
 

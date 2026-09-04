@@ -1,20 +1,3 @@
-#!/usr/bin/env python3
-"""モジュラーコイルの核発熱 (al_09)。
-
-al_08 の stage-2 最適化 + guided spines 掃引で導体ソリッドを起こし、al_07 の重み付き線源 (case_2) で
-中性子を飛ばして、増殖材 (PbLi) 50 cm だけを挟んだコイルが浴びる核発熱と高速中性子フルエンスを出す。
-遮蔽体は入れない。「遮蔽がどれだけ要るか」を決めるための下限構成である。
-
-旧 al_10 ドラフト (PR #80) は Up 法の掃引で断面が寝て (最大 84 度、体積 -18%) DAGMC が粒子を
-ロストしたため止まっていた。断面の向きは nearest 射影 + LCFS 法線 guide (cadrum 0.8.18 の
-Auxiliary) で解決済みなので、その再構成である。
-
-核融合出力は固定値を置かず VMEC 平衡から積分する。プラズマ体積が VMEC の volume_p と一致することが
-その積分の検証になる。
-
-	make al-09
-"""
-
 import math
 import pathlib
 from typing import Any
@@ -29,13 +12,6 @@ from al_07_source_models import jacobian, point_sources, reaction_rate
 from al_08_coil_geometry import guided_spines, make_surface, optimize_coil, sweep_guided_spines
 from alphastell import SurfaceFourierRZ, Geometry
 
-JOULE_PER_EV = 1.602176634e-19
-DT_ENERGY = 17.6e6  # DT 反応 1 回あたりの発生エネルギー [eV]。出力の換算に使う
-FAST = 0.1e6  # 高速中性子の下限 [eV]。Nb3Sn のフルエンス制限がこの区間で定義される
-YEAR = 365.25 * 24 * 3600  # フル出力年 [s]
-HEATING_LIMIT = 450.0  # DEMO TF コイルのピーク核発熱密度の設計目標 [W/m^3]
-FLUENCE_LIMIT = 1e22  # Nb3Sn の高速中性子フルエンス許容 [n/m^2]
-
 
 def main(
 	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent / "wout_vmec.nc",
@@ -48,6 +24,12 @@ def main(
 	batches: int = 10,
 	tally_xy: int = 50,  # 3D 発熱マップの水平分割数
 	tally_z: int = 25,  # 同 鉛直分割数
+	joule_per_ev: float = 1.602176634e-19,
+	dt_energy: float = 17.6e6,  # DT 反応 1 回あたりの発生エネルギー [eV]。出力の換算に使う
+	fast: float = 0.1e6,  # 高速中性子の下限 [eV]。Nb3Sn のフルエンス制限がこの区間で定義される
+	year: float = 365.25 * 24 * 3600,  # フル出力年 [s]
+	heating_limit: float = 450.0,  # DEMO TF コイルのピーク核発熱密度の設計目標 [W/m^3]
+	fluence_limit: float = 1e22,  # Nb3Sn の高速中性子フルエンス許容 [n/m^2]
 ) -> dict[str, Any]:
 	out.parent.mkdir(parents=True, exist_ok=True)
 	with open(wout, "rb") as f:
@@ -84,7 +66,7 @@ def main(
 	# --- 線源: al_07 case_2 の重み付き点線源と、W 換算のための核融合出力 -----------------
 	samples = np.random.default_rng(0).random((n_source, 3)) * [math.tau, math.tau, 1.0]
 	volume_elements = np.array([jacobian(lcfs, *sample) for sample in samples])
-	power = fusion_power(samples, volume_elements)
+	power = fusion_power(samples, volume_elements, dt_energy, joule_per_ev)
 	print(f"plasma volume {power['volume']:.1f} m^3 (VMEC volume_p 635.7), P_fus {power['power'] / 1e9:.2f} GW, S {power['rate']:.3e} n/s")
 	source = point_sources(lcfs, samples, reaction_rate(samples[:, 2]) * volume_elements)
 
@@ -97,14 +79,14 @@ def main(
 	mesh.lower_left = lower * 100
 	mesh.upper_right = upper * 100
 	pbli, coil_materials = materials(len(solids))
-	tally = heating(out.with_suffix(".h5m"), out.with_suffix(".openmc"), source, mesh, pbli, coil_materials, particles, batches)
+	tally = heating(out.with_suffix(".h5m"), out.with_suffix(".openmc"), source, mesh, pbli, coil_materials, particles, batches, fast)
 
 	# --- 後処理: eV/線源中性子 → W、W/m^3、n/m^2/フル出力年 -----------------------------
-	watts = tally["heating"] * JOULE_PER_EV * power["rate"]  # コイル別 [W]
+	watts = tally["heating"] * joule_per_ev * power["rate"]  # コイル別 [W]
 	densities = watts / np.array(volumes)  # コイル別の体積平均 [W/m^3]
 	widths = (upper - lower) / np.asarray(mesh.dimension)  # ボクセル寸法 [m]
-	density_map = tally["map"] * JOULE_PER_EV * power["rate"] / float(np.prod(widths))  # ボクセル平均 [W/m^3]
-	fluences = tally["flux"] / (np.array(volumes) * 1e6) * power["rate"] * 1e4 * YEAR  # コイル別 [n/m^2 / フル出力年]
+	density_map = tally["map"] * joule_per_ev * power["rate"] / float(np.prod(widths))  # ボクセル平均 [W/m^3]
+	fluences = tally["flux"] / (np.array(volumes) * 1e6) * power["rate"] * 1e4 * year  # コイル別 [n/m^2 / フル出力年]
 	relative_error = float(tally["error"].sum() / tally["heating"].sum())
 	print(f"coil heating {watts.sum() / 1e6:.2f} MW total, per-coil mean {densities.mean():.0f} W/m^3 ({densities.min():.0f}..{densities.max():.0f}), map peak {density_map.max():.0f} W/m^3, rel err {relative_error:.1%}")
 	print(f"fast fluence {fluences.max():.2e} n/m^2 per full power year (hottest coil {int(np.argmax(densities))})")
@@ -124,7 +106,7 @@ def main(
 	# --- 図: コイル別の体積平均発熱密度 --------------------------------------------------
 	figure, axes = plt.subplots(figsize=(7.5, 4.2))
 	axes.bar(range(len(densities)), densities, color="#4a90d9")
-	axes.axhline(HEATING_LIMIT, color="#c0392b", linestyle=":", label=f"DEMO TFC target {HEATING_LIMIT:.0f} W/m^3 (peak)")
+	axes.axhline(heating_limit, color="#c0392b", linestyle=":", label=f"DEMO TFC target {heating_limit:.0f} W/m^3 (peak)")
 	axes.set(xlabel="coil index", ylabel="volume-averaged heating [W/m^3]", title="which coil takes the heat", yscale="log")
 	axes.legend()
 	axes.grid(alpha=0.3, axis="y")
@@ -158,13 +140,13 @@ def main(
 		"hot_density": f"{densities.max():.0f}",
 		"cold_density": f"{densities.min():.0f}",
 		"peak_density": f"{density_map.max():.0f}",
-		"peak_ratio": f"{density_map.max() / HEATING_LIMIT:.0f}",
-		"heating_limit": f"{HEATING_LIMIT:.0f}",
+		"peak_ratio": f"{density_map.max() / heating_limit:.0f}",
+		"heating_limit": f"{heating_limit:.0f}",
 		"relative_error": f"{relative_error * 100:.1f}",
 		"fluence": f"{fluences.max():.2e}",
-		"fluence_limit": f"{FLUENCE_LIMIT:.0e}",
-		"fluence_days": f"{FLUENCE_LIMIT / fluences.max() * 365.25:.0f}",
-		"attenuation": f"{math.log(density_map.max() / HEATING_LIMIT) * 8.5:.0f}",
+		"fluence_limit": f"{fluence_limit:.0e}",
+		"fluence_days": f"{fluence_limit / fluences.max() * 365.25:.0f}",
+		"attenuation": f"{math.log(density_map.max() / heating_limit) * 8.5:.0f}",
 		"out_heating_png": out.with_suffix(".heating.png").name,
 		"out_percoil_png": out.with_suffix(".percoil.png").name,
 		"out_geometry_png": out.with_suffix(".geometry.png").name,
@@ -172,6 +154,7 @@ def main(
 	out.write_text(TEMPLATE.format(**fields), encoding="utf-8")
 	print(f"{out}: {out.stat().st_size} bytes")
 	return fields
+
 
 def blanket(
 	lcfs: SurfaceFourierRZ,
@@ -225,7 +208,7 @@ def materials(ncoils: int) -> tuple[openmc.Material, list[openmc.Material]]:
 	return pbli, coils
 
 
-def fusion_power(samples: np.ndarray, volume_elements: np.ndarray) -> dict[str, float]:
+def fusion_power(samples: np.ndarray, volume_elements: np.ndarray, dt_energy: float, joule_per_ev: float) -> dict[str, float]:
 	"""VMEC 平衡から核融合出力を積分する。返す体積は VMEC の volume_p との突き合わせ検証用。
 
 	al_07 の reaction_rate は相対重み n²⟨σv⟩ (⟨σv⟩ は cm³/s) なので、
@@ -233,7 +216,7 @@ def fusion_power(samples: np.ndarray, volume_elements: np.ndarray) -> dict[str, 
 	"""
 	cube = math.tau * math.tau  # (φ, θ, s) の一様サンプルが張る座標体積
 	rate = float((0.25e-6 * reaction_rate(samples[:, 2]) * volume_elements).mean() * cube)
-	return {"volume": float(volume_elements.mean() * cube), "rate": rate, "power": rate * DT_ENERGY * JOULE_PER_EV}
+	return {"volume": float(volume_elements.mean() * cube), "rate": rate, "power": rate * dt_energy * joule_per_ev}
 
 
 def heating(
@@ -245,6 +228,7 @@ def heating(
 	coils: list[openmc.Material],
 	particles: int,
 	batches: int,
+	fast: float,
 ) -> dict[str, Any]:
 	"""コイルの核発熱と高速中性子束を OpenMC で出す。
 
@@ -259,7 +243,7 @@ def heating(
 	mapped.filters = [openmc.MeshFilter(mesh), openmc.MaterialFilter(coils)]
 	mapped.scores = ["heating"]
 	fast = openmc.Tally(name="fast")
-	fast.filters = [openmc.MaterialFilter(coils), openmc.EnergyFilter([FAST, 20e6])]
+	fast.filters = [openmc.MaterialFilter(coils), openmc.EnergyFilter([fast, 20e6])]
 	fast.scores = ["flux"]
 
 	settings = openmc.Settings(run_mode="fixed source", source=source, particles=particles, batches=batches)
