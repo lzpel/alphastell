@@ -352,11 +352,6 @@ al_06 の線源は規格化磁束・ポロイダル角・トロイダル角 (s, 
 比例し、s≈0 に鋭く集中する。この食い違いが結果にどれだけ効くのかを、同じ PbLi 殻
 (厚み {thickness} cm) の上で線源だけを差し替えて測った。
 
-配位は ParaStell 同梱の `examples/wout_vmec.nc` をそのまま使う。nfp=4 の準ヘリカル配位で
-R=11.08 m、a=1.70 m、⟨B⟩=5.87 T、β=5.1%。simsopt の
-`wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc` と
-4 桁一致する同じ配位で、al_03 以降のスクリプトはすべてこれを読む。
-
 ## 方法
 
 3 ケースとも幾何・材料・粒子数 ({particles} 粒子 × {batches} バッチ) は同一で、線源だけが違う。
