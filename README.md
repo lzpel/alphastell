@@ -12,6 +12,17 @@ Output: feasibility verdict and design drawings for a stellarator
 
 ## Progress
 
+### Input
+
+The three VMEC equilibriums are same, which has following parameters
+- the input [This repository's `examples/wout_vmec.nc`](examples/wout_vmec.nc)
+- the original [ParaStell's `examples/wout_vmec.nc`](https://github.com/svalinn/parastell/blob/main/examples/wout_vmec.nc).
+- the topologically same one [simsopt's `wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc`](https://github.com/hiddenSymmetries/simsopt/blob/master/tests/test_files/wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc)
+
+| period (nfp) | major radius (Rmajor_p) | minor radius (Aminor_p) | aspect ratio (aspect) | volume-average field (volavgB) | beta (betatotal) | rotational transform (iotaf) |
+|---|---|---|---|---|---|---|
+| 4 | 11.08 m | 1.70 m | 6.50 | 5.87 T | 5.1% | −1.33 (axis) → −1.06 (edge) |
+
 ### Experiment 06 `make al-06`
 
 TBR of pure PbLi shells (30/50/70 cm) extruded along the LCFS normal, computed with OpenMC. Breeder thickness and TBR are positively correlated.

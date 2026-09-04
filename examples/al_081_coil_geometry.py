@@ -1,8 +1,3 @@
-"""実験8.1 コイル形状を掃引できるか
-
-al_08 の stage-2 最適化はコイル中心線 (Fourier 係数) までしか出さない。
-その gamma() 点列を sweep_geometry の経路に食わせ、矩形断面の導体ソリッドを STEP に起こす。
-"""
 import math
 import pathlib
 
@@ -12,7 +7,7 @@ from al_08_coil_geometry import guided_spines, make_surface, optimize_coil, swee
 
 
 def main(
-	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent.parent / "alphastell" / "wout_vmec.nc",
+	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent / "wout_vmec.nc",
 	out: pathlib.Path = pathlib.Path("out") / pathlib.Path(__file__).with_suffix(".step").name,
 	width: float = 0.40,  # 導体断面のトロイダル幅 [m]。parastell の例 (width 40 cm) に合わせた
 	height: float = 0.50,  # 導体断面の半径方向厚み [m]。同 (thickness 50 cm)。9.5 MA/コイルで約 48 A/mm²

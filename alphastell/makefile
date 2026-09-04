@@ -12,7 +12,7 @@
 # 一発で通す: テスト (CSV 生成)。python 側の入口は ../examples/al_*.py。
 test:
 	mkdir -p out
-	PATH_WMEC=./wout_vmec.nc cargo test --release -- --nocapture
+	PATH_WMEC=../examples/wout_vmec.nc cargo test --release -- --nocapture
 
 clean:
 	cargo clean
