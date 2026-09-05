@@ -27,6 +27,25 @@ Output: feasibility verdict and design drawings for a stellarator
 
 TBR of pure PbLi shells (30/50/70 cm) extruded along the LCFS normal, computed with OpenMC. Breeder thickness and TBR are positively correlated.
 
+The source is the 14.1 MeV neutron of the DT reaction; the alpha stays in the plasma and only the neutron enters the blanket, so fusion power is 17.6/14.1 times the neutron power.
+
+$$
+{}^{2}\mathrm{H} + {}^{3}\mathrm{H} \rightarrow {}^{4}\mathrm{He}\ (3.5\ \mathrm{MeV}) + n\ (14.1\ \mathrm{MeV})
+$$
+
+TBR counts the tritium made by the two lithium reactions, scored together as `(n,Xt)`. The exothermic Li-6 branch works down to thermal energies and is why the LiPb is enriched to 90% Li-6; the Li-7 branch needs a neutron above 2.5 MeV but keeps the neutron alive.
+
+$$
+{}^{6}\mathrm{Li} + n \rightarrow {}^{4}\mathrm{He} + {}^{3}\mathrm{H} + 4.8\ \mathrm{MeV}, \qquad
+{}^{7}\mathrm{Li} + n \rightarrow {}^{4}\mathrm{He} + {}^{3}\mathrm{H} + n' - 2.5\ \mathrm{MeV}
+$$
+
+Lead is there to multiply neutrons: (n,2n) on the 14 MeV neutrons is what lets TBR exceed 1.
+
+$$
+{}^{208}\mathrm{Pb} + n \rightarrow {}^{207}\mathrm{Pb} + 2n - 7.4\ \mathrm{MeV}
+$$
+
 ![al_06_pbli_tbr.tbr.png](https://lzpel.github.io/alphastell/al_06_pbli_tbr.tbr.png)
 
 [al_06_pbli_tbr.md](https://lzpel.github.io/alphastell/al_06_pbli_tbr.md) / [al_06_pbli_tbr.shell.png](https://lzpel.github.io/alphastell/al_06_pbli_tbr.shell.png) / [al_06_pbli_tbr.section.png](https://lzpel.github.io/alphastell/al_06_pbli_tbr.section.png) / [al_06_pbli_tbr.shell.step](https://lzpel.github.io/alphastell/al_06_pbli_tbr.shell.step)
