@@ -76,20 +76,23 @@ Nuclear heating of the coils with only a 50 cm breeder in between, tallied per c
 
 TBR of the ParaStell reference build: the radial build of `parastell_cad_to_dagmc_example.py` with the homogenized DCLL compositions of the ParaStell paper and the FENDL-3.2 nuclear data library. One period is closed with rotational periodic CSG planes around the DAGMC model.
 
-| layer | thickness [cm] | composition (vol%) |
+| layer (STEP) | thickness [cm] | composition (vol%) |
 |---|---|---|
-| first wall | 5 | He 66 / RAFM 34 |
-| breeder | 25–75 (9×9 matrix, thin near the coils) | LiPb 79 / He 8 / SiC 7 / RAFM 6 |
-| back wall | 5 | RAFM 80 / He 20 |
-| shield | 50 | WC 75 / RAFM 15 / He 10 |
-| vacuum vessel | 10 | RAFM 51 / water 49 |
-| magnets | 40 × 50 cross section, filaments from `coils.example` | RAFM 67.4 / Cu 19.3 / Nb3Sn 5.1 / He 4.2 / insulator 4 | TBR 1.272 ± 0.001, no lost particles; fusion power from the ParaStell source mesh (3.04 GW) agrees with the VMEC integral of experiment 09 (3.09 GW). The script runs inside the `ghcr.io/svalinn/parastell-ci` container through its shebang, and leaves per-layer STEP files, volumes, the source mesh and the DAGMC file for a later comparison against the alphastell geometry.
+| [chamber](https://lzpel.github.io/alphastell/al_10_parastell_tbr.chamber.step) | plasma and SOL up to s = 1.08 | void |
+| [first wall](https://lzpel.github.io/alphastell/al_10_parastell_tbr.first_wall.step) | 5 | He 66 / RAFM 34 |
+| [breeder](https://lzpel.github.io/alphastell/al_10_parastell_tbr.breeder.step) | 25–75 (9×9 matrix, thin near the coils) | LiPb 79 / He 8 / SiC 7 / RAFM 6 |
+| [back wall](https://lzpel.github.io/alphastell/al_10_parastell_tbr.back_wall.step) | 5 | RAFM 80 / He 20 |
+| [shield](https://lzpel.github.io/alphastell/al_10_parastell_tbr.shield.step) | 50 | WC 75 / RAFM 15 / He 10 |
+| [vacuum vessel](https://lzpel.github.io/alphastell/al_10_parastell_tbr.vacuum_vessel.step) | 10 | RAFM 51 / water 49 |
+| [magnets](https://lzpel.github.io/alphastell/al_10_parastell_tbr.magnets.step) | 40 × 50 cross section, filaments from `coils.example` | RAFM 67.4 / Cu 19.3 / Nb3Sn 5.1 / He 4.2 / insulator 4 |
+
+TBR 1.272 ± 0.001, no lost particles; fusion power from the ParaStell source mesh (3.04 GW) agrees with the VMEC integral of experiment 09 (3.09 GW).
 
 ![al_10_parastell_tbr.section.png](https://lzpel.github.io/alphastell/al_10_parastell_tbr.section.png)
 
 ![al_10_parastell_tbr.top.png](https://lzpel.github.io/alphastell/al_10_parastell_tbr.top.png)
 
-[al_10_parastell_tbr.md](https://lzpel.github.io/alphastell/al_10_parastell_tbr.md) / [al_10_parastell_tbr.breeder.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.breeder.step) / [al_10_parastell_tbr.magnets.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.magnets.step)
+[al_10_parastell_tbr.md](https://lzpel.github.io/alphastell/al_10_parastell_tbr.md)
 
 ## Reference
 
