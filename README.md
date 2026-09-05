@@ -74,7 +74,7 @@ Stationarity condition for simsopt: minimize the area integral of the normalized
 
 Nuclear heating of the coils with only a 50 cm breeder in between, tallied per coil. 94 MW in total; the volume average is about 1000 times the DEMO TF coil target, settling in numbers that shielding is mandatory. Fusion power is calibrated by integrating the VMEC equilibrium (3.1 GW).
 
-Photon transport is on: the heating tally must include the secondary gamma rays, which carry 30–40% of the energy deposited in steel and copper. The photons come from two channels on the nuclei the neutrons meet most, Pb in the shell and Fe in the coil steel. Capture removes the neutron and emits the binding energy as one hard photon; inelastic scattering keeps the neutron and emits the level energy. Without photon transport the photon is dropped at birth and only the neutron KERMA is scored; this is the case in experiment 10, whose heating is neutron-only.
+Photon transport: the heating tally must include the secondary gamma rays, which carry 30–40% of the energy deposited in steel and copper.
 
 | where, what | reaction |
 |---|---|
