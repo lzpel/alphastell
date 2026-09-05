@@ -169,15 +169,12 @@ def build(
 def materials() -> list[openmc.Material]:
 	"""ParaStell 論文 Table 1/2 (ARIES-CS の DCLL) の均質化材料。name が DAGMC の材料タグと一致する。"""
 
-	def constituent_material(
-		name: str, density: float, atoms: dict[str, float], percent: str = "ao", enrichment_isotopes: dict[str, float] | None = None
-	) -> openmc.Material:
+	def constituent_material(name: str, density: float, atoms: dict[str, float], percent: str = "ao", enrichment_isotopes: dict[str, float] | None = None) -> openmc.Material:
 		"""enrichment_isotopes は {"Li6": 90.0} のように同位体名 → 存在比 (percent と同じ単位)。"""
 		material = openmc.Material(name=name)
 		for element, fraction in atoms.items():
 			target = next((k for k in enrichment_isotopes or {} if k.rstrip("0123456789") == element), None)
-			enrichment = {"enrichment": enrichment_isotopes[target], "enrichment_target": target, "enrichment_type": percent} if target else {}
-			material.add_element(element, fraction, percent, **enrichment)
+			material.add_element(element, fraction, percent, **{"enrichment": enrichment_isotopes[target], "enrichment_target": target, "enrichment_type": percent} if target else {})
 		material.set_density("g/cm3", density)
 		return material
 
@@ -367,7 +364,7 @@ Li6 90% 濃縮の LiPb を 75 cm 積めば 1.2〜1.3 は均質モデルの通常
 
 ### alphastell 側と突き合わせるときに使うもの
 
-- 層ごとの STEP `al_10_parastell_tbr.<層>.step` と体積 (`al_10_parastell_tbr.json` の volumes)。
+- 層ごとの STEP `al_10_parastell_cad_to_dagmc_example.<層>.step` と体積 (`al_10_parastell_cad_to_dagmc_example.json` の volumes)。
   同じ厚さ行列 (json の thickness) を alphastell の `point_normal(φ, θ, {wall_s}, False)` の面内法線で積めば
   同じ層になるはずで、体積差が形状生成器の差になる。
 - 線源 `{source_mesh}` と材料定義 (この script の `materials()`)。これを共有すれば TBR と層別核加熱の差は形状だけになる。
