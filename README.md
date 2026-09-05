@@ -101,8 +101,6 @@ The constituent materials (Table 2 of the ParaStell paper, as defined in `materi
 | polyimide | 1.42 | C 69.11 / O 20.92 / N 7.33 / H 2.64 (wt%) | |
 | insulator | 1.968 (from the wt% mix) | SiO2 60 / polyimide 40 (wt%) | |
 
-| meterial | dencity [g/cm^3] | composition (atom%) | enrichment |
-
 TBR 1.272 ± 0.001, no lost particles; fusion power from the ParaStell source mesh (3.04 GW) agrees with the VMEC integral of experiment 09 (3.09 GW).
 
 ![al_10_parastell_tbr.section.png](https://lzpel.github.io/alphastell/al_10_parastell_tbr.section.png)
