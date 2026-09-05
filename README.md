@@ -89,9 +89,9 @@ Photon transport: the heating tally must include the secondary gamma rays, which
 
 [al_09_coil_heating.md](https://lzpel.github.io/alphastell/al_09_coil_heating.md) / [al_09_coil_heating.percoil.png](https://lzpel.github.io/alphastell/al_09_coil_heating.percoil.png) / [al_09_coil_heating.coils.step](https://lzpel.github.io/alphastell/al_09_coil_heating.coils.step) / [al_09_coil_heating.shell.step](https://lzpel.github.io/alphastell/al_09_coil_heating.shell.step)
 
-### Experiment 10 `make al-10`
+### Experiment 10 `make al-10 al-101`
 
-TBR of the ParaStell reference build: the radial build of `parastell_cad_to_dagmc_example.py` with the homogenized DCLL compositions of the ParaStell paper and the FENDL-3.2 nuclear data library. One period is closed with rotational periodic CSG planes around the DAGMC model.
+TBR and nuclear heating of the ParaStell reference build: the radial build of `parastell_cad_to_dagmc_example.py` with the homogenized DCLL compositions of the ParaStell paper and the FENDL-3.2 nuclear data library. Two scripts share the work: `al_10` runs ParaStell inside the `ghcr.io/svalinn/parastell-ci` container and writes one STEP per layer plus the tetrahedral source mesh; `al_101` reads them on the host, meshes them with cad_to_dagmc, closes one period with rotational periodic CSG planes and transports neutrons and photons with OpenMC. The conda OpenMC in the container crashes with photon transport, which is why the transport lives on the host.
 
 | layer | density [g/cm³] | thickness [cm] | composition (vol%) |
 |---|---|---|---|
@@ -118,12 +118,14 @@ The constituent materials (Table 2 of the ParaStell paper, as defined in `materi
 | polyimide | 1.42 | C 69.11 / O 20.92 / N 7.33 / H 2.64 (wt%) | |
 | insulator | 1.968 (from the wt% mix) | SiO2 60 / polyimide 40 (wt%) | |
 
-TBR 1.272 ± 0.001, no lost particles; fusion power from the ParaStell source mesh (3.04 GW) agrees with the VMEC integral of experiment 09 (3.09 GW).
+TBR 1.272 ± 0.002 with photon transport on, no lost particles. Nuclear heating totals 2.84 GW against 2.43 GW of neutron power (energy multiplication 1.17); the steel layers take most of theirs from photons (first wall 298 MW, shield 258 MW). Fusion power from the ParaStell source mesh (3.04 GW) agrees with the VMEC integral of experiment 09 (3.09 GW).
+
+![al_10_parastell_cad_to_dagmc_example.heating.png](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.heating.png)
 
 | | | | |
 |---|---|---|---|
 | **chamber**<br>![chamber](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.chamber.png) | **first_wall**<br>![first_wall](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.first_wall.png) | **breeder**<br>![breeder](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.breeder.png) | **back_wall**<br>![back_wall](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.back_wall.png) |
-| **shield**<br>![shield](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.shield.png) | **vacuum_vessel**<br>![vacuum_vessel](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.vacuum_vessel.png) | **magnets**<br>![magnets](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.magnets.png) | **all layers**<br>![all layers](https://lzpel.github.io/alphastell/al_101_parastell_visualize.png) |
+| **shield**<br>![shield](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.shield.png) | **vacuum_vessel**<br>![vacuum_vessel](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.vacuum_vessel.png) | **magnets**<br>![magnets](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.magnets.png) | **all layers**<br>![all layers](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.png) |
 
 - [al_10_parastell_cad_to_dagmc_example.chamber.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.chamber.step)
 - [al_10_parastell_cad_to_dagmc_example.first_wall.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.first_wall.step)
