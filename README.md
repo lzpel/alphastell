@@ -99,7 +99,7 @@ TBR 1.272 ± 0.001, no lost particles; fusion power from the ParaStell source me
 - [al_10_parastell_tbr.vacuum_vessel.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.vacuum_vessel.step)
 - [al_10_parastell_tbr.magnets.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.magnets.step)
 
-[al_10_parastell_tbr.md](https://lzpel.github.io/alphastell/al_10_parastell_tbr.md) / 
+[al_10_parastell_tbr.md](https://lzpel.github.io/alphastell/al_10_parastell_tbr.md)
 
 ## Reference
 
