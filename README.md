@@ -66,6 +66,18 @@ Stationarity condition for simsopt: minimize the area integral of the normalized
 
 Nuclear heating of the coils with only a 50 cm breeder in between, tallied per coil. 94 MW in total; the volume average is about 1000 times the DEMO TF coil target, settling in numbers that shielding is mandatory. Fusion power is calibrated by integrating the VMEC equilibrium (3.1 GW).
 
+Photon transport is on: the heating tally must include the secondary gamma rays, which carry 30–40% of the energy deposited in steel and copper. Neutrons excite nuclei through two channels and the de-excitation photons are followed as particles of their own.
+
+$$
+{}^{A}Z + n \rightarrow {}^{A+1}Z^{*} \rightarrow {}^{A+1}Z + \gamma \quad \text{(radiative capture, e.g. } {}^{56}\mathrm{Fe}(n,\gamma){}^{57}\mathrm{Fe},\ \sim 7\ \mathrm{MeV})
+$$
+
+$$
+{}^{A}Z + n \rightarrow {}^{A}Z^{*} + n' \rightarrow {}^{A}Z + n' + \gamma \quad \text{(inelastic scattering, e.g. } {}^{56}\mathrm{Fe}(n,n'\gamma),\ 0.85\ \mathrm{MeV})
+$$
+
+Without photon transport the photon is dropped at birth and only the neutron KERMA is scored; this is the case in experiment 10, whose heating is neutron-only.
+
 ![al_09_coil_heating.heating.png](https://lzpel.github.io/alphastell/al_09_coil_heating.heating.png)
 
 ![al_09_coil_heating.geometry.png](https://lzpel.github.io/alphastell/al_09_coil_heating.geometry.png)
