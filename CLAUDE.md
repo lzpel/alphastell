@@ -13,7 +13,7 @@
 - all output from script al_(\d\d).py must be in out/al_$1_<name>.<extension>
 - all pdf report like al_$1_<name>.pdf must be uploaded into github release.
 - all arguments and returns of all function must have typing annotation 
-- no shebang (unless the interpreter is a container), no module-level docstring, no top-level constants and codes except TEMPLATE
+- no shebang, no module-level docstring, no top-level constants and codes except TEMPLATE
 - The first function must be main, and all constants, including wout(the input vmec path) and out(the output path), must be passed as arguments to it with the default value.
 
 ```examples/al_00_template.py
