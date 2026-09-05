@@ -99,7 +99,7 @@ The constituent materials (Table 2 of the ParaStell paper, as defined in `materi
 | Nb3Sn | 8.74 | Nb 75 / Sn 25 | |
 | SiO2 | 2.65 | O 66.7 / Si 33.3 | |
 | polyimide | 1.42 | C 69.11 / O 20.92 / N 7.33 / H 2.64 (wt%) | |
-| insulator | mixed | SiO2 60 / polyimide 40 (wt%) | |
+| insulator | 1.968 (from the wt% mix) | SiO2 60 / polyimide 40 (wt%) | |
 
 | meterial | dencity [g/cm^3] | composition (atom%) | enrichment |
 
