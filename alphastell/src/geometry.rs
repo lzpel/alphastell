@@ -124,6 +124,11 @@ impl Geometry {
 		let color = cadrum::Color::from_str(color).map_err(Error)?;
 		Ok(Geometry(self.0.iter().map(|s| s.clone().color(color)).collect()))
 	}
+	/// 原点まわりに x, y, z 軸の順で回した Geometry を返す [rad]。描画の向きを変える用。
+	#[pyo3(signature = (rad_x=0.0, rad_y=0.0, rad_z=0.0))]
+	fn rotate(&self, rad_x: f64, rad_y: f64, rad_z: f64) -> Geometry {
+		Geometry(self.0.iter().map(|s| s.clone().rotate_x(rad_x).rotate_y(rad_y).rotate_z(rad_z)).collect())
+	}
 	/// ソリッドごとの体積。掃引や押し出しの結果を解析値と突き合わせる用。
 	fn volume(&self) -> Vec<f64> {
 		self.0.iter().map(|s| s.volume().abs()).collect()

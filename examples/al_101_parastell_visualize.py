@@ -1,3 +1,4 @@
+import math
 import pathlib
 
 from alphastell import Geometry
@@ -15,12 +16,13 @@ def main(
 		"vacuum_vessel": "#b0b7bd",  # SS316
 		"magnets": "#e08a2e",  # コイル
 	},
+	rotate_z: float = math.pi,  # 扇形 (第 1 象限) を回して、切断面が 4 面図のカメラに向くようにする [rad]
 ) -> None:
 	rows, figures, combined = [], [], None
 	for step in sorted(out.parent.glob("*parastell*.step")):
 		color = colors.get(step.stem.rsplit(".", 1)[-1], "gray")
 		with open(step, "rb") as f:
-			geometry = Geometry.read_step(f).color(color)
+			geometry = Geometry.read_step(f).color(color).rotate(rad_z=rotate_z)
 		png = step.with_suffix(".png")
 		with open(png, "wb") as f:
 			geometry.write_png(f)
