@@ -74,12 +74,14 @@ Stationarity condition for simsopt: minimize the area integral of the normalized
 
 Nuclear heating of the coils with only a 50 cm breeder in between, tallied per coil. 94 MW in total; the volume average is about 1000 times the DEMO TF coil target, settling in numbers that shielding is mandatory. Fusion power is calibrated by integrating the VMEC equilibrium (3.1 GW).
 
-Photon transport is on: the heating tally must include the secondary gamma rays, which carry 30–40% of the energy deposited in steel and copper. Neutrons excite nuclei through two channels and the de-excitation photons are followed as particles of their own. Without photon transport the photon is dropped at birth and only the neutron KERMA is scored; this is the case in experiment 10, whose heating is neutron-only.
+Photon transport is on: the heating tally must include the secondary gamma rays, which carry 30–40% of the energy deposited in steel and copper. The photons come from two channels on the nuclei the neutrons meet most, Pb in the shell and Fe in the coil steel. Capture removes the neutron and emits the binding energy as one hard photon; inelastic scattering keeps the neutron and emits the level energy. Without photon transport the photon is dropped at birth and only the neutron KERMA is scored; this is the case in experiment 10, whose heating is neutron-only.
 
 | where, what | reaction |
 |---|---|
-| LiPb and coils: radiative capture, e.g. ${}^{56}\mathrm{Fe}(n,\gamma){}^{57}\mathrm{Fe}$ at ~7 MeV | ${}^{A}\mathrm{X} + n \rightarrow {}^{A+1}\mathrm{X}^{*} \rightarrow {}^{A+1}\mathrm{X} + \gamma$ |
-| LiPb and coils: inelastic scattering, e.g. ${}^{56}\mathrm{Fe}(n,n'\gamma)$ at 0.85 MeV | ${}^{A}\mathrm{X} + n \rightarrow {}^{A}\mathrm{X}^{*} + n' \rightarrow {}^{A}\mathrm{X} + n' + \gamma$ |
+| PbLi shell: capture on Pb-208, rare because Pb-208 is doubly magic | ${}^{208}\mathrm{Pb} + n \rightarrow {}^{209}\mathrm{Pb}^{*} \rightarrow {}^{209}\mathrm{Pb} + \gamma\ (3.9\ \mathrm{MeV})$ |
+| PbLi shell: inelastic scattering on Pb-208, fast neutrons above 2.6 MeV | ${}^{208}\mathrm{Pb} + n \rightarrow {}^{208}\mathrm{Pb}^{*} + n' \rightarrow {}^{208}\mathrm{Pb} + n' + \gamma\ (2.6\ \mathrm{MeV})$ |
+| coil steel: capture on Fe-56, mostly after moderation | ${}^{56}\mathrm{Fe} + n \rightarrow {}^{57}\mathrm{Fe}^{*} \rightarrow {}^{57}\mathrm{Fe} + \gamma\ (7.6\ \mathrm{MeV})$ |
+| coil steel: inelastic scattering on Fe-56, fast neutrons above 0.86 MeV | ${}^{56}\mathrm{Fe} + n \rightarrow {}^{56}\mathrm{Fe}^{*} + n' \rightarrow {}^{56}\mathrm{Fe} + n' + \gamma\ (0.85\ \mathrm{MeV})$ |
 
 ![al_09_coil_heating.heating.png](https://lzpel.github.io/alphastell/al_09_coil_heating.heating.png)
 
@@ -115,15 +117,6 @@ The constituent materials (Table 2 of the ParaStell paper, as defined in `materi
 | SiO2 | 2.65 | O 66.7 / Si 33.3 | |
 | polyimide | 1.42 | C 69.11 / O 20.92 / N 7.33 / H 2.64 (wt%) | |
 | insulator | 1.968 (from the wt% mix) | SiO2 60 / polyimide 40 (wt%) | |
-
-The gamma-producing reactions on the two dominant nuclei. Capture removes the neutron and emits the binding energy as one hard photon; inelastic scattering keeps the neutron and emits the level energy. Photon transport is off in this experiment (the container build of OpenMC crashes with it), so these photons are dropped at birth and the heating column above is neutron KERMA only.
-
-| where, what | reaction |
-|---|---|
-| RAFM (first wall, back wall, shield, vacuum vessel): capture on Fe-56, mostly after moderation | ${}^{56}\mathrm{Fe} + n \rightarrow {}^{57}\mathrm{Fe}^{*} \rightarrow {}^{57}\mathrm{Fe} + \gamma\ (7.6\ \mathrm{MeV})$ |
-| RAFM: inelastic scattering on Fe-56, fast neutrons above 0.86 MeV | ${}^{56}\mathrm{Fe} + n \rightarrow {}^{56}\mathrm{Fe}^{*} + n' \rightarrow {}^{56}\mathrm{Fe} + n' + \gamma\ (0.85\ \mathrm{MeV})$ |
-| LiPb (breeder): capture on Pb-208, rare because Pb-208 is doubly magic | ${}^{208}\mathrm{Pb} + n \rightarrow {}^{209}\mathrm{Pb}^{*} \rightarrow {}^{209}\mathrm{Pb} + \gamma\ (3.9\ \mathrm{MeV})$ |
-| LiPb (breeder): inelastic scattering on Pb-208, fast neutrons above 2.6 MeV | ${}^{208}\mathrm{Pb} + n \rightarrow {}^{208}\mathrm{Pb}^{*} + n' \rightarrow {}^{208}\mathrm{Pb} + n' + \gamma\ (2.6\ \mathrm{MeV})$ |
 
 TBR 1.272 ± 0.001, no lost particles; fusion power from the ParaStell source mesh (3.04 GW) agrees with the VMEC integral of experiment 09 (3.09 GW).
 
