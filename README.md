@@ -122,6 +122,10 @@ TBR 1.272 ± 0.002 with photon transport on, no lost particles. Nuclear heating 
 
 ![al_10_parastell_cad_to_dagmc_example.heating.png](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.heating.png)
 
+Tritium balance on the phi = 45 deg poloidal section: blue where DT burns tritium (the neutron source), red where Li-6 and Li-7 breed it (`(n,Xt)` on the same mesh); the volume integral is (TBR - 1) times the source strength.
+
+![al_10_parastell_cad_to_dagmc_example.tritium.png](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.tritium.png)
+
 | | | | |
 |---|---|---|---|
 | **chamber**<br>![chamber](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.chamber.png) | **first_wall**<br>![first_wall](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.first_wall.png) | **breeder**<br>![breeder](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.breeder.png) | **back_wall**<br>![back_wall](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.back_wall.png) |

@@ -3,6 +3,7 @@ import math
 import pathlib
 from typing import Any
 
+import h5py
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -69,29 +70,27 @@ def main(
 	result = run(h5m, source, mats, out.with_suffix(".openmc"), particles, batches, (tally_xy, tally_xy, tally_z))
 	names = [material.name for material in mats]
 	heating = {name: result["heating"][name] * rate * joule_per_ev * nfp * 1e-6 for name in names}  # MW 全周
-	widths = (result["upper"] - result["lower"]) / np.array(result["map"].shape)  # ボクセル寸法 [cm]
-	density_map = result["map"] * joule_per_ev * rate / (float(np.prod(widths)) * 1e-6)  # ボクセル平均 [W/m³]
+	voxel = float(np.prod(result["mesh"].width)) * 1e-6  # ボクセル体積 [m³]
+	heating_map = result["map_heating"] * joule_per_ev * rate / voxel  # [W/m³]
+	tritium_map = result["map_tritium"] * rate / voxel  # [T/s/m³]
+	source_map = source_density(out.parent / summary["source"]["h5m"], result["mesh"]) / voxel  # [n/s/m³] = T の消費
 	for name in names:
 		print(f"{name:14s} {heating[name]:9.3f} MW")
 	print(f"TBR = {result['tbr']:.4f} +/- {result['tbr_error']:.4f}  lost {result['lost']}  transport {result['t_run']:.0f} s")
+	print(f"tritium balance {(tritium_map - source_map).sum() * voxel * nfp:.3e} T/s (expected (TBR-1) S = {(result['tbr'] - 1) * rate * nfp:.3e})")
 
-	# --- 図: ボクセル別発熱密度の 3D 散布図 (al_09 と同じ) ---------------------------------
-	centers = np.meshgrid(*[(result["lower"][k] + (np.arange(result["map"].shape[k]) + 0.5) * widths[k]) / 100 for k in range(3)], indexing="ij")
-	mask = density_map > 0
-	figure = plt.figure(figsize=(8.5, 7.0))
-	axes = figure.add_subplot(projection="3d")
-	image = axes.scatter(centers[0][mask], centers[1][mask], centers[2][mask], c=density_map[mask], norm=matplotlib.colors.LogNorm(), s=4)
-	figure.colorbar(image, ax=axes, label="nuclear heating [W/m^3]", shrink=0.7)
-	axes.set_box_aspect(result["upper"] - result["lower"])
-	axes.set(xlabel="x [m]", ylabel="y [m]", zlabel="z [m]", title="nuclear heating, neutrons and photons")
-	figure.savefig(out.with_suffix(".heating.png"), dpi=150, bbox_inches="tight")
-	plt.close(figure)
+	figure_heating, figure_tritium = plot_tally(result["mesh"], heating_map, tritium_map, source_map)
+	figure_heating.savefig(out.with_suffix(".heating.png"), dpi=150, bbox_inches="tight")
+	figure_tritium.savefig(out.with_suffix(".tritium.png"), dpi=150, bbox_inches="tight")
+	plt.close(figure_heating)
+	plt.close(figure_tritium)
 
 	# --- Markdown レポート。PDF 化は make al-101 が md2pdf.py で行う ----------------------
 	parameters = summary["parameters"]
 	fields = {
 		"combined_png": out.with_suffix(".png").name,
 		"heating_png": out.with_suffix(".heating.png").name,
+		"tritium_png": out.with_suffix(".tritium.png").name,
 		"wall_s": parameters["wall_s"],
 		"first_wall": parameters["first_wall"],
 		"back_wall": parameters["back_wall"],
@@ -118,7 +117,8 @@ def main(
 		"tbr": result["tbr"],
 		"tbr_error": result["tbr_error"],
 		"heating_total": sum(heating.values()),
-		"peak_density": float(density_map.max()),
+		"peak_density": float(heating_map.max()),
+		"tritium_surplus": (result["tbr"] - 1.0) * rate * nfp,
 		"lost": result["lost"],
 		"t_run": result["t_run"],
 		"layer_rows": "".join(
@@ -130,6 +130,66 @@ def main(
 	out.write_text(TEMPLATE.format(**fields), encoding="utf-8")
 	print(f"{out}: {out.stat().st_size} bytes")
 	return fields
+
+
+def source_density(source_h5m: pathlib.Path, mesh: openmc.RegularMesh) -> np.ndarray:
+	"""parastell の四面体線源を直交メッシュにビン分けした強度 [n/s per voxel]。tet の重心にその強度を置く。
+
+	MOAB の h5m を h5py で読む (ホストに pymoab は無い)。連結は 1 始まりの節点 id。
+	"""
+	with h5py.File(source_h5m) as f:
+		nodes = f["tstt/nodes/coordinates"][()]
+		tets = f["tstt/elements/Tet4/connectivity"][()] - int(f["tstt/nodes/coordinates"].attrs["start_id"])
+		strengths = f["tstt/elements/Tet4/tags/Source Strength"][()]
+	centroids = nodes[tets].mean(axis=1)
+	edges = [np.linspace(lo, hi, n + 1) for lo, hi, n in zip(mesh.lower_left, mesh.upper_right, mesh.dimension)]
+	return np.histogramdd(centroids, bins=edges, weights=strengths)[0]
+
+
+def plot_tally(
+	mesh: openmc.RegularMesh,
+	heating: np.ndarray,  # ボクセル平均の核発熱密度 [W/m³]
+	tritium: np.ndarray,  # (n,Xt) のトリチウム生成密度 [T/s/m³]
+	source: np.ndarray,  # 線源密度 [n/s/m³]。DT 反応 1 回 = 中性子 1 個 = T 消費 1 個
+	phi: float = math.pi / 4,  # 収支を描くポロイダル断面のトロイダル角 [rad]。扇形の中央
+	half_width: float = math.radians(2.0),  # 断面に入れるボクセルの角度幅 (片側) [rad]
+) -> tuple[matplotlib.figure.Figure, matplotlib.figure.Figure]:
+	"""発熱の 3D 散布図と、トリチウム収支 (生成 − 消費) のポロイダル断面。
+
+	収支の全体積積分は (TBR − 1) × 線源強度に等しい。負側がプラズマの DT、正側が LiPb の Li-6, Li-7 で、
+	同じ単位・同じカラーバーに乗せることで、燃やす量に対して作る量がどこでどれだけ上回るかが読める。
+	断面は φ 平均ではなく φ=phi の薄い帯。ステラレータは断面が φ で回るので、平均すると別の φ の層が混ざる。
+	"""
+	lower, upper = np.asarray(mesh.lower_left) / 100, np.asarray(mesh.upper_right) / 100  # [m]
+	widths = (upper - lower) / np.asarray(mesh.dimension)
+	centers = np.meshgrid(*[lower[k] + (np.arange(mesh.dimension[k]) + 0.5) * widths[k] for k in range(3)], indexing="ij")
+
+	figure_heating = plt.figure(figsize=(8.5, 7.0))
+	axes = figure_heating.add_subplot(projection="3d")
+	mask = heating > 0
+	image = axes.scatter(centers[0][mask], centers[1][mask], centers[2][mask], c=heating[mask], norm=matplotlib.colors.LogNorm(), s=4)
+	figure_heating.colorbar(image, ax=axes, label="nuclear heating [W/m^3]", shrink=0.7)
+	axes.set_box_aspect(upper - lower)
+	axes.set(xlabel="x [m]", ylabel="y [m]", zlabel="z [m]", title="nuclear heating, neutrons and photons")
+
+	# φ=phi の帯に中心が落ちるボクセルを (R, Z) に並べる。3D 散布は手前が奥を隠すので収支はこちらで描く
+	balance = tritium - source
+	angle = np.arctan2(centers[1], centers[0])
+	band = (np.abs(angle - phi) < half_width) & ((tritium > 0) | (source > 0))
+	radius, height = np.hypot(centers[0], centers[1])[band], centers[2][band]
+	r_edges = np.arange(radius.min() - widths[0] / 2, radius.max() + widths[0], widths[0])
+	z_edges = np.linspace(lower[2], upper[2], mesh.dimension[2] + 1)
+	total = np.histogram2d(radius, height, bins=[r_edges, z_edges], weights=balance[band])[0]
+	count = np.histogram2d(radius, height, bins=[r_edges, z_edges])[0]
+	mean = np.divide(total, count, out=np.full_like(total, np.nan), where=count > 0)
+	limit = float(np.nanmax(np.abs(mean)))
+	figure_tritium, axes = plt.subplots(figsize=(7.5, 5.5))
+	image = axes.pcolormesh(
+		r_edges, z_edges, mean.T, cmap="RdBu_r", norm=matplotlib.colors.SymLogNorm(linthresh=limit * 1e-3, vmin=-limit, vmax=limit)
+	)
+	figure_tritium.colorbar(image, ax=axes, label="tritium balance, bred minus burnt [T/s/m^3]")
+	axes.set(xlabel="R [m]", ylabel="Z [m]", title=f"tritium burnt (DT, blue) and bred (Li-6, Li-7, red) at phi = {math.degrees(phi):.0f} deg", aspect="equal")
+	return figure_heating, figure_tritium
 
 
 def dagmc(layers: list[tuple[pathlib.Path, str, int, float]], h5m: pathlib.Path, tolerance: float, angular_tolerance: float) -> pathlib.Path:
@@ -171,7 +231,7 @@ def run(
 	layers.scores = ["(n,Xt)", "heating"]
 	mapped = openmc.Tally(name="map")
 	mapped.filters = [openmc.MeshFilter(mesh)]
-	mapped.scores = ["heating"]
+	mapped.scores = ["heating", "(n,Xt)"]
 	settings = openmc.Settings(run_mode="fixed source", source=source, particles=particles, batches=batches)
 	settings.photon_transport = True  # FENDL-3.2 に heating-local (MT=901) が無いので、光子も運んで heating で取る
 	settings.survival_biasing = True
@@ -189,15 +249,17 @@ def run(
 		tritium_error = values.get_values(scores=["(n,Xt)"], value="std_dev").flatten()
 		heating = values.get_values(scores=["heating"]).flatten()
 		# メッシュフィルタのビンは x が最内で回るので order="F" でないと軸が入れ替わる
-		grid = statepoint.get_tally(name="map").mean.reshape(dimension, order="F")
+		grid = statepoint.get_tally(name="map")
+		map_heating = grid.get_values(scores=["heating"]).reshape(dimension, order="F")
+		map_tritium = grid.get_values(scores=["(n,Xt)"]).reshape(dimension, order="F")
 		transport = float(statepoint.runtime["transport"])
 	return {
 		"tbr": float(tritium.sum()),
 		"tbr_error": float(np.sqrt(np.sum(tritium_error**2))),
 		"heating": dict(zip([material.name for material in mats], map(float, heating))),
-		"map": grid,
-		"lower": lower,
-		"upper": upper,
+		"map_heating": map_heating,
+		"map_tritium": map_tritium,
+		"mesh": mesh,
 		"lost": len(list(work.glob("particle_*.h5"))),
 		"t_run": transport,
 	}
@@ -245,12 +307,14 @@ tet ごとの強度 [n/s] を `MeshSpatial` に渡す。14.1 MeV 単色。
 ### 輸送
 
 {particles} 粒子 × {batches} バッチ (論文と同じ 30 万)、光子輸送あり、survival biasing あり。
-タリーは材料フィルタで層ごとに (n,Xt) と heating、直交メッシュで heating を取る。
+タリーは材料フィルタで層ごとに (n,Xt) と heating、直交メッシュで heating と (n,Xt) を取る。
 TBR は全材料の (n,Xt) の和、核加熱は 1 中性子あたりの eV に発生率と周期数 {nfp} を掛けて全周の MW にする。
 
 ## 結果
 
 ![ボクセル別の核発熱密度 (中性子 + 光子)]({heating_png})
+
+![φ=45° のポロイダル断面でのトリチウム収支。負 (青) はプラズマで DT 反応が T を燃やす密度、正 (赤) は LiPb で Li-6, Li-7 が T を作る密度。全体積の積分が (TBR − 1) × 線源強度になる]({tritium_png})
 
 | 層 | 色 | ソリッド数 | 体積 cadquery [m³/扇形] | 体積 cadrum [m³/扇形] | 核加熱 [MW 全周] |
 |:--|:--|--:|--:|--:|--:|
@@ -263,6 +327,7 @@ TBR は全材料の (n,Xt) の和、核加熱は 1 中性子あたりの eV に�
 | 中性子出力 (全周、14.1 MeV) | {neutron_power:.0f} MW |
 | 核加熱の合計 (全周) | {heating_total:.0f} MW |
 | 発熱密度のピーク (ボクセル平均) | {peak_density:.3e} W/m³ |
+| トリチウムの純増 (TBR − 1) × S (全周) | {tritium_surplus:.3e} T/s |
 | 線源 tet の体積和 (全周) | {plasma_volume:.1f} m³ |
 | chamber (s≤{wall_s}) の体積 (全周) | {chamber_volume:.1f} m³ |
 | lost particle | {lost} |
