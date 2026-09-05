@@ -19,7 +19,6 @@ def main(
 	div_theta: int = 40,
 	particles: int = 40000,
 	batches: int = 10,
-	repeat: int = 2,  # 実行時間は他プロセスの負荷で数十 % 平気で伸びるので、繰り返して最小値を採る
 	n_flat: int = 200,  # case_1 の一様点線源の数
 	n_weighted: int = 5000,  # case_2 の重み付き点線源の数
 	mesh_s: int = 8,  # 約 23000 tet。tet 数が settings.xml のサイズを決める
@@ -42,9 +41,9 @@ def main(
 	)
 	h5m, work = out.with_suffix(".h5m"), out.with_suffix(".openmc")
 	results = [
-		case_1(surface, mesh, h5m, work, n_flat, particles, batches, repeat),
-		case_2(surface, mesh, h5m, work, n_weighted, particles, batches, repeat),
-		case_3(surface, mesh, h5m, work, out.with_suffix(".plasma.vtk"), mesh_s, mesh_theta, mesh_phi, s_max, particles, batches, repeat),
+		case_1(surface, mesh, h5m, work, n_flat, particles, batches),
+		case_2(surface, mesh, h5m, work, n_weighted, particles, batches),
+		case_3(surface, mesh, h5m, work, out.with_suffix(".plasma.vtk"), mesh_s, mesh_theta, mesh_phi, s_max, particles, batches),
 	]
 
 	# タリーのビン体積は r とともに増えるので、割って密度にしないと外周が明るく見えるだけになる
@@ -138,8 +137,6 @@ def main(
 		"mean_s_3": results[2]["mean_s"],
 		"error_1": results[0]["error"],
 		"error_3": results[2]["error"],
-		"repeat": repeat,
-		"spread": max(r["t_spread"] for r in results),
 		"slowdown_2": (results[1]["t_run"] / results[0]["t_run"] - 1.0) * 100,
 		"slowdown_3": (results[2]["t_run"] / results[0]["t_run"] - 1.0) * 100,
 		"init_3": results[2]["t_init"],
@@ -239,7 +236,7 @@ def plasma_tets(surface: SurfaceFourierRZ, mesh_s: int, mesh_theta: int, mesh_ph
 	return vertices, np.array(tetrahedra), vertex_s
 
 
-def run(source: openmc.SourceBase, mesh: openmc.CylindricalMesh, work: pathlib.Path, h5m: pathlib.Path, particles: int, batches: int, repeat: int) -> dict[str, Any]:
+def run(source: openmc.SourceBase, mesh: openmc.CylindricalMesh, work: pathlib.Path, h5m: pathlib.Path, particles: int, batches: int) -> dict[str, Any]:
 	"""線源だけを差し替えて同じ幾何・同じ粒子数で回す。TBR と R-Z マップと実行時間を返す。"""
 	# bounded_universe は id を 10000 番台に固定で振るので、ケースごとに呼ぶと衝突して IDWarning が出る
 	openmc.reset_auto_ids()
@@ -261,15 +258,9 @@ def run(source: openmc.SourceBase, mesh: openmc.CylindricalMesh, work: pathlib.P
 		tallies=openmc.Tallies([total, local]),
 	)
 	work.mkdir(parents=True, exist_ok=True)
-	# 乱数種が同じなので繰り返しても結果は変わらない。時間だけを見る
-	timing = []
-	for _ in range(repeat):
-		statepoint_path = model.run(cwd=work, output=False)
-		with openmc.StatePoint(statepoint_path) as statepoint:
-			timing.append((statepoint.runtime["transport"], statepoint.runtime["total initialization"]))
-	transport, initialization = min(timing)
-	spread = (max(timing)[0] / transport - 1.0) * 100
+	statepoint_path = model.run(cwd=work, output=False)
 	with openmc.StatePoint(statepoint_path) as statepoint:
+		transport, initialization = statepoint.runtime["transport"], statepoint.runtime["total initialization"]
 		integral = statepoint.get_tally(name="tbr")
 		mapped = statepoint.get_tally(name="map")
 
@@ -284,11 +275,10 @@ def run(source: openmc.SourceBase, mesh: openmc.CylindricalMesh, work: pathlib.P
 			"rz_error": shape(mapped.std_dev),
 			"t_run": float(transport),
 			"t_init": float(initialization),
-			"t_spread": float(spread),
 		}
 
 
-def case_1(surface: SurfaceFourierRZ, mesh: openmc.CylindricalMesh, h5m: pathlib.Path, work: pathlib.Path, n_flat: int, particles: int, batches: int, repeat: int) -> dict[str, Any]:
+def case_1(surface: SurfaceFourierRZ, mesh: openmc.CylindricalMesh, h5m: pathlib.Path, work: pathlib.Path, n_flat: int, particles: int, batches: int) -> dict[str, Any]:
 	"""al_06 現行方式。(φ, θ, s) 一様サンプルの点線源を等強度で置く。"""
 	start = time.perf_counter()
 	samples = np.random.default_rng(0).random((n_flat, 3)) * [math.tau, math.tau, 1.0]
@@ -296,11 +286,11 @@ def case_1(surface: SurfaceFourierRZ, mesh: openmc.CylindricalMesh, h5m: pathlib
 	source = point_sources(surface, samples, weights)
 	setup = time.perf_counter() - start
 	return {"name": "case_1 uniform points", "s": samples[:, 2], "weights": weights, "t_setup": setup} | run(
-		source, mesh, work / "case_1", h5m, particles, batches, repeat
+		source, mesh, work / "case_1", h5m, particles, batches
 	)
 
 
-def case_2(surface: SurfaceFourierRZ, mesh: openmc.CylindricalMesh, h5m: pathlib.Path, work: pathlib.Path, n_weighted: int, particles: int, batches: int, repeat: int) -> dict[str, Any]:
+def case_2(surface: SurfaceFourierRZ, mesh: openmc.CylindricalMesh, h5m: pathlib.Path, work: pathlib.Path, n_weighted: int, particles: int, batches: int) -> dict[str, Any]:
 	"""点数を増やし、強度を反応率 × 体積要素にする。依存も Rust 側の変更も要らない。"""
 	start = time.perf_counter()
 	samples = np.random.default_rng(0).random((n_weighted, 3)) * [math.tau, math.tau, 1.0]
@@ -308,11 +298,11 @@ def case_2(surface: SurfaceFourierRZ, mesh: openmc.CylindricalMesh, h5m: pathlib
 	source = point_sources(surface, samples, weights)
 	setup = time.perf_counter() - start
 	return {"name": "case_2 weighted points", "s": samples[:, 2], "weights": weights / weights.sum(), "t_setup": setup} | run(
-		source, mesh, work / "case_2", h5m, particles, batches, repeat
+		source, mesh, work / "case_2", h5m, particles, batches
 	)
 
 
-def case_3(surface: SurfaceFourierRZ, mesh: openmc.CylindricalMesh, h5m: pathlib.Path, work: pathlib.Path, vtk: pathlib.Path, mesh_s: int, mesh_theta: int, mesh_phi: int, s_max: float, particles: int, batches: int, repeat: int) -> dict[str, Any]:
+def case_3(surface: SurfaceFourierRZ, mesh: openmc.CylindricalMesh, h5m: pathlib.Path, work: pathlib.Path, vtk: pathlib.Path, mesh_s: int, mesh_theta: int, mesh_phi: int, s_max: float, particles: int, batches: int) -> dict[str, Any]:
 	"""parastell と同じ四面体メッシュ線源。tet の強度は重心の反応率 × 四面体体積。"""
 	start = time.perf_counter()
 	vertices, tetrahedra, vertex_s = plasma_tets(surface, mesh_s, mesh_theta, mesh_phi, s_max)
@@ -328,7 +318,7 @@ def case_3(surface: SurfaceFourierRZ, mesh: openmc.CylindricalMesh, h5m: pathlib
 	source.normalize_source_strengths()
 	setup = time.perf_counter() - start
 	return {"name": "case_3 tet mesh", "s": centroid_s, "weights": weights / weights.sum(), "t_setup": setup} | run(
-		source, mesh, work / "case_3", h5m, particles, batches, repeat
+		source, mesh, work / "case_3", h5m, particles, batches
 	)
 
 
@@ -403,10 +393,10 @@ case_3 が case_2 より僅かに大きいのは前述のセル内一様性に�
 
 ### 計算負荷
 
-輸送時間の差は測れなかった、というのがこの環境での結論である。各ケースを {repeat} 回回して
-OpenMC 自身が報告する輸送時間の最小値を採ったが、それでも同一条件の繰り返しの間で最大
-{spread:.0f}% ばらつく。表の case 間の差 (case_1 に対し case_2 が {slowdown_2:+.0f}%、case_3 が
-{slowdown_3:+.0f}%) はこのばらつきと同程度で、有意な差とは言えない。線源数に比例する線形走査
+輸送時間の差は測れなかった、というのがこの環境での結論である。時間は OpenMC 自身が報告する
+輸送時間で、各ケース 1 回の計測である。同一条件でも他プロセスの負荷で数十 % 平気で伸びるので、
+表の case 間の差 (case_1 に対し case_2 が {slowdown_2:+.0f}%、case_3 が {slowdown_3:+.0f}%) は
+そのばらつきと同程度で、有意な差とは言えない。線源数に比例する線形走査
 (case_2) も、非構造メッシュからの点抽出 (case_3) も、14 MeV 中性子の輸送そのものに比べれば
 小さいということでもある。線源モデルは計算時間で選ぶ話ではない。
 
