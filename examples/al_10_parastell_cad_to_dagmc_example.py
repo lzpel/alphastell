@@ -5,7 +5,6 @@ import pathlib
 from typing import Any
 
 import cadquery as cq
-import matplotlib
 import numpy as np
 import openmc
 import parastell.parastell as ps
@@ -55,7 +54,7 @@ def main(
 		magnet_width, magnet_thickness, sample_mod, mesh_cfs, mesh_theta, mesh_phi, min_mesh_size, max_mesh_size,
 	)
 	rate = float(np.sum(strengths))  # 扇形 1 つ分の中性子発生率 [n/s]
-	result = run(work / "dagmc.h5m", work / "source_mesh.h5m", strengths, materials(), work, particles, batches, out)
+	result = run(work / "dagmc.h5m", work / "source_mesh.h5m", strengths, materials(), work, particles, batches)
 	layers = ["first_wall", "breeder", "back_wall", "shield", "vac_vessel", "magnets"]
 	heating = {name: result["heating"][name] * rate * joule_per_ev * nfp * 1e-6 for name in layers}  # MW 全周
 	for name in layers:
@@ -63,8 +62,6 @@ def main(
 	print(f"TBR = {result['tbr']:.4f} +/- {result['tbr_error']:.4f}  lost {result['lost']}  transport {result['t_run']:.0f} s")
 
 	fields = {
-		"section_png": out.with_suffix(".section.png").name,
-		"top_png": out.with_suffix(".top.png").name,
 		"wall_s": wall_s,
 		"first_wall": first_wall,
 		"back_wall": back_wall,
@@ -209,7 +206,6 @@ def run(
 	work: pathlib.Path,
 	particles: int,
 	batches: int,
-	out: pathlib.Path,
 ) -> dict[str, Any]:
 	"""90° 扇形の DAGMC を CSG の回転周期平面で囲み、TBR と層別核加熱 [eV/中性子] を返す。"""
 	openmc.reset_auto_ids()
@@ -246,7 +242,6 @@ def run(
 		settings=settings,
 		tallies=openmc.Tallies([tally]),
 	)
-	plot(model, lower, upper, out)
 	statepoint_path = model.run(cwd=work, output=False)
 	with openmc.StatePoint(statepoint_path) as statepoint:
 		values = statepoint.get_tally(name="layers")
@@ -263,22 +258,6 @@ def run(
 		"lost": len(list(work.glob("particle_*.h5"))),
 		"t_run": transport,
 	}
-
-
-def plot(model: openmc.Model, lower: np.ndarray, upper: np.ndarray, out: pathlib.Path) -> None:
-	"""φ=0⁺ のポロイダル断面 (xz) と赤道面の上面図 (xy) を材料色で描く。"""
-	center_r = (float(lower[0]) + float(upper[0])) / 2
-	span = max(float(upper[0]) - float(lower[0]), float(upper[2]) - float(lower[2])) * 1.1
-	views = [
-		("section", "xz", (center_r, 1.0, 0.0), (span, span)),
-		("top", "xy", ((float(lower[0]) + float(upper[0])) / 2, (float(lower[1]) + float(upper[1])) / 2, 0.0), (span, span)),
-	]
-	palette = matplotlib.colormaps["tab10"]
-	colors = {material: tuple(int(255 * c) for c in palette(i)[:3]) for i, material in enumerate(model.materials)}
-	for name, basis, origin, width in views:
-		axes = model.plot(origin=origin, width=width, pixels=(900, 900), basis=basis, color_by="material", colors=colors, legend=True)
-		axes.set_title(f"{basis} slice through {tuple(round(o) for o in origin)} [cm]")
-		axes.figure.savefig(out.with_suffix(f".{name}.png"), dpi=150, bbox_inches="tight")
 
 
 TEMPLATE = """# ParaStell 形状で TBR を出す (al_10)
@@ -328,9 +307,6 @@ CSG の鉄球ですら segfault するためで、ホストの openmc-anywhere (
 
 ## 結果
 
-![φ=0 直後のポロイダル断面。内側から chamber (void)、第一壁、増殖層、後壁、遮蔽、真空容器、外にマグネット。]({section_png})
-
-![赤道面の上面図。90° 扇形 1 周期分。]({top_png})
 
 | 層 | 体積 [m³/扇形] | 中性子核加熱 [MW 全周] |
 |:--|--:|--:|

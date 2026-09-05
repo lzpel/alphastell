@@ -103,9 +103,10 @@ The constituent materials (Table 2 of the ParaStell paper, as defined in `materi
 
 TBR 1.272 ± 0.001, no lost particles; fusion power from the ParaStell source mesh (3.04 GW) agrees with the VMEC integral of experiment 09 (3.09 GW).
 
-![al_10_parastell_cad_to_dagmc_example.section.png](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.section.png)
-
-![al_10_parastell_cad_to_dagmc_example.top.png](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.top.png)
+| | | | |
+|---|---|---|---|
+| **chamber**<br>![chamber](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.chamber.png) | **first_wall**<br>![first_wall](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.first_wall.png) | **breeder**<br>![breeder](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.breeder.png) | **back_wall**<br>![back_wall](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.back_wall.png) |
+| **shield**<br>![shield](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.shield.png) | **vacuum_vessel**<br>![vacuum_vessel](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.vacuum_vessel.png) | **magnets**<br>![magnets](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.magnets.png) | **all layers**<br>![all layers](https://lzpel.github.io/alphastell/al_101_parastell_visualize.png) |
 
 - [al_10_parastell_cad_to_dagmc_example.chamber.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.chamber.step)
 - [al_10_parastell_cad_to_dagmc_example.first_wall.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.first_wall.step)
