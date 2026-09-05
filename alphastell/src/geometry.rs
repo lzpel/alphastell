@@ -123,6 +123,12 @@ impl Geometry {
 	fn volume(&self) -> Vec<f64> {
 		self.0.iter().map(|s| s.volume().abs()).collect()
 	}
+	/// SurfaceFourierRZ::load と同じく file-like から read() する。STEP 内の全ソリッドを 1 つの Geometry にする。
+	#[staticmethod]
+	fn read_step(file: &Bound<'_, PyAny>) -> PyResult<Geometry> {
+		let data: pyo3::pybacked::PyBackedBytes = file.call_method0("read")?.extract()?;
+		Ok(Geometry(cadrum::Solid::read_step(&mut std::io::Cursor::new(data)).map_err(Error)?))
+	}
 	/// SurfaceFourierRZ::load が file-like から read() するのと対称に、file-like へ write() する。
 	fn write_step(&self, file: &Bound<'_, PyAny>) -> PyResult<()> {
 		let mut data = Vec::new();
