@@ -28,9 +28,7 @@ jobs:
           - target: al-07
           - target: al-08
           - target: al-09
-          - target: al-10   # parastell-ci コンテナ (5.7 GB) を pull するので落ちても deploy は止めない
-            experimental: true
-    continue-on-error: ${{ matrix.experimental || false }}
+          - target: al-10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
