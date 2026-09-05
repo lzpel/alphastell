@@ -83,13 +83,15 @@ TBR of the ParaStell reference build: the radial build of `parastell_cad_to_dagm
 | back wall | 5 | RAFM 80 / He 20 |
 | shield | 50 | WC 75 / RAFM 15 / He 10 |
 | vacuum vessel | 10 | RAFM 51 / water 49 |
-| magnets | 40 × 50 cross section, filaments from `coils.example` | RAFM 67.4 / Cu 19.3 / Nb3Sn 5.1 / He 4.2 / insulator 4 | TBR 1.272 ± 0.001, no lost particles; fusion power from the ParaStell source mesh (3.04 GW) agrees with the VMEC integral of experiment 09 (3.09 GW). The script runs inside the `ghcr.io/svalinn/parastell-ci` container through its shebang, and leaves per-layer STEP files, volumes, the source mesh and the DAGMC file for a later comparison against the alphastell geometry.
+| magnets | 40 × 50 cross section, filaments from `coils.example` | RAFM 67.4 / Cu 19.3 / Nb3Sn 5.1 / He 4.2 / insulator 4 |
+
+TBR 1.272 ± 0.001, no lost particles; fusion power from the ParaStell source mesh (3.04 GW) agrees with the VMEC integral of experiment 09 (3.09 GW). The script runs inside the `ghcr.io/svalinn/parastell-ci` container through its shebang, and leaves per-layer STEP files, volumes, the source mesh and the DAGMC file for a later comparison against the alphastell geometry.
 
 ![al_10_parastell_tbr.section.png](https://lzpel.github.io/alphastell/al_10_parastell_tbr.section.png)
 
 ![al_10_parastell_tbr.top.png](https://lzpel.github.io/alphastell/al_10_parastell_tbr.top.png)
 
-[al_10_parastell_tbr.md](https://lzpel.github.io/alphastell/al_10_parastell_tbr.md) / [al_10_parastell_tbr.breeder.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.breeder.step) / [al_10_parastell_tbr.magnets.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.magnets.step)
+[al_10_parastell_tbr.md](https://lzpel.github.io/alphastell/al_10_parastell_tbr.md) / [al_10_parastell_tbr.chamber.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.chamber.step) / [al_10_parastell_tbr.first_wall.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.first_wall.step) / [al_10_parastell_tbr.breeder.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.breeder.step) / [al_10_parastell_tbr.back_wall.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.back_wall.step) / [al_10_parastell_tbr.shield.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.shield.step) / [al_10_parastell_tbr.vacuum_vessel.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.vacuum_vessel.step) / [al_10_parastell_tbr.magnets.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.magnets.step)
 
 ## Reference
 
