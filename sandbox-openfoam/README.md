@@ -47,7 +47,7 @@ MSYS_NO_PATHCONV=1 $PFX blockMesh -case hartmann_hi
 MSYS_NO_PATHCONV=1 $PFX epotFoam  -case hartmann_hi
 uv run --with numpy --with matplotlib scripts/compare_hartmann.py --ha 1000 \
   --profile "$(ls -d hartmann_hi/postProcessing/sample/*/ | sort -V | tail -1)centreProfile_U.xy" \
-  --plot ../paper/fig02.png --report out/report_Ha1000.txt --tex out/values_Ha1000.tex
+  --plot out/fig02.png --report out/report_Ha1000.txt --tex out/values_Ha1000.tex
 ```
 
 実測: **最大相対誤差 0.385%** (閾値 2%)、約13000 ステップ。この PNG が paper の fig02。
