@@ -116,6 +116,15 @@ The constituent materials (Table 2 of the ParaStell paper, as defined in `materi
 | polyimide | 1.42 | C 69.11 / O 20.92 / N 7.33 / H 2.64 (wt%) | |
 | insulator | 1.968 (from the wt% mix) | SiO2 60 / polyimide 40 (wt%) | |
 
+The gamma-producing reactions on the two dominant nuclei. Capture removes the neutron and emits the binding energy as one hard photon; inelastic scattering keeps the neutron and emits the level energy. Photon transport is off in this experiment (the container build of OpenMC crashes with it), so these photons are dropped at birth and the heating column above is neutron KERMA only.
+
+| where, what | reaction |
+|---|---|
+| RAFM (first wall, back wall, shield, vacuum vessel): capture on Fe-56, mostly after moderation | ${}^{56}\mathrm{Fe} + n \rightarrow {}^{57}\mathrm{Fe}^{*} \rightarrow {}^{57}\mathrm{Fe} + \gamma\ (7.6\ \mathrm{MeV})$ |
+| RAFM: inelastic scattering on Fe-56, fast neutrons above 0.86 MeV | ${}^{56}\mathrm{Fe} + n \rightarrow {}^{56}\mathrm{Fe}^{*} + n' \rightarrow {}^{56}\mathrm{Fe} + n' + \gamma\ (0.85\ \mathrm{MeV})$ |
+| LiPb (breeder): capture on Pb-208, rare because Pb-208 is doubly magic | ${}^{208}\mathrm{Pb} + n \rightarrow {}^{209}\mathrm{Pb}^{*} \rightarrow {}^{209}\mathrm{Pb} + \gamma\ (3.9\ \mathrm{MeV})$ |
+| LiPb (breeder): inelastic scattering on Pb-208, fast neutrons above 2.6 MeV | ${}^{208}\mathrm{Pb} + n \rightarrow {}^{208}\mathrm{Pb}^{*} + n' \rightarrow {}^{208}\mathrm{Pb} + n' + \gamma\ (2.6\ \mathrm{MeV})$ |
+
 TBR 1.272 ± 0.001, no lost particles; fusion power from the ParaStell source mesh (3.04 GW) agrees with the VMEC integral of experiment 09 (3.09 GW).
 
 | | | | |
