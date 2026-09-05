@@ -76,14 +76,14 @@ Nuclear heating of the coils with only a 50 cm breeder in between, tallied per c
 
 TBR of the ParaStell reference build: the radial build of `parastell_cad_to_dagmc_example.py` with the homogenized DCLL compositions of the ParaStell paper and the FENDL-3.2 nuclear data library. One period is closed with rotational periodic CSG planes around the DAGMC model.
 
-| layer | thickness [cm] | composition (vol%) |
-|---|---|---|
-| first wall | 5 | He 66 / RAFM 34 |
-| breeder | 25–75 (9×9 matrix, thin near the coils) | LiPb 79 / He 8 / SiC 7 / RAFM 6 |
-| back wall | 5 | RAFM 80 / He 20 |
-| shield | 50 | WC 75 / RAFM 15 / He 10 |
-| vacuum vessel | 10 | RAFM 51 / water 49 |
-| magnets | 40 × 50 cross section, filaments from `coils.example` | RAFM 67.4 / Cu 19.3 / Nb3Sn 5.1 / He 4.2 / insulator 4 |
+| layer | density [g/cm³] | thickness [cm] | composition (vol%) |
+|---|---|---|---|
+| first wall | 2.656 | 5 | He 66 / RAFM 34 |
+| breeder | 8.440 | 25–75 (9×9 matrix, thin near the coils) | LiPb 79 / He 8 / SiC 7 / RAFM 6 |
+| back wall | 6.241 | 5 | RAFM 80 / He 20 |
+| shield | 12.893 | 50 | WC 75 / RAFM 15 / He 10 |
+| vacuum vessel | 4.468 | 10 | RAFM 51 / water 49 |
+| magnets | 7.511 | 40 × 50 cross section, filaments from `coils.example` | RAFM 67.4 / Cu 19.3 / Nb3Sn 5.1 / He 4.2 / insulator 4 |
 
 The constituent materials (Table 2 of the ParaStell paper, as defined in `materials()` of the script):
 
