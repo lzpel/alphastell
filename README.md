@@ -27,24 +27,13 @@ Output: feasibility verdict and design drawings for a stellarator
 
 TBR of pure PbLi shells (30/50/70 cm) extruded along the LCFS normal, computed with OpenMC. Breeder thickness and TBR are positively correlated.
 
-The source is the 14.1 MeV neutron of the DT reaction; the alpha stays in the plasma and only the neutron enters the blanket, so fusion power is 17.6/14.1 times the neutron power.
+The chain behind TBR, from the plasma to the breeder. The alpha stays in the plasma, so only the 14.1 MeV neutron enters the blanket and fusion power is 17.6/14.1 times the neutron power. The two lithium branches are scored together as `(n,Xt)`; the exothermic Li-6 branch works down to thermal energies (hence 90% Li-6 enrichment), the Li-7 branch needs more than 2.5 MeV but keeps the neutron alive. Lead multiplies neutrons by (n,2n), which is what lets TBR exceed 1.
 
-$$
-{}^{2}\mathrm{H} + {}^{3}\mathrm{H} \rightarrow {}^{4}\mathrm{He}\ (3.5\ \mathrm{MeV}) + n\ (14.1\ \mathrm{MeV})
-$$
-
-TBR counts the tritium made by the two lithium reactions, scored together as `(n,Xt)`. The exothermic Li-6 branch works down to thermal energies and is why the LiPb is enriched to 90% Li-6; the Li-7 branch needs a neutron above 2.5 MeV but keeps the neutron alive.
-
-$$
-{}^{6}\mathrm{Li} + n \rightarrow {}^{4}\mathrm{He} + {}^{3}\mathrm{H} + 4.8\ \mathrm{MeV}, \qquad
-{}^{7}\mathrm{Li} + n \rightarrow {}^{4}\mathrm{He} + {}^{3}\mathrm{H} + n' - 2.5\ \mathrm{MeV}
-$$
-
-Lead is there to multiply neutrons: (n,2n) on the 14 MeV neutrons is what lets TBR exceed 1.
-
-$$
-{}^{208}\mathrm{Pb} + n \rightarrow {}^{207}\mathrm{Pb} + 2n - 7.4\ \mathrm{MeV}
-$$
+| where, what | reaction |
+|---|---|
+| plasma: DT fusion, the neutron source | ${}^{2}\mathrm{H} + {}^{3}\mathrm{H} \rightarrow {}^{4}\mathrm{He}\ (3.5\ \mathrm{MeV}) + n\ (14.1\ \mathrm{MeV})$ |
+| LiPb: tritium breeding on Li-6 and Li-7 | ${}^{6}\mathrm{Li} + n \rightarrow {}^{4}\mathrm{He} + {}^{3}\mathrm{H} + 4.8\ \mathrm{MeV}$<br>${}^{7}\mathrm{Li} + n \rightarrow {}^{4}\mathrm{He} + {}^{3}\mathrm{H} + n' - 2.5\ \mathrm{MeV}$ |
+| LiPb: neutron multiplication on Pb | ${}^{208}\mathrm{Pb} + n \rightarrow {}^{207}\mathrm{Pb} + 2n - 7.4\ \mathrm{MeV}$ |
 
 ![al_06_pbli_tbr.tbr.png](https://lzpel.github.io/alphastell/al_06_pbli_tbr.tbr.png)
 
