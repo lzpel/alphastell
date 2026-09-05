@@ -1,4 +1,4 @@
-#!/usr/bin/env -S MSYS_NO_PATHCONV=1 docker run --rm -i -e OPENMC_CROSS_SECTIONS=/work/out/cross_sections/cross_sections.xml -e PATH=/opt/conda/envs/parastell_env/bin:/usr/local/bin:/usr/bin:/bin -v ${PWD}:/work -w /work ghcr.io/svalinn/parastell-ci /opt/conda/envs/parastell_env/bin/python
+#!/usr/bin/env -S MSYS_NO_PATHCONV=1 docker run --rm -i -e OPENMC_CROSS_SECTIONS -e PATH=/opt/conda/envs/parastell_env/bin:/usr/bin:/bin -v ${PWD}:/work -w /work ghcr.io/svalinn/parastell-ci /opt/conda/envs/parastell_env/bin/python
 import json
 import os
 import pathlib
@@ -47,6 +47,7 @@ def main(
 	neutron_energy: float = 14.1e6,
 	joule_per_ev: float = 1.602176634e-19,
 ) -> dict[str, Any]:
+	os.environ.setdefault("OPENMC_CROSS_SECTIONS", "out/cross_sections/cross_sections.xml")  # make を通さず直接実行したとき用
 	work = out.with_suffix(".openmc")
 	work.mkdir(parents=True, exist_ok=True)
 	stellarator, volumes, strengths, plasma_volume = build(

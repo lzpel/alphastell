@@ -16,6 +16,7 @@ from alphastell import SurfaceFourierRZ, Geometry
 def main(
 	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent / "wout_vmec.nc",
 	out: pathlib.Path = pathlib.Path("out") / pathlib.Path(__file__).with_suffix(".md").name,
+	mu0: float = 4e-7 * math.pi,  # 真空の透磁率 [H/m]。al_08 の optimize_coil がコイル電流の換算に使う
 	width: float = 0.40,  # 導体断面のトロイダル幅 [m]。al_08 / al_081 と同じ parastell 準拠の値
 	height: float = 0.50,  # 導体断面の半径方向厚み [m]。同上
 	thickness: float = 0.5,  # PbLi 殻の厚み [m]。al_06 の中央、al_07 と同じ
@@ -35,7 +36,7 @@ def main(
 	with open(wout, "rb") as f:
 		lcfs = SurfaceFourierRZ.load(f)
 	surface = make_surface(wout)
-	result = optimize_coil(surface)
+	result = optimize_coil(surface, mu0)
 	# コイルが増殖材に食い込んでいたら黙って壊れた h5m ができるので、ここで止める
 	clearance = result["curve_surface_distance"] - height / 2 - thickness
 	if clearance <= 0.0:
@@ -242,9 +243,9 @@ def heating(
 	mapped = openmc.Tally(name="map")
 	mapped.filters = [openmc.MeshFilter(mesh), openmc.MaterialFilter(coils)]
 	mapped.scores = ["heating"]
-	fast = openmc.Tally(name="fast")
-	fast.filters = [openmc.MaterialFilter(coils), openmc.EnergyFilter([fast, 20e6])]
-	fast.scores = ["flux"]
+	fast_tally = openmc.Tally(name="fast")
+	fast_tally.filters = [openmc.MaterialFilter(coils), openmc.EnergyFilter([fast, 20e6])]
+	fast_tally.scores = ["flux"]
 
 	settings = openmc.Settings(run_mode="fixed source", source=source, particles=particles, batches=batches)
 	settings.photon_transport = True
@@ -252,7 +253,7 @@ def heating(
 		geometry=openmc.Geometry(openmc.DAGMCUniverse(str(h5m)).bounded_universe()),
 		materials=openmc.Materials([pbli, *coils]),
 		settings=settings,
-		tallies=openmc.Tallies([total, mapped, fast]),
+		tallies=openmc.Tallies([total, mapped, fast_tally]),
 	)
 	work.mkdir(parents=True, exist_ok=True)
 	with openmc.StatePoint(model.run(cwd=work, output=False)) as statepoint:
