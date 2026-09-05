@@ -14,10 +14,10 @@ Output: feasibility verdict and design drawings for a stellarator
 
 ### Input
 
-The three VMEC equilibriums are same, which has following parameters
-- the input [This repository's `examples/wout_vmec.nc`](examples/wout_vmec.nc)
-- the original [ParaStell's `examples/wout_vmec.nc`](https://github.com/svalinn/parastell/blob/main/examples/wout_vmec.nc).
-- the topologically same one [simsopt's `wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc`](https://github.com/hiddenSymmetries/simsopt/blob/master/tests/test_files/wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc)
+- the input nuclear data library: FENDL-3.2
+- the input VMEC equibirium. (which has following parameters) [This repository's `examples/wout_vmec.nc`](examples/wout_vmec.nc)
+   - the original [ParaStell's `examples/wout_vmec.nc`](https://github.com/svalinn/parastell/blob/main/examples/wout_vmec.nc).
+   - the topologically same one [simsopt's `wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc`](https://github.com/hiddenSymmetries/simsopt/blob/master/tests/test_files/wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc)
 
 | period (nfp) | major radius (Rmajor_p) | minor radius (Aminor_p) | aspect ratio (aspect) | volume-average field (volavgB) | beta (betatotal) | rotational transform (iotaf) |
 |---|---|---|---|---|---|---|
@@ -72,6 +72,51 @@ Nuclear heating of the coils with only a 50 cm breeder in between, tallied per c
 
 [al_09_coil_heating.md](https://lzpel.github.io/alphastell/al_09_coil_heating.md) / [al_09_coil_heating.percoil.png](https://lzpel.github.io/alphastell/al_09_coil_heating.percoil.png) / [al_09_coil_heating.coils.step](https://lzpel.github.io/alphastell/al_09_coil_heating.coils.step) / [al_09_coil_heating.shell.step](https://lzpel.github.io/alphastell/al_09_coil_heating.shell.step)
 
+### Experiment 10 `make al-10`
+
+TBR of the ParaStell reference build: the radial build of `parastell_cad_to_dagmc_example.py` with the homogenized DCLL compositions of the ParaStell paper and the FENDL-3.2 nuclear data library. One period is closed with rotational periodic CSG planes around the DAGMC model.
+
+| layer | density [g/cm³] | thickness [cm] | composition (vol%) |
+|---|---|---|---|
+| first wall | 2.656 | 5 | He 66 / RAFM 34 |
+| breeder | 8.440 | 25–75 (9×9 matrix, thin near the coils) | LiPb 79 / He 8 / SiC 7 / RAFM 6 |
+| back wall | 6.241 | 5 | RAFM 80 / He 20 |
+| shield | 12.893 | 50 | WC 75 / RAFM 15 / He 10 |
+| vacuum vessel | 4.468 | 10 | RAFM 51 / water 49 |
+| magnets | 7.511 | 40 × 50 cross section, filaments from `coils.example` | RAFM 67.4 / Cu 19.3 / Nb3Sn 5.1 / He 4.2 / insulator 4 |
+
+The constituent materials (Table 2 of the ParaStell paper, as defined in `materials()` of the script):
+
+| material | density [g/cm³] | composition (atom%) | enrichment |
+|---|---|---|---|
+| He | 0.00572 (8 MPa) | He 100 | |
+| RAFM | 7.8 | Fe 89.5 / Cr 9 / W 1.5 (wt%) | |
+| LiPb | 9.806 | Pb 83 / Li 17 | Li6 90 at% |
+| SiC | 3.21 | Si 50 / C 50 | |
+| WC | 15.63 | W 50 / C 50 | |
+| water | 1.0 | H 66.7 / O 33.3 | |
+| Cu | 8.96 | Cu 100 | |
+| Nb3Sn | 8.74 | Nb 75 / Sn 25 | |
+| SiO2 | 2.65 | O 66.7 / Si 33.3 | |
+| polyimide | 1.42 | C 69.11 / O 20.92 / N 7.33 / H 2.64 (wt%) | |
+| insulator | 1.968 (from the wt% mix) | SiO2 60 / polyimide 40 (wt%) | |
+
+TBR 1.272 ± 0.001, no lost particles; fusion power from the ParaStell source mesh (3.04 GW) agrees with the VMEC integral of experiment 09 (3.09 GW).
+
+![al_10_parastell_tbr.section.png](https://lzpel.github.io/alphastell/al_10_parastell_tbr.section.png)
+
+![al_10_parastell_tbr.top.png](https://lzpel.github.io/alphastell/al_10_parastell_tbr.top.png)
+
+- [al_10_parastell_tbr.chamber.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.chamber.step)
+- [al_10_parastell_tbr.first_wall.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.first_wall.step)
+- [al_10_parastell_tbr.breeder.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.breeder.step)
+- [al_10_parastell_tbr.back_wall.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.back_wall.step)
+- [al_10_parastell_tbr.shield.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.shield.step)
+- [al_10_parastell_tbr.vacuum_vessel.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.vacuum_vessel.step)
+- [al_10_parastell_tbr.magnets.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.magnets.step)
+
+[al_10_parastell_tbr.md](https://lzpel.github.io/alphastell/al_10_parastell_tbr.md)
+
 ## Reference
 
 - Lion, J., Anglès, J.-C., Bonauer, L., Bañón Navarro, A., Cadena Ceron, S. A., Davies, R., Drevlak, M., Foppiani, N., Geiger, J., Goodman, A., Guo, W., Guiraud, E., Hernández, F., Henneberg, S., Herrero, R., Höchter, J., Jelonnek, J., Jenko, F., Jorge, R., ... Xanthopoulos, P., & Zheng, M. (2025). Stellaris: A high-field quasi-isodynamic stellarator for a prototypical fusion power plant. Fusion Engineering and Design, 214, 114868. PDF[https://github.com/user-attachments/files/31101341/Lion2025_Stellaris_A_high-field_quasi-isodynamic_stellarator_for_a_prototypical_fusion_power_plant.pdf]
@@ -79,7 +124,5 @@ Nuclear heating of the coils with only a 50 cm breeder in between, tallied per c
 	- カジュアルな解説：PbLiを流す流路の一つDCLLのレビュー論文　図が分かりやすい
 - Martelli, E., Del Nevo, A., Arena, P., Bongiovì, G., Caruso, G., Di Maio, P. A., Eboli, M., Mariano, G., Marinari, R., Moro, F., Mozzillo, R., Giannetti, F., Di Gironimo, G., Tarallo, A., Tassone, A., & Villari, R. (2017). Advancements in DEMO WCLL breeding blanket design and integration [Preprint]. EUROfusion. [PDF](https://scipub.euro-fusion.org/wp-content/uploads/eurofusion/WPBBPR17_17326_submitted.pdf)
 	- カジュアルな解説：PbLiをポンプで流さず溜池にするWCLLの論文 CAD図が分かりやすい
-
-[parastell]: https://github.com/svalinn/parastell
-[openmc]: https://github.com/openmc-dev/openmc
-[cadrum]: https://github.com/lzpel/cadrum
+- Moreno, C. A., Bader, A., & Wilson, P. P. H. (2024). ParaStell: parametric modeling and neutronics support for stellarator fusion power plants. Frontiers in Nuclear Engineering, 3, 1384788. [DOI](https://doi.org/10.3389/fnuen.2024.1384788) / [PDF](https://www.frontiersin.org/journals/nuclear-engineering/articles/10.3389/fnuen.2024.1384788/pdf)
+	- カジュアルな解説：VMEC 平衡から均質化ブランケットの CAD と線源メッシュを自動生成する [ParaStell](https://github.com/svalinn/parastell) の論文 実験 10 の材料組成 (Table 1, 2) と WISTELL-D の TBR 1.10 はここから
