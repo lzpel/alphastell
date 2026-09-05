@@ -10,12 +10,10 @@ import numpy as np
 import openmc
 import parastell.parastell as ps
 
-matplotlib.use("Agg")
-
 
 def main(
 	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent / "wout_vmec.nc",
-	coils: pathlib.Path = pathlib.Path(__file__).resolve().parent / "coils.example",
+	coils: pathlib.Path = pathlib.Path("/opt/parastell/examples/coils.example"),  # parastell-ci コンテナ同梱
 	out: pathlib.Path = pathlib.Path("out") / pathlib.Path(__file__).with_suffix(".md").name,
 	# 層厚 [cm]。parastell の examples/parastell_cad_to_dagmc_example.py と同じ値
 	wall_s: float = 1.08,
@@ -49,7 +47,7 @@ def main(
 	neutron_energy: float = 14.1e6,
 	joule_per_ev: float = 1.602176634e-19,
 ) -> dict[str, Any]:
-	work = out.with_suffix("")
+	work = out.with_suffix(".openmc")
 	work.mkdir(parents=True, exist_ok=True)
 	stellarator, volumes, strengths, plasma_volume = build(
 		wout, coils, out, work, wall_s, first_wall, back_wall, shield, vacuum_vessel, breeder,
