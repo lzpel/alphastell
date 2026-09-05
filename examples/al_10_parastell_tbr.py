@@ -168,26 +168,28 @@ def build(
 def materials() -> list[openmc.Material]:
 	"""ParaStell 論文 Table 1/2 (ARIES-CS の DCLL) の均質化材料。name が DAGMC の材料タグと一致する。"""
 
-	def pure(name: str, density: float, atoms: dict[str, float], percent: str = "ao") -> openmc.Material:
+	def constituent_material(
+		name: str, density: float, atoms: dict[str, float], percent: str = "ao", enrichment_isotopes: dict[str, float] | None = None
+	) -> openmc.Material:
+		"""enrichment_isotopes は {"Li6": 90.0} のように同位体名 → 存在比 (percent と同じ単位)。"""
 		material = openmc.Material(name=name)
 		for element, fraction in atoms.items():
-			material.add_element(element, fraction, percent)
+			target = next((k for k in enrichment_isotopes or {} if k.rstrip("0123456789") == element), None)
+			enrichment = {"enrichment": enrichment_isotopes[target], "enrichment_target": target, "enrichment_type": percent} if target else {}
+			material.add_element(element, fraction, percent, **enrichment)
 		material.set_density("g/cm3", density)
 		return material
 
-	helium = pure("He", 0.00572, {"He": 100.0})
-	rafm = pure("RAFM", 7.8, {"Fe": 89.5, "Cr": 9.0, "W": 1.5}, "wo")
-	lipb = openmc.Material(name="LiPb")
-	lipb.add_element("Pb", 83.0, "ao")
-	lipb.add_element("Li", 17.0, "ao", enrichment=90.0, enrichment_target="Li6", enrichment_type="ao")
-	lipb.set_density("g/cm3", 9.806)
-	sic = pure("SiC", 3.21, {"Si": 50.0, "C": 50.0})
-	wc = pure("WC", 15.63, {"W": 50.0, "C": 50.0})
-	water = pure("water", 1.0, {"H": 66.7, "O": 33.3})
-	copper = pure("Cu", 8.96, {"Cu": 100.0})
-	nb3sn = pure("Nb3Sn", 8.74, {"Nb": 75.0, "Sn": 25.0})
-	silica = pure("SiO2", 2.65, {"O": 66.7, "Si": 33.3})
-	polyimide = pure("polyimide", 1.42, {"C": 69.11, "O": 20.92, "N": 7.33, "H": 2.64}, "wo")
+	helium = constituent_material("He", 0.00572, {"He": 100.0})
+	rafm = constituent_material("RAFM", 7.8, {"Fe": 89.5, "Cr": 9.0, "W": 1.5}, "wo")
+	lipb = constituent_material("LiPb", 9.806, {"Pb": 83.0, "Li": 17.0}, enrichment_isotopes={"Li6": 90.0})
+	sic = constituent_material("SiC", 3.21, {"Si": 50.0, "C": 50.0})
+	wc = constituent_material("WC", 15.63, {"W": 50.0, "C": 50.0})
+	water = constituent_material("water", 1.0, {"H": 66.7, "O": 33.3})
+	copper = constituent_material("Cu", 8.96, {"Cu": 100.0})
+	nb3sn = constituent_material("Nb3Sn", 8.74, {"Nb": 75.0, "Sn": 25.0})
+	silica = constituent_material("SiO2", 2.65, {"O": 66.7, "Si": 33.3})
+	polyimide = constituent_material("polyimide", 1.42, {"C": 69.11, "O": 20.92, "N": 7.33, "H": 2.64}, "wo")
 	insulator = openmc.Material.mix_materials([silica, polyimide], [0.6, 0.4], "wo", name="insulator")
 
 	mix = openmc.Material.mix_materials
