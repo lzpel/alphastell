@@ -85,13 +85,21 @@ TBR of the ParaStell reference build: the radial build of `parastell_cad_to_dagm
 | vacuum vessel | 10 | RAFM 51 / water 49 |
 | magnets | 40 × 50 cross section, filaments from `coils.example` | RAFM 67.4 / Cu 19.3 / Nb3Sn 5.1 / He 4.2 / insulator 4 |
 
-TBR 1.272 ± 0.001, no lost particles; fusion power from the ParaStell source mesh (3.04 GW) agrees with the VMEC integral of experiment 09 (3.09 GW). The script runs inside the `ghcr.io/svalinn/parastell-ci` container through its shebang, and leaves per-layer STEP files, volumes, the source mesh and the DAGMC file for a later comparison against the alphastell geometry.
+TBR 1.272 ± 0.001, no lost particles; fusion power from the ParaStell source mesh (3.04 GW) agrees with the VMEC integral of experiment 09 (3.09 GW).
 
 ![al_10_parastell_tbr.section.png](https://lzpel.github.io/alphastell/al_10_parastell_tbr.section.png)
 
 ![al_10_parastell_tbr.top.png](https://lzpel.github.io/alphastell/al_10_parastell_tbr.top.png)
 
-[al_10_parastell_tbr.md](https://lzpel.github.io/alphastell/al_10_parastell_tbr.md) / [al_10_parastell_tbr.chamber.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.chamber.step) / [al_10_parastell_tbr.first_wall.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.first_wall.step) / [al_10_parastell_tbr.breeder.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.breeder.step) / [al_10_parastell_tbr.back_wall.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.back_wall.step) / [al_10_parastell_tbr.shield.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.shield.step) / [al_10_parastell_tbr.vacuum_vessel.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.vacuum_vessel.step) / [al_10_parastell_tbr.magnets.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.magnets.step)
+- [al_10_parastell_tbr.chamber.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.chamber.step)
+- [al_10_parastell_tbr.first_wall.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.first_wall.step)
+- [al_10_parastell_tbr.breeder.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.breeder.step)
+- [al_10_parastell_tbr.back_wall.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.back_wall.step)
+- [al_10_parastell_tbr.shield.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.shield.step)
+- [al_10_parastell_tbr.vacuum_vessel.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.vacuum_vessel.step)
+- [al_10_parastell_tbr.magnets.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.magnets.step)
+
+[al_10_parastell_tbr.md](https://lzpel.github.io/alphastell/al_10_parastell_tbr.md) / 
 
 ## Reference
 
@@ -100,6 +108,8 @@ TBR 1.272 ± 0.001, no lost particles; fusion power from the ParaStell source me
 	- カジュアルな解説：PbLiを流す流路の一つDCLLのレビュー論文　図が分かりやすい
 - Martelli, E., Del Nevo, A., Arena, P., Bongiovì, G., Caruso, G., Di Maio, P. A., Eboli, M., Mariano, G., Marinari, R., Moro, F., Mozzillo, R., Giannetti, F., Di Gironimo, G., Tarallo, A., Tassone, A., & Villari, R. (2017). Advancements in DEMO WCLL breeding blanket design and integration [Preprint]. EUROfusion. [PDF](https://scipub.euro-fusion.org/wp-content/uploads/eurofusion/WPBBPR17_17326_submitted.pdf)
 	- カジュアルな解説：PbLiをポンプで流さず溜池にするWCLLの論文 CAD図が分かりやすい
+- Moreno, C. A., Bader, A., & Wilson, P. P. H. (2024). ParaStell: parametric modeling and neutronics support for stellarator fusion power plants. Frontiers in Nuclear Engineering, 3, 1384788. [DOI](https://doi.org/10.3389/fnuen.2024.1384788) / [PDF](https://www.frontiersin.org/journals/nuclear-engineering/articles/10.3389/fnuen.2024.1384788/pdf)
+	- カジュアルな解説：VMEC 平衡から均質化ブランケットの CAD と線源メッシュを自動生成する [parastell] の論文 実験 10 の材料組成 (Table 1, 2) と WISTELL-D の TBR 1.10 はここから
 
 [parastell]: https://github.com/svalinn/parastell
 [openmc]: https://github.com/openmc-dev/openmc
