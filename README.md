@@ -27,6 +27,14 @@ Output: feasibility verdict and design drawings for a stellarator
 
 TBR of pure PbLi shells (30/50/70 cm) extruded along the LCFS normal, computed with OpenMC. Breeder thickness and TBR are positively correlated.
 
+The chain behind TBR, from the plasma to the breeder. The alpha stays in the plasma, so only the 14.1 MeV neutron enters the blanket and fusion power is 17.6/14.1 times the neutron power. The two lithium branches are scored together as `(n,Xt)`; the exothermic Li-6 branch works down to thermal energies (hence 90% Li-6 enrichment), the Li-7 branch needs more than 2.5 MeV but keeps the neutron alive. Lead multiplies neutrons by (n,2n), which is what lets TBR exceed 1.
+
+| where, what | reaction |
+|---|---|
+| plasma: DT fusion, the neutron source | ${}^{2}\mathrm{H} + {}^{3}\mathrm{H} \rightarrow {}^{4}\mathrm{He}\ (3.5\ \mathrm{MeV}) + n\ (14.1\ \mathrm{MeV})$ |
+| LiPb: tritium breeding on Li-6 and Li-7 | ${}^{6}\mathrm{Li} + n \rightarrow {}^{4}\mathrm{He} + {}^{3}\mathrm{H} + 4.8\ \mathrm{MeV}$<br>${}^{7}\mathrm{Li} + n \rightarrow {}^{4}\mathrm{He} + {}^{3}\mathrm{H} + n' - 2.5\ \mathrm{MeV}$ |
+| LiPb: neutron multiplication on Pb | ${}^{208}\mathrm{Pb} + n \rightarrow {}^{207}\mathrm{Pb} + 2n - 7.4\ \mathrm{MeV}$ |
+
 ![al_06_pbli_tbr.tbr.png](https://lzpel.github.io/alphastell/al_06_pbli_tbr.tbr.png)
 
 [al_06_pbli_tbr.md](https://lzpel.github.io/alphastell/al_06_pbli_tbr.md) / [al_06_pbli_tbr.shell.png](https://lzpel.github.io/alphastell/al_06_pbli_tbr.shell.png) / [al_06_pbli_tbr.section.png](https://lzpel.github.io/alphastell/al_06_pbli_tbr.section.png) / [al_06_pbli_tbr.shell.step](https://lzpel.github.io/alphastell/al_06_pbli_tbr.shell.step)
@@ -65,6 +73,15 @@ Stationarity condition for simsopt: minimize the area integral of the normalized
 ### Experiment 09 `make al-09`
 
 Nuclear heating of the coils with only a 50 cm breeder in between, tallied per coil. 94 MW in total; the volume average is about 1000 times the DEMO TF coil target, settling in numbers that shielding is mandatory. Fusion power is calibrated by integrating the VMEC equilibrium (3.1 GW).
+
+Photon transport: the heating tally must include the secondary gamma rays, which carry 30–40% of the energy deposited in steel and copper.
+
+| where, what | reaction |
+|---|---|
+| PbLi shell: capture on Pb-208, rare because Pb-208 is doubly magic | ${}^{208}\mathrm{Pb} + n \rightarrow {}^{209}\mathrm{Pb}^{*} \rightarrow {}^{209}\mathrm{Pb} + \gamma\ (3.9\ \mathrm{MeV})$ |
+| PbLi shell: inelastic scattering on Pb-208, fast neutrons above 2.6 MeV | ${}^{208}\mathrm{Pb} + n \rightarrow {}^{208}\mathrm{Pb}^{*} + n' \rightarrow {}^{208}\mathrm{Pb} + n' + \gamma\ (2.6\ \mathrm{MeV})$ |
+| coil steel: capture on Fe-56, mostly after moderation | ${}^{56}\mathrm{Fe} + n \rightarrow {}^{57}\mathrm{Fe}^{*} \rightarrow {}^{57}\mathrm{Fe} + \gamma\ (7.6\ \mathrm{MeV})$ |
+| coil steel: inelastic scattering on Fe-56, fast neutrons above 0.86 MeV | ${}^{56}\mathrm{Fe} + n \rightarrow {}^{56}\mathrm{Fe}^{*} + n' \rightarrow {}^{56}\mathrm{Fe} + n' + \gamma\ (0.85\ \mathrm{MeV})$ |
 
 ![al_09_coil_heating.heating.png](https://lzpel.github.io/alphastell/al_09_coil_heating.heating.png)
 
