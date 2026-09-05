@@ -72,6 +72,16 @@ Nuclear heating of the coils with only a 50 cm breeder in between, tallied per c
 
 [al_09_coil_heating.md](https://lzpel.github.io/alphastell/al_09_coil_heating.md) / [al_09_coil_heating.percoil.png](https://lzpel.github.io/alphastell/al_09_coil_heating.percoil.png) / [al_09_coil_heating.coils.step](https://lzpel.github.io/alphastell/al_09_coil_heating.coils.step) / [al_09_coil_heating.shell.step](https://lzpel.github.io/alphastell/al_09_coil_heating.shell.step)
 
+### Experiment 10 `make al-10`
+
+TBR of the ParaStell reference build: the radial build of `parastell_cad_to_dagmc_example.py` (first wall 5, breeder 25–75, back wall 5, shield 50, vacuum vessel 10 cm, magnets from `coils.example`) with the homogenized DCLL compositions of the ParaStell paper and FENDL 3.2. One period is closed with rotational periodic CSG planes around the DAGMC model. TBR 1.272 ± 0.001, no lost particles; fusion power from the ParaStell source mesh (3.04 GW) agrees with the VMEC integral of experiment 09 (3.09 GW). The script runs inside the `ghcr.io/svalinn/parastell-ci` container through its shebang, and leaves per-layer STEP files, volumes, the source mesh and the DAGMC file for a later comparison against the alphastell geometry.
+
+![al_10_parastell_tbr.section.png](https://lzpel.github.io/alphastell/al_10_parastell_tbr.section.png)
+
+![al_10_parastell_tbr.top.png](https://lzpel.github.io/alphastell/al_10_parastell_tbr.top.png)
+
+[al_10_parastell_tbr.md](https://lzpel.github.io/alphastell/al_10_parastell_tbr.md) / [al_10_parastell_tbr.breeder.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.breeder.step) / [al_10_parastell_tbr.magnets.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.magnets.step)
+
 ## Reference
 
 - Lion, J., Anglès, J.-C., Bonauer, L., Bañón Navarro, A., Cadena Ceron, S. A., Davies, R., Drevlak, M., Foppiani, N., Geiger, J., Goodman, A., Guo, W., Guiraud, E., Hernández, F., Henneberg, S., Herrero, R., Höchter, J., Jelonnek, J., Jenko, F., Jorge, R., ... Xanthopoulos, P., & Zheng, M. (2025). Stellaris: A high-field quasi-isodynamic stellarator for a prototypical fusion power plant. Fusion Engineering and Design, 214, 114868. PDF[https://github.com/user-attachments/files/31101341/Lion2025_Stellaris_A_high-field_quasi-isodynamic_stellarator_for_a_prototypical_fusion_power_plant.pdf]
