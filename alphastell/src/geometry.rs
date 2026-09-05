@@ -119,6 +119,11 @@ impl Geometry {
 	fn __len__(&self) -> usize {
 		self.0.len()
 	}
+	/// 全ソリッドに描画色を付けた Geometry を返す。CSS 色名 ("orange") か 16 進 ("#ff7f50")。
+	fn color(&self, color: &str) -> Result<Geometry, Error> {
+		let color = cadrum::Color::from_str(color).map_err(Error)?;
+		Ok(Geometry(self.0.iter().map(|s| s.clone().color(color)).collect()))
+	}
 	/// ソリッドごとの体積。掃引や押し出しの結果を解析値と突き合わせる用。
 	fn volume(&self) -> Vec<f64> {
 		self.0.iter().map(|s| s.volume().abs()).collect()
