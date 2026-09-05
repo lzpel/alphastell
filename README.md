@@ -103,19 +103,19 @@ The constituent materials (Table 2 of the ParaStell paper, as defined in `materi
 
 TBR 1.272 ± 0.001, no lost particles; fusion power from the ParaStell source mesh (3.04 GW) agrees with the VMEC integral of experiment 09 (3.09 GW).
 
-![al_10_parastell_tbr.section.png](https://lzpel.github.io/alphastell/al_10_parastell_tbr.section.png)
+![al_10_parastell_cad_to_dagmc_example.section.png](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.section.png)
 
-![al_10_parastell_tbr.top.png](https://lzpel.github.io/alphastell/al_10_parastell_tbr.top.png)
+![al_10_parastell_cad_to_dagmc_example.top.png](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.top.png)
 
-- [al_10_parastell_tbr.chamber.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.chamber.step)
-- [al_10_parastell_tbr.first_wall.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.first_wall.step)
-- [al_10_parastell_tbr.breeder.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.breeder.step)
-- [al_10_parastell_tbr.back_wall.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.back_wall.step)
-- [al_10_parastell_tbr.shield.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.shield.step)
-- [al_10_parastell_tbr.vacuum_vessel.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.vacuum_vessel.step)
-- [al_10_parastell_tbr.magnets.step](https://lzpel.github.io/alphastell/al_10_parastell_tbr.magnets.step)
+- [al_10_parastell_cad_to_dagmc_example.chamber.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.chamber.step)
+- [al_10_parastell_cad_to_dagmc_example.first_wall.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.first_wall.step)
+- [al_10_parastell_cad_to_dagmc_example.breeder.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.breeder.step)
+- [al_10_parastell_cad_to_dagmc_example.back_wall.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.back_wall.step)
+- [al_10_parastell_cad_to_dagmc_example.shield.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.shield.step)
+- [al_10_parastell_cad_to_dagmc_example.vacuum_vessel.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.vacuum_vessel.step)
+- [al_10_parastell_cad_to_dagmc_example.magnets.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.magnets.step)
 
-[al_10_parastell_tbr.md](https://lzpel.github.io/alphastell/al_10_parastell_tbr.md)
+[al_10_parastell_cad_to_dagmc_example.md](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.md)
 
 ## Reference
 
