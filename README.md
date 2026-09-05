@@ -85,6 +85,24 @@ TBR of the ParaStell reference build: the radial build of `parastell_cad_to_dagm
 | vacuum vessel | 10 | RAFM 51 / water 49 |
 | magnets | 40 × 50 cross section, filaments from `coils.example` | RAFM 67.4 / Cu 19.3 / Nb3Sn 5.1 / He 4.2 / insulator 4 |
 
+The constituent materials (Table 2 of the ParaStell paper, as defined in `materials()` of the script):
+
+| material | density [g/cm³] | composition (atom%) | enrichment |
+|---|---|---|---|
+| He | 0.00572 (8 MPa) | He 100 | |
+| RAFM | 7.8 | Fe 89.5 / Cr 9 / W 1.5 (wt%) | |
+| LiPb | 9.806 | Pb 83 / Li 17 | Li6 90 at% |
+| SiC | 3.21 | Si 50 / C 50 | |
+| WC | 15.63 | W 50 / C 50 | |
+| water | 1.0 | H 66.7 / O 33.3 | |
+| Cu | 8.96 | Cu 100 | |
+| Nb3Sn | 8.74 | Nb 75 / Sn 25 | |
+| SiO2 | 2.65 | O 66.7 / Si 33.3 | |
+| polyimide | 1.42 | C 69.11 / O 20.92 / N 7.33 / H 2.64 (wt%) | |
+| insulator | mixed | SiO2 60 / polyimide 40 (wt%) | |
+
+| meterial | dencity [g/cm^3] | composition (atom%) | enrichment |
+
 TBR 1.272 ± 0.001, no lost particles; fusion power from the ParaStell source mesh (3.04 GW) agrees with the VMEC integral of experiment 09 (3.09 GW).
 
 ![al_10_parastell_tbr.section.png](https://lzpel.github.io/alphastell/al_10_parastell_tbr.section.png)
