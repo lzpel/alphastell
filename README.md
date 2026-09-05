@@ -105,7 +105,7 @@ TBR 1.272 ± 0.001, no lost particles; fusion power from the ParaStell source me
 
 ![al_10_parastell_cad_to_dagmc_example.section.png](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.section.png)
 
-![al_10_parastell_cad_to_dagmc_example.top.png](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.top.png)
+![al_101_parastell_visualize.png](https://lzpel.github.io/alphastell/al_101_parastell_visualize.png)
 
 - [al_10_parastell_cad_to_dagmc_example.chamber.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.chamber.step)
 - [al_10_parastell_cad_to_dagmc_example.first_wall.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.first_wall.step)
