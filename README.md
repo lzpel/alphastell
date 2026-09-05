@@ -14,10 +14,10 @@ Output: feasibility verdict and design drawings for a stellarator
 
 ### Input
 
-The three VMEC equilibriums are same, which has following parameters
-- the input [This repository's `examples/wout_vmec.nc`](examples/wout_vmec.nc)
-- the original [ParaStell's `examples/wout_vmec.nc`](https://github.com/svalinn/parastell/blob/main/examples/wout_vmec.nc).
-- the topologically same one [simsopt's `wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc`](https://github.com/hiddenSymmetries/simsopt/blob/master/tests/test_files/wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc)
+- the input nuclear data library: FENDL-3.2
+- the input VMEC equibirium. (which has following parameters) [This repository's `examples/wout_vmec.nc`](examples/wout_vmec.nc)
+   - the original [ParaStell's `examples/wout_vmec.nc`](https://github.com/svalinn/parastell/blob/main/examples/wout_vmec.nc).
+   - the topologically same one [simsopt's `wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc`](https://github.com/hiddenSymmetries/simsopt/blob/master/tests/test_files/wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc)
 
 | period (nfp) | major radius (Rmajor_p) | minor radius (Aminor_p) | aspect ratio (aspect) | volume-average field (volavgB) | beta (betatotal) | rotational transform (iotaf) |
 |---|---|---|---|---|---|---|
@@ -74,7 +74,16 @@ Nuclear heating of the coils with only a 50 cm breeder in between, tallied per c
 
 ### Experiment 10 `make al-10`
 
-TBR of the ParaStell reference build: the radial build of `parastell_cad_to_dagmc_example.py` (first wall 5, breeder 25–75, back wall 5, shield 50, vacuum vessel 10 cm, magnets from `coils.example`) with the homogenized DCLL compositions of the ParaStell paper and FENDL 3.2. One period is closed with rotational periodic CSG planes around the DAGMC model. TBR 1.272 ± 0.001, no lost particles; fusion power from the ParaStell source mesh (3.04 GW) agrees with the VMEC integral of experiment 09 (3.09 GW). The script runs inside the `ghcr.io/svalinn/parastell-ci` container through its shebang, and leaves per-layer STEP files, volumes, the source mesh and the DAGMC file for a later comparison against the alphastell geometry.
+TBR of the ParaStell reference build: the radial build of `parastell_cad_to_dagmc_example.py` with the homogenized DCLL compositions of the ParaStell paper and the FENDL-3.2 nuclear data library. One period is closed with rotational periodic CSG planes around the DAGMC model.
+
+| layer | thickness [cm] | composition (vol%) |
+|---|---|---|
+| first wall | 5 | He 66 / RAFM 34 |
+| breeder | 25–75 (9×9 matrix, thin near the coils) | LiPb 79 / He 8 / SiC 7 / RAFM 6 |
+| back wall | 5 | RAFM 80 / He 20 |
+| shield | 50 | WC 75 / RAFM 15 / He 10 |
+| vacuum vessel | 10 | RAFM 51 / water 49 |
+| magnets | 40 × 50 cross section, filaments from `coils.example` | RAFM 67.4 / Cu 19.3 / Nb3Sn 5.1 / He 4.2 / insulator 4 | TBR 1.272 ± 0.001, no lost particles; fusion power from the ParaStell source mesh (3.04 GW) agrees with the VMEC integral of experiment 09 (3.09 GW). The script runs inside the `ghcr.io/svalinn/parastell-ci` container through its shebang, and leaves per-layer STEP files, volumes, the source mesh and the DAGMC file for a later comparison against the alphastell geometry.
 
 ![al_10_parastell_tbr.section.png](https://lzpel.github.io/alphastell/al_10_parastell_tbr.section.png)
 
