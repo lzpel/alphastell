@@ -1,5 +1,6 @@
 import json
 import math
+import os
 import pathlib
 from typing import Any, Callable
 
@@ -49,9 +50,7 @@ def main(
 		combined = geometry if combined is None else combined.concat(geometry)
 	with open(out.with_suffix(".png"), "wb") as f:
 		combined.rotate(rad_z=rotate_z).write_png(f)
-	h5m = dagmc(layers, out.with_suffix(".h5m"), tolerance, angular_tolerance)
 
-	mats = materials()
 	source = openmc.IndependentSource(
 		space=openmc.stats.MeshSpatial(
 			openmc.UnstructuredMesh(str(out.parent / summary["source"]["h5m"]), "moab"),
@@ -60,8 +59,14 @@ def main(
 		),
 		energy=openmc.stats.Discrete([neutron_energy], [1.0]),
 	)
-	result = run(h5m, source, mats, out.with_suffix(".openmc"), particles, batches, (tally_xy, tally_xy, tally_z))
-	names = [material.name for material in mats]
+	if os.getenv("SKIP", ""):
+		result = openmc_statepoint(out.with_suffix(".openmc"))
+	else:
+		result = run(
+			dagmc(layers, out.with_suffix(".h5m"), tolerance, angular_tolerance),  # 三角形化に数分かかるので skip では呼ばない
+			source, materials(), out.with_suffix(".openmc"), particles, batches, (tally_xy, tally_xy, tally_z),
+		)
+	names = list(result["heating"])
 	heating = {name: result["heating"][name] * rate * joule_per_ev * nfp * 1e-6 for name in names}  # MW 全周
 	voxel = float(np.prod(result["mesh"].width)) * 1e-6  # ボクセル体積 [m³]
 	heating_map = result["map_heating"] * joule_per_ev * rate / voxel  # [W/m³]
@@ -285,37 +290,28 @@ def plot_tally(
 	heating: np.ndarray,  # ボクセル平均の核発熱密度 [W/m³]
 	tritium: np.ndarray,  # (n,Xt) のトリチウム生成密度 [T/s/m³]
 	source: np.ndarray,  # 線源密度 [n/s/m³]。DT 反応 1 回 = 中性子 1 個 = T 消費 1 個
-	phi: float = math.pi / 4,  # 収支を描くポロイダル断面のトロイダル角 [rad]。扇形の中央
-	half_width: float = math.radians(2.0),  # 断面に入れるボクセルの角度幅 (片側) [rad]
-) -> tuple[matplotlib.figure.Figure, matplotlib.figure.Figure]:  # 発熱の 3D 散布図と、トリチウム収支 (生成 − 消費、全体積の積分が (TBR − 1) × 線源強度) のポロイダル断面
-	lower, upper = np.asarray(mesh.lower_left) / 100, np.asarray(mesh.upper_right) / 100  # [m]
-	widths = (upper - lower) / np.asarray(mesh.dimension)
+) -> tuple[matplotlib.figure.Figure, matplotlib.figure.Figure]:  # 発熱と、トリチウム収支 (生成 − 消費、全体積の積分が (TBR − 1) × 線源強度) の 3D 散布図
+	lower, upper, widths = [i/100 for i in [np.asarray(mesh.lower_left), np.asarray(mesh.upper_right), np.asarray(mesh.width)]]
 	centers = np.meshgrid(*[lower[k] + (np.arange(mesh.dimension[k]) + 0.5) * widths[k] for k in range(3)], indexing="ij")
 
-	figure_heating = plt.figure(figsize=(8.5, 7.0))
+	figure_heating = plt.figure()
 	axes = figure_heating.add_subplot(projection="3d")
 	mask = heating > 0
-	image = axes.scatter(centers[0][mask], centers[1][mask], centers[2][mask], c=heating[mask], norm=matplotlib.colors.LogNorm(), s=4)
+	image = axes.scatter(centers[0][mask], centers[1][mask], centers[2][mask], c=heating[mask], s=4)
 	figure_heating.colorbar(image, ax=axes, label="nuclear heating [W/m^3]", shrink=0.7)
 	axes.set_box_aspect(upper - lower)
-	axes.set(xlabel="x [m]", ylabel="y [m]", zlabel="z [m]", title="nuclear heating, neutrons and photons")
+	axes.set(xlabel="x [m]", ylabel="y [m]", zlabel="z [m]")
+	figure_heating.tight_layout()
 
+	figure_tritium = plt.figure()
+	axes = figure_tritium.add_subplot(projection="3d")
 	balance = tritium - source
-	angle = np.arctan2(centers[1], centers[0])
-	band = (np.abs(angle - phi) < half_width) & ((tritium > 0) | (source > 0))  # φ=phi の薄い帯。φ 平均にすると断面が φ で回るぶん別の層が混ざる
-	radius, height = np.hypot(centers[0], centers[1])[band], centers[2][band]  # 3D 散布は手前が奥を隠すので収支は (R, Z) に並べ直して描く
-	r_edges = np.arange(radius.min() - widths[0] / 2, radius.max() + widths[0], widths[0])
-	z_edges = np.linspace(lower[2], upper[2], mesh.dimension[2] + 1)
-	total = np.histogram2d(radius, height, bins=[r_edges, z_edges], weights=balance[band])[0]
-	count = np.histogram2d(radius, height, bins=[r_edges, z_edges])[0]
-	mean = np.divide(total, count, out=np.full_like(total, np.nan), where=count > 0)
-	limit = float(np.nanmax(np.abs(mean)))
-	figure_tritium, axes = plt.subplots(figsize=(7.5, 5.5))
-	image = axes.pcolormesh(
-		r_edges, z_edges, mean.T, cmap="RdBu_r", norm=matplotlib.colors.SymLogNorm(linthresh=limit * 1e-3, vmin=-limit, vmax=limit)
-	)
-	figure_tritium.colorbar(image, ax=axes, label="tritium balance, bred minus burnt [T/s/m^3]")
-	axes.set(xlabel="R [m]", ylabel="Z [m]", title=f"tritium burnt (DT, blue) and bred (Li-6, Li-7, red) at phi = {math.degrees(phi):.0f} deg", aspect="equal")
+	mask = balance != 0
+	image = axes.scatter(centers[0][mask], centers[1][mask], centers[2][mask], c=balance[mask], s=4)
+	figure_tritium.colorbar(image, ax=axes, label="tritium balance [T/s/m^3]", shrink=0.7)
+	axes.set_box_aspect(upper - lower)
+	axes.set(xlabel="x [m]", ylabel="y [m]", zlabel="z [m]")
+	figure_tritium.tight_layout()
 	return figure_heating, figure_tritium
 
 
@@ -362,7 +358,14 @@ def run(
 		tallies=openmc.Tallies([layers, mapped]),
 	)
 	work.mkdir(parents=True, exist_ok=True)
-	with openmc.StatePoint(model.run(cwd=work, output=False)) as statepoint:
+	model.run(cwd=work, output=False)
+	return openmc_statepoint(work)
+
+
+def openmc_statepoint(work: pathlib.Path) -> dict[str, Any]:  # work の statepoint を run() と同じ形に読み直す。輸送を回さず図やレポートだけ作り直せる
+	with openmc.StatePoint(max(work.glob("statepoint.*.h5"), key=lambda p: p.stat().st_mtime)) as statepoint:  # 名前の数字は batches なので、粒子数だけ変えると同名で上書きされる
+		mesh = next(m for m in statepoint.meshes.values() if isinstance(m, openmc.RegularMesh))  # 線源の非構造メッシュと混ざらないよう型で選ぶ
+		dimension = tuple(int(n) for n in mesh.dimension)
 		values = statepoint.get_tally(name="layers")
 		tritium = values.get_values(scores=["(n,Xt)"]).flatten()
 		tritium_error = values.get_values(scores=["(n,Xt)"], value="std_dev").flatten()
@@ -370,17 +373,16 @@ def run(
 		grid = statepoint.get_tally(name="map")
 		map_heating = grid.get_values(scores=["heating"]).reshape(dimension, order="F")  # ビンは x が最内で回るので order="F" でないと軸が入れ替わる
 		map_tritium = grid.get_values(scores=["(n,Xt)"]).reshape(dimension, order="F")
-		transport = float(statepoint.runtime["transport"])
-	return {
-		"tbr": float(tritium.sum()),
-		"tbr_error": float(np.sqrt(np.sum(tritium_error**2))),
-		"heating": dict(zip([material.name for material in mats], map(float, heating))),
-		"map_heating": map_heating,
-		"map_tritium": map_tritium,
-		"mesh": mesh,
-		"lost": len(list(work.glob("particle_*.h5"))),
-		"t_run": transport,
-	}
+		return {  # 値はすべてここで取り切るので、抜けて閉じたあとも使える
+			"tbr": float(tritium.sum()),
+			"tbr_error": float(np.sqrt(np.sum(tritium_error**2))),
+			"heating": dict(zip([material.name for material in materials()], map(float, heating))),  # タリーには材料 id しか無いので、MaterialFilter に渡した順で名前を貼り直す
+			"map_heating": map_heating,
+			"map_tritium": map_tritium,
+			"mesh": mesh,
+			"lost": len(list(work.glob("particle_*.h5"))),
+			"t_run": float(statepoint.runtime["transport"]),
+		}
 
 
 def report(**kwargs: Any) -> str:
@@ -434,7 +436,7 @@ TBR は全材料の (n,Xt) の和、核加熱は 1 中性子あたりの eV に�
 
 ![ボクセル別の核発熱密度 (中性子 + 光子)]({heating_png})
 
-![φ=45° のポロイダル断面でのトリチウム収支。負 (青) はプラズマで DT 反応が T を燃やす密度、正 (赤) は LiPb で Li-6, Li-7 が T を作る密度。全体積の積分が (TBR − 1) × 線源強度になる]({tritium_png})
+![ボクセル別のトリチウム収支 (生成 − 消費)。負はプラズマで DT 反応が T を燃やす密度、正は LiPb で Li-6, Li-7 が T を作る密度。全体積の積分が (TBR − 1) × 線源強度になる]({tritium_png})
 
 | 層 | 色 | ソリッド数 | 体積 cadquery [m³/扇形] | 体積 cadrum [m³/扇形] | 核加熱 [MW 全周] |
 |:--|:--|--:|--:|--:|--:|
@@ -484,5 +486,5 @@ TBR は全材料の (n,Xt) の和、核加熱は 1 中性子あたりの eV に�
 
 
 if __name__ == "__main__":
-	main_parastell()
+	os.getenv("SKIP", "") or main_parastell()
 	main()
