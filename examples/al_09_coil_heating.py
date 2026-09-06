@@ -21,7 +21,7 @@ def main(
 	height: float = 0.50,  # 導体断面の半径方向厚み [m]。同上
 	thickness: float = 0.5,  # PbLi 殻の厚み [m]。al_06 の中央、al_07 と同じ
 	n_source: int = 5000,  # 重み付き点線源の点数。al_07 の case_2 と同じ
-	particles: int = 40000,
+	particles: int = 20000,
 	batches: int = 10,
 	tally_xy: int = 50,  # 3D 発熱マップの水平分割数
 	tally_z: int = 25,  # 同 鉛直分割数
