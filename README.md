@@ -64,7 +64,7 @@ $$
 
 Stationarity condition for simsopt: minimize the area integral of the normalized normal field on the LCFS; reaching 0 means the field produced by the coils reproduces the flux surface exactly ($\mathbf B \cdot \mathbf n = 0$).
 
-![al_08_coil_geometry.guided_spines.png](https://lzpel.github.io/alphastell/al_08_coil_geometry.guided_spines.png)
+![al_08_coil_geometry.spines.png](https://lzpel.github.io/alphastell/al_08_coil_geometry.spines.png)
 
 ![al_08_coil_geometry.sweep.png](https://lzpel.github.io/alphastell/al_08_coil_geometry.sweep.png)
 

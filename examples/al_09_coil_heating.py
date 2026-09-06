@@ -9,7 +9,7 @@ import openmc
 from cad_to_dagmc import CadToDagmc
 
 from al_07_source_models import jacobian, point_sources, reaction_rate
-from al_08_coil_geometry import guided_spines, make_surface, optimize_coil, sweep_guided_spines
+from al_08_coil_geometry import make_surface, optimize_coil, project_spines, sweep_spines
 from alphastell import SurfaceFourierRZ, Geometry
 
 
@@ -42,9 +42,9 @@ def main(
 	if clearance <= 0.0:
 		raise ValueError(f"coils reach {result['curve_surface_distance']:.2f} m from the LCFS, which overlaps the {thickness} m blanket by {-clearance:.2f} m")
 
-	# --- 幾何: guided spines 掃引のコイルと法線オフセットの増殖材殻 --------------------
-	spines = guided_spines(wout, [coil.curve.gamma().tolist() for coil in result["coils"]])
-	solids = sweep_guided_spines([-height / 2, -width / 2, height / 2, -width / 2, height / 2, width / 2, -height / 2, width / 2], spines)
+	# --- 幾何: 中心線を掃引したコイルと法線オフセットの増殖材殻 ------------------------
+	spines = [coil.curve.gamma() for coil in result["coils"]]
+	solids = sweep_spines(width, height, project_spines(wout, spines))
 	shell, outer = blanket(lcfs, thickness)
 	for geometry, path in ((solids, out.with_suffix(".coils.step")), (shell, out.with_suffix(".shell.step"))):
 		with open(path, "wb") as f:
@@ -52,9 +52,9 @@ def main(
 	with open(out.with_suffix(".geometry.png"), "wb") as f:
 		shell.concat(solids).write_png(f)  # boolean_union は 33 体で分オーダーかかる。描画に結合は不要
 
-	# 断面積 x 中心線長との突き合わせ。guided 掃引の既知水準は -7〜-4%
+	# 断面積 x 中心線長との突き合わせ。guide 付き掃引の既知水準は -7〜-4%
 	volumes = solids.volume()
-	exact = [width * height * float(np.linalg.norm(np.diff(np.array(s)[:, :3], axis=0, append=[s[0][:3]]), axis=1).sum()) for s in spines]
+	exact = [width * height * float(np.linalg.norm(np.diff(s, axis=0, append=s[:1]), axis=1).sum()) for s in spines]
 	volume_error = [(v / e - 1.0) * 100 for v, e in zip(volumes, exact)]
 	print(f"swept volume error vs area x length {min(volume_error):+.1f}..{max(volume_error):+.1f} %")
 
@@ -73,7 +73,7 @@ def main(
 
 	# --- 輸送とタリー -----------------------------------------------------------------
 	# 3D 散布図用の直交メッシュ。コイル点列の外接箱に断面の張り出しぶんの余白を足す
-	points = np.array(spines)[..., :3].reshape(-1, 3)
+	points = np.array(spines).reshape(-1, 3)
 	lower, upper = points.min(axis=0) - height, points.max(axis=0) + height
 	mesh = openmc.RegularMesh(mesh_id=1)
 	mesh.dimension = (tally_xy, tally_xy, tally_z)
@@ -288,8 +288,8 @@ al_06 は「PbLi 殻を厚くするほど TBR が上がる」と示し、al_08 �
 半厚と増殖材 {thickness} cm を引いた隙間は {clearance} m でコイルと増殖材は干渉しない。
 
 断面は {width} × {height} cm の矩形 (parastell の config.yaml と同じ)。掃引は al_08 の
-guided spines を使う: コイル各点を nearest 射影で LCFS に落とし、その法線方向へずらした
-guide 曲線が断面の捻りを点ごとに制御する (cadrum の Auxiliary、断面は常に接線と直交)。
+project_spines + sweep_spines を使う: コイル各点を nearest 射影で LCFS に落とし、その足へ向けて
+断面の対角半径だけずらした guide 曲線が断面の捻りを点ごとに制御する (cadrum の Auxiliary、断面は常に接線と直交)。
 旧 al_10 ドラフトは断面の向きを 1 本の固定ベクトルで運んだため断面が最大 84 度寝て
 DAGMC が粒子をロストしたが、この方式で解消した。掃引体積は断面積 × 中心線長に対し
 {volume_error_min}〜{volume_error_max} % で、既知の掃引面近似誤差の範囲にある。

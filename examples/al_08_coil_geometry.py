@@ -26,17 +26,17 @@ def main(
 	ncoils = baseline["parameters"]["ncoils"]
 
 	# --- コイル形状を Fourier 係数で書き出す。下流の CAD/構造解析はここから読む ---------
-	geometry = [coil.curve.gamma() for coil in baseline["coils"]]
+	spines = [coil.curve.gamma() for coil in baseline["coils"]]
 	# coeffs は [ncoil, 3, 2*order+1] で軸ごとに [c0, s1, c1, .. s_order, c_order]。行 = コイル 1 本に平坦化する
 	np.savetxt(
 		out.with_suffix(".coeffs.csv"), baseline["coeffs"].reshape(len(baseline["coeffs"]), -1), delimiter=",", fmt="%.9e",
 		header="row = one coil; columns = [c0, s1, c1, .. s_order, c_order] for x, then y, then z [m]",
 	)
 
-	spines = guided_spines(wout, [coil.curve.gamma().tolist() for coil in baseline["coils"]])
-	visualize_guided_spines(spines, out.with_suffix(".guided_spines.png"), surface)
-	# al_081 と同じ矩形断面で掃引した導体ソリッドの 4 面図。ローカル +X が guide (半径) 方向なので x に height を割る
-	solids = sweep_guided_spines([-height / 2, -width / 2, height / 2, -width / 2, height / 2, width / 2, -height / 2, width / 2], spines)
+	projected_spines = project_spines(wout, spines)
+	visualize_spines(projected_spines, out.with_suffix(".spines.png"), surface)
+	# al_081 と同じ矩形断面で掃引した導体ソリッドの 4 面図
+	solids = sweep_spines(width, height, projected_spines)
 	with open(out.with_suffix(".sweep.png"), "wb") as f:
 		solids.write_png(f)
 
@@ -76,7 +76,7 @@ def main(
 			f"{sum(r['lengths']) * 2 * surface.nfp:.0f} | {r['curve_curve_distance']:.2f} |\n"
 			for r in results
 		),
-		"out_png": out.with_suffix(".guided_spines.png").name,
+		"out_png": out.with_suffix(".spines.png").name,
 		"out_sweep_png": out.with_suffix(".sweep.png").name,
 		"out_error_png": out.with_suffix(".error.png").name,
 		"out_csv": out.with_suffix(".coeffs.csv").name,
@@ -226,57 +226,54 @@ def optimize_coil(
 	}
 
 
-def guided_spines(
+def project_spines(
 	wout: pathlib.Path,
 	spines_points: list[list[tuple[float, float, float]]],  # コイル 1 本あたりの中心線点列 (x, y, z)。対称像込み
-	distance_between_spine_and_guide: float = 0.40,  # spine と guide の距離 [m]。向きだけが効くので値は任意の正数でよい
-) -> list[list[list[float]]]:
+) -> list[list[tuple[float, float, float, float, float, float]]]:
+	"""中心線の各点に LCFS 上の最近傍点を並べて [x, y, z, projectedx, projectedy, projectedz] にする。"""
 	from alphastell import SurfaceFourierRZ
-	ret_spines_with_guide = []
+	ret_projected_spines = []
 	with open(wout, "rb") as f:
 		surface = SurfaceFourierRZ.load(f)
 		for points in spines_points:
 			point_center = np.mean(points, axis=0)
 			phi, theta, s = math.atan2(point_center[1], point_center[0]), 0.0, 1.0
-			points_with_guide = []
+			projected_points = []
 			for point in points:
 				phi, theta = surface.nearest(phi, theta, s, point)  # 前の点の解を次の初期値にする継続法
-				# 射影の足 (LCFS 上の点) は使わず、その点の法線だけもらう
-				(nx, ny, nz) = surface.point_normal(phi, theta, s, True)[1]
-				# spine はコイル点そのもの。guide はコイル点を LCFS 法線方向へずらした平行曲線
-				points_with_guide.append([
-					point[0],
-					point[1],
-					point[2],
-					point[0] + nx * distance_between_spine_and_guide,
-					point[1] + ny * distance_between_spine_and_guide,
-					point[2] + nz * distance_between_spine_and_guide
-				])
-			ret_spines_with_guide.append(points_with_guide)
-	return ret_spines_with_guide
+				projected_points.append([*point, *surface.point_normal(phi, theta, s, True)[0]])  # 射影の足だけもらう
+			ret_projected_spines.append(projected_points)
+	return ret_projected_spines
 
 
-def sweep_guided_spines(
-	profile: list[float],  # 原点まわりの平面断面 [x0, y0, x1, y1, ...]。矩形なら 4 点 8 要素
-	spines: list[list[list[float]]],  # guided_spines の出力 [ncoil][npoint][x, y, z, guidex, guidey, guidez]
+def sweep_spines(
+	width: float,  # 断面のトロイダル幅 [m]。断面のローカル +Y に割り当てる
+	height: float,  # 断面の半径方向厚み [m]。ローカル +X = guide 方向に割り当てる
+	projected_spines: list[list[tuple[float, float, float, float, float, float]]],  # project_spines の出力 [ncoil][npoint][x, y, z, projectedx, projectedy, projectedz]
 ) -> Any:  # alphastell.Geometry
 	"""spine+guide の 6N 形式を sweep_geometry (Auxiliary) に渡して掃引する。
 
-	断面は常に接線と直交し、ローカル +X が guide の方を向く (cadrum 0.8.18 以降)。
+	断面は常に接線と直交し、ローカル +X が guide の方を向く (cadrum 0.8.18 以降)。guide は
+	射影の足そのものではなく、そこへ向かって断面の対角半径だけ進んだ点に置き直す。
 	"""
 	from alphastell import Geometry
-	spines = [[e for p in spine for e in p] for spine in spines]
-	return Geometry.sweep_geometry(True, profile, spines)
+	distance_between_guide_and_spine = math.sqrt(width**2 + height**2) / 2
+	def guided(p: tuple[float, float, float, float, float, float]) -> list[float]:
+		scale = distance_between_guide_and_spine / math.dist(p[0:3], p[3:6])
+		return [*p[0:3], *(a + (b - a) * scale for a, b in zip(p[0:3], p[3:6]))]
+	paths = [[e for p in spine for e in guided(p)] for spine in projected_spines]
+	profile = [-height / 2, -width / 2, height / 2, -width / 2, height / 2, width / 2, -height / 2, width / 2]
+	return Geometry.sweep_geometry(True, profile, paths)
 
 
-def visualize_guided_spines(
-	spines_with_guide: list[list[list[float]]],  # guided_spines の出力
+def visualize_spines(
+	projected_spines: list[list[tuple[float, float, float, float, float, float]]],  # project_spines の出力
 	out: pathlib.Path,  # 図の出力先 (.png)。CSV は同名 .csv
 	surface: SurfaceRZFourier | None = None,  # LCFS を背景に描く場合は渡す
 ) -> None:
 	import os
 	colors = plt.get_cmap("tab10")
-	array = np.array(spines_with_guide)  # [ncoil, npoint, 6]
+	array = np.array(projected_spines)  # [ncoil, npoint, 6]
 	figure = plt.figure()
 	axes = figure.add_subplot(111, projection="3d")
 	if surface is not None:
@@ -285,17 +282,16 @@ def visualize_guided_spines(
 			wall[..., 0], wall[..., 1], wall[..., 2],
 			color="#b8bec7", alpha=0.30, rstride=1, cstride=1, linewidth=0, edgecolor="none", antialiased=False, shade=True,
 		)
-	for i, (spine_i, guide_i) in enumerate(zip(array[..., :3], array[..., 3:])):
+	for i, (spine_i, projected_i) in enumerate(zip(array[..., :3], array[..., 3:])):
 		closed_spine = np.concatenate([spine_i, spine_i[:1]])
-		closed_guide = np.concatenate([guide_i, guide_i[:1]])
+		closed_projected = np.concatenate([projected_i, projected_i[:1]])
 		color = colors(i%8)
 		axes.plot(closed_spine[:, 0], closed_spine[:, 1], closed_spine[:, 2], color=color, linewidth=0.7)
-		axes.plot(closed_guide[:, 0], closed_guide[:, 1], closed_guide[:, 2], color=color, linewidth=0.7)
-		for a, b in zip(spine_i[::3], guide_i[::3]):  # 3 点に 1 本だけ描いて密度を抑える
+		axes.plot(closed_projected[:, 0], closed_projected[:, 1], closed_projected[:, 2], color=color, linewidth=0.7)
+		for a, b in zip(spine_i[::3], projected_i[::3]):  # 3 点に 1 本だけ描いて密度を抑える
 			axes.plot([a[0], b[0]], [a[1], b[1]], [a[2], b[2]], color=color, linewidth=0.6)
 
-	flat = array.reshape(-1, 3)[..., :3]
-	axes.set_box_aspect(np.ptp(flat, axis=0))
+	axes.set_box_aspect(np.ptp(array.reshape(-1, 3), axis=0))
 	axes.set(xlabel="x [m]", ylabel="y [m]", zlabel="z [m]")
 	axes.zaxis.set_major_locator(matplotlib.ticker.MaxNLocator(3))	
 	axes.view_init(elev=38, azim=-55)
@@ -304,7 +300,7 @@ def visualize_guided_spines(
 	figure.tight_layout()
 	figure.savefig(out)
 	plt.close(figure)
-	np.savetxt(out.with_suffix(".csv"), array.reshape(len(array), -1), delimiter=",", fmt="%.9e", header="row = one coil; columns = x,y,z,guidex,guidey,guidez repeated npoint times [m]")
+	np.savetxt(out.with_suffix(".csv"), array.reshape(len(array), -1), delimiter=",", fmt="%.9e", header="row = one coil; columns = x,y,z,projectedx,projectedy,projectedz repeated npoint times [m]")
 	len(os.getenv("SHOW", "")) and plt.show()
 
 
