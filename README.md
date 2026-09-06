@@ -89,9 +89,9 @@ Photon transport: the heating tally must include the secondary gamma rays, which
 
 [al_09_coil_heating.md](https://lzpel.github.io/alphastell/al_09_coil_heating.md) / [al_09_coil_heating.percoil.png](https://lzpel.github.io/alphastell/al_09_coil_heating.percoil.png) / [al_09_coil_heating.coils.step](https://lzpel.github.io/alphastell/al_09_coil_heating.coils.step) / [al_09_coil_heating.shell.step](https://lzpel.github.io/alphastell/al_09_coil_heating.shell.step)
 
-### Experiment 10 `make al-10 al-101`
+### Experiment 10 `make al-10`
 
-TBR and nuclear heating of the ParaStell reference build: the radial build of `parastell_cad_to_dagmc_example.py` with the homogenized DCLL compositions of the ParaStell paper and the FENDL-3.2 nuclear data library. Two scripts share the work: `al_10` runs ParaStell inside the `ghcr.io/svalinn/parastell-ci` container and writes one STEP per layer plus the tetrahedral source mesh; `al_101` reads them on the host, meshes them with cad_to_dagmc, closes one period with rotational periodic CSG planes and transports neutrons and photons with OpenMC. The conda OpenMC in the container crashes with photon transport, which is why the transport lives on the host.
+TBR and nuclear heating of the ParaStell reference build: the radial build of `parastell_cad_to_dagmc_example.py` with the homogenized DCLL compositions of the ParaStell paper and the FENDL-3.2 nuclear data library. One script runs in two stages: `main_parastell` runs ParaStell inside the `ghcr.io/svalinn/parastell-ci` container and writes one STEP per layer plus the tetrahedral source mesh; `main` reads them on the host, meshes them with cad_to_dagmc, closes one period with rotational periodic CSG planes and transports neutrons and photons with OpenMC. The conda OpenMC in the container crashes with photon transport, which is why the transport lives on the host.
 
 | layer | density [g/cm³] | thickness [cm] | composition (vol%) |
 |---|---|---|---|
