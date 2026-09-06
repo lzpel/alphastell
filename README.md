@@ -122,22 +122,13 @@ TBR 1.272 ± 0.002 with photon transport on, no lost particles. Nuclear heating 
 
 ![al_10_parastell_cad_to_dagmc_example.heating.png](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.heating.png)
 
-Tritium balance on the phi = 45 deg poloidal section: blue where DT burns tritium (the neutron source), red where Li-6 and Li-7 breed it (`(n,Xt)` on the same mesh); the volume integral is (TBR - 1) times the source strength.
+Tritium balance per voxel: blue where DT burns tritium (the neutron source), red where Li-6 and Li-7 breed it (`(n,Xt)` on the same mesh); the volume integral is (TBR - 1) times the source strength.
 
 ![al_10_parastell_cad_to_dagmc_example.tritium.png](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.tritium.png)
 
-| | | | |
+| [chamber.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.chamber.step)<br>![chamber](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.chamber.png) | [first_wall.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.first_wall.step)<br>![first_wall](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.first_wall.png) | [breeder.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.breeder.step)<br>![breeder](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.breeder.png) | [back_wall.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.back_wall.step)<br>![back_wall](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.back_wall.png) |
 |---|---|---|---|
-| **chamber**<br>![chamber](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.chamber.png) | **first_wall**<br>![first_wall](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.first_wall.png) | **breeder**<br>![breeder](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.breeder.png) | **back_wall**<br>![back_wall](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.back_wall.png) |
-| **shield**<br>![shield](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.shield.png) | **vacuum_vessel**<br>![vacuum_vessel](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.vacuum_vessel.png) | **magnets**<br>![magnets](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.magnets.png) | **all layers**<br>![all layers](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.png) |
-
-- [al_10_parastell_cad_to_dagmc_example.chamber.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.chamber.step)
-- [al_10_parastell_cad_to_dagmc_example.first_wall.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.first_wall.step)
-- [al_10_parastell_cad_to_dagmc_example.breeder.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.breeder.step)
-- [al_10_parastell_cad_to_dagmc_example.back_wall.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.back_wall.step)
-- [al_10_parastell_cad_to_dagmc_example.shield.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.shield.step)
-- [al_10_parastell_cad_to_dagmc_example.vacuum_vessel.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.vacuum_vessel.step)
-- [al_10_parastell_cad_to_dagmc_example.magnets.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.magnets.step)
+| [shield.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.shield.step)<br>![shield](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.shield.png) | [vacuum_vessel.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.vacuum_vessel.step)<br>![vacuum_vessel](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.vacuum_vessel.png) | [magnets.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.magnets.step)<br>![magnets](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.magnets.png) | **all layers**<br>![all layers](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.png) |
 
 [al_10_parastell_cad_to_dagmc_example.md](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.md)
 
