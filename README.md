@@ -10,7 +10,7 @@ Output: feasibility verdict and design drawings for a stellarator
 
 ![image.png](figure/image.png)
 
-## Progress
+## Experiments (reproduced by github's CI)
 
 ### Input
 
@@ -131,6 +131,10 @@ Tritium balance per voxel: negative where DT burns tritium (the neutron source),
 | [shield.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.shield.step)<br>![shield](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.shield.png) | [vacuum_vessel.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.vacuum_vessel.step)<br>![vacuum_vessel](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.vacuum_vessel.png) | [magnets.step](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.magnets.step)<br>![magnets](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.magnets.png) | **all layers**<br>![all layers](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.png) |
 
 [al_10_parastell_cad_to_dagmc_example.md](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.md)
+
+## Contact
+
+If any of this is useful to your group, feel free to reach out: [Satoshi Misumi on LinkedIn](https://www.linkedin.com/in/satoshi-misumi-b17261322/).
 
 ## Reference
 
