@@ -28,7 +28,7 @@ jobs:
           - target: al-07
           - target: al-08
           - target: al-09
-          - target: al-10 al-101
+          - target: al-10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,7 +36,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libglu1-mesa libxrender1 libxcursor1 libxft2 libxinerama1 fonts-noto-cjk
       - uses: astral-sh/setup-uv@v5
       - name: Custom make
-        run: make SKIP_PDF=1 ${{ matrix.target }}
+        run: make ${{ matrix.target }}
       - uses: actions/upload-artifact@v4        # 固有名の通常アーティファクト
         with:
           name: pages-${{ matrix.target }}
