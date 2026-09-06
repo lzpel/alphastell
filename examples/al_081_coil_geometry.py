@@ -3,7 +3,7 @@ import pathlib
 
 import numpy as np
 
-from al_08_coil_geometry import guided_spines, make_surface, optimize_coil, sweep_guided_spines, visualize_guided_spines
+from al_08_coil_geometry import make_surface, optimize_coil, project_spines, sweep_spines, visualize_spines
 
 
 def main(
@@ -15,17 +15,17 @@ def main(
 ) -> None:
 	surface = make_surface(wout)
 	result = optimize_coil(surface, mu0)
-	spines = guided_spines(wout, [coil.curve.gamma().tolist() for coil in result["coils"]], math.sqrt(width**2 + height**2) / 2)
-	visualize_guided_spines(spines, pathlib.Path("out") / f"{pathlib.Path(__file__).stem}.guided_spines.png")
-	# guide 方向 = LCFS 法線 (半径方向) が断面のローカル +X になるので、x に height、y に width を割る
-	solids = sweep_guided_spines([-height / 2, -width / 2, height / 2, -width / 2, height / 2, width / 2, -height / 2, width / 2], spines)
 	out.parent.mkdir(parents=True, exist_ok=True)
+	spines = [coil.curve.gamma() for coil in result["coils"]]
+	projected_spines = project_spines(wout, spines)
+	visualize_spines(projected_spines, out.with_suffix(".spines.png"))
+	solids = sweep_spines(width, height, projected_spines)
 	for path, write in ((out, solids.write_step), (out.with_suffix(".png"), solids.write_png)):
 		with open(path, "wb") as f:
 			write(f)
 		print(f"{path}: {len(solids)} solids, {path.stat().st_size} bytes")
 	# 断面積 x 中心線長。断面が法平面に乗っていれば掃引体積はこれに一致する (al_09 と同じ検査)
-	exact = [width * height * float(np.linalg.norm(np.diff(c.curve.gamma(), axis=0, append=c.curve.gamma()[:1]), axis=1).sum()) for c in result["coils"]]
+	exact = [width * height * float(np.linalg.norm(np.diff(s, axis=0, append=s[:1]), axis=1).sum()) for s in spines]
 	volume = solids.volume()
 	error = [(v / e - 1.0) * 100 for v, e in zip(volume, exact)]
 	print(f"volume {min(volume):.4f}..{max(volume):.4f} m^3, error vs area x length {min(error):+.2f}..{max(error):+.2f} %")
