@@ -122,7 +122,7 @@ TBR 1.272 ± 0.002 with photon transport on, no lost particles. Nuclear heating 
 
 ![al_10_parastell_cad_to_dagmc_example.heating.png](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.heating.png)
 
-Tritium balance per voxel: blue where DT burns tritium (the neutron source), red where Li-6 and Li-7 breed it (`(n,Xt)` on the same mesh); the volume integral is (TBR - 1) times the source strength.
+Tritium balance per voxel, bred minus burnt: negative where DT burns tritium (the neutron source), positive where Li-6 and Li-7 breed it (`(n,Xt)` on the same mesh); the volume integral is (TBR - 1) times the source strength.
 
 ![al_10_parastell_cad_to_dagmc_example.tritium.png](https://lzpel.github.io/alphastell/al_10_parastell_cad_to_dagmc_example.tritium.png)
 
