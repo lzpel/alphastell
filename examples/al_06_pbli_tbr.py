@@ -95,7 +95,7 @@ def offset_grid(surface: SurfaceFourierRZ, thickness: float, div_phi: int, div_t
 	inner = np.empty((div_phi, div_theta, 3))
 	outer = np.empty_like(inner)
 	for i, j in np.ndindex(div_phi, div_theta):
-		point, normal = surface.point_normal(math.tau * i / div_phi, math.tau * j / div_theta, 1.0, False)
+		point, normal = surface.point_normal(math.tau * i / div_phi, math.tau * j / div_theta, 1.0, SurfaceFourierRZ.NORMAL_PLANAR)
 		inner[i, j], outer[i, j] = point, np.add(point, np.multiply(normal, thickness))
 	return inner, outer
 
@@ -128,7 +128,7 @@ def tbr(surface: SurfaceFourierRZ, step: pathlib.Path, h5m: pathlib.Path, work: 
 	rng = np.random.default_rng(0)
 	source = [
 		openmc.IndependentSource(
-			space=openmc.stats.Point(np.multiply(surface.point_normal(phi, theta, s, False)[0], 100)),
+			space=openmc.stats.Point(np.multiply(surface.point_normal(phi, theta, s, SurfaceFourierRZ.NORMAL_PLANAR)[0], 100)),
 			energy=openmc.stats.Discrete([14.07e6], [1.0]),
 			strength=1.0 / sources,
 		)
