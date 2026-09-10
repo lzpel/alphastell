@@ -23,7 +23,7 @@ def main(
 def torus(
 	surface: SurfaceFourierRZ,
 	make_surface: Callable[[float, float], float]|None=None,  # 磁気面法線に沿ったオフセット [m]。0 を返せば磁気面そのもの
-	make_sweep: Tuple[List[float], List[List[float]]]|None=None, # 最初の要素はxy xはtheta方向 yはs方向 
+	make_sweep: Tuple[bool, List[float], List[List[float]]]|None=None, # 要素1はxy xはtheta方向 yはs方向 要素2はspineごとの(phi,theta)
 	div_phi: int = 96,
 	div_theta: int = 40,
 	s: float = 1.0,  # LCFS (プラズマ最外縁)
