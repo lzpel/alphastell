@@ -228,23 +228,22 @@ def optimize_coil(
 	}
 
 
-def project_spines(
-	wout: pathlib.Path,
+def project_spines(  # al_08_coil_geometry.py からのコピー。wout パスではなく読み込み済みの surface を受ける点だけが違う
+	surface: SurfaceFourierRZ,
 	spines_points: list[list[tuple[float, float, float]]],  # コイル 1 本あたりの中心線点列 (x, y, z)。対称像込み
-) -> list[list[tuple[float, float, float, float, float, float]]]:
-	"""中心線の各点に LCFS 上の最近傍点を並べて [x, y, z, projectedx, projectedy, projectedz] にする。"""
-	from alphastell import SurfaceFourierRZ
+	distance: float = -1, # 正ならガイドと線の距離、負なら射影先そのもの
+	s: float = 1.0,  # 射影先の磁束面。LCFS
+) -> list[list[tuple[float, float, float, float, float, float]]]:  # 中心線の各点に LCFS 上の最近傍点を並べて [x, y, z, projectedx, projectedy, projectedz] にする
 	ret_projected_spines = []
-	with open(wout, "rb") as f:
-		surface = SurfaceFourierRZ.load(f)
-		for points in spines_points:
-			point_center = np.mean(points, axis=0)
-			phi, theta, s = math.atan2(point_center[1], point_center[0]), 0.0, 1.0
-			projected_points = []
-			for point in points:
-				phi, theta = surface.nearest(phi, theta, s, point)  # 前の点の解を次の初期値にする継続法
-				projected_points.append([*point, *surface.point_normal(phi, theta, s, SurfaceFourierRZ.NORMAL_SURFACE)[0]])  # 射影の足だけもらう
-			ret_projected_spines.append(projected_points)
+	for points in spines_points:
+		point_center = np.mean(points, axis=0)
+		phi, theta = math.atan2(point_center[1], point_center[0]), 0.0
+		projected_points = []
+		for point in points:
+			phi, theta = surface.nearest(phi, theta, s, point)  # 前の点の解を次の初期値にする継続法
+			p, n = surface.point_normal(phi, theta, s, SurfaceFourierRZ.NORMAL_SURFACE)
+			projected_points.append([*point, *[point[i]-distance*n[i] if distance>0 else p[i] for i in range(3)]])  # 射影の足だけもらう
+		ret_projected_spines.append(projected_points)
 	return ret_projected_spines
 
 

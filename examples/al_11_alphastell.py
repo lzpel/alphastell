@@ -51,8 +51,8 @@ def make_stellarator(
 	],
 	coils_file: pathlib.Path = pathlib.Path(__file__).resolve().parent / "coils.example",
 	s: float = 1.08,  # 第一壁内面の規格化磁束面ラベル。LCFS の少し外
-	div_phi: int = 192,
-	div_theta: int = 80,
+	div_phi: int = 96, #192,　計算高速化の一時的処置
+	div_theta: int = 40, #80, 計算高速化の一時的処置
 ) -> List[Tuple[str, Geometry]]:
 	thicknesses = [interpolator(matrix) for _, matrix in radial_build]  # 層ごとに 1 回だけ構築する。点ごとに作ると格子の前処理が div_phi*div_theta 回走る
 	def make_layers(phi: float, theta: float) -> List[float]:
