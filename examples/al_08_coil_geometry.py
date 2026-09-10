@@ -243,7 +243,7 @@ def project_spines(
 			projected_points = []
 			for point in points:
 				phi, theta = surface.nearest(phi, theta, s, point)  # 前の点の解を次の初期値にする継続法
-				projected_points.append([*point, *surface.point_normal(phi, theta, s, True)[0]])  # 射影の足だけもらう
+				projected_points.append([*point, *surface.point_normal(phi, theta, s, SurfaceFourierRZ.NORMAL_SURFACE)[0]])  # 射影の足だけもらう
 			ret_projected_spines.append(projected_points)
 	return ret_projected_spines
 
