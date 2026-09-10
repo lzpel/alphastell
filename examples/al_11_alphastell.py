@@ -49,6 +49,7 @@ def make_stellarator(
 		("shield", [[0.50]]),
 		("vacuum_vessel", [[0.10]]),
 	],
+	coils_file: pathlib.Path = pathlib.Path(__file__).resolve().parent / "coils.example",
 	s: float = 1.08,  # 第一壁内面の規格化磁束面ラベル。LCFS の少し外
 	div_phi: int = 192,
 	div_theta: int = 80,
@@ -57,7 +58,54 @@ def make_stellarator(
 	def make_layers(phi: float, theta: float) -> List[float]:
 		return list(itertools.accumulate(f(phi * surface.frequency0, theta) for f in thicknesses))
 	if homogenize:
-		return list(zip([name for name, _ in radial_build], make_on_surface(surface, make_layers=make_layers, s=s, div_phi=div_phi, div_theta=div_theta)))
+		layers=list(zip([name for name, _ in radial_build], make_on_surface(surface, make_layers=make_layers, s=s, div_phi=div_phi, div_theta=div_theta)))
+	else:
+		layers=[]# not yet implemented
+	if homogenize:
+		coils=[("magnets", make_coils(surface, coils_file))]  # 40 本を 1 つの Geometry にまとめるので要素は 1 つ
+	else:
+		coils=[]# not yet implemented
+	return layers+coils
+
+
+def make_coils(
+	surface: SurfaceFourierRZ,
+	coils_file: pathlib.Path,  # MAKEGRID 形式のフィラメント。x y z 電流 の 4 列で、群番号と名前が付く行が 1 本の終端
+	width: float = 0.40,  # 断面のトロイダル幅 [m]。ローカル +y。al_10 の magnet_width と同じ
+	height: float = 0.50,  # 断面の半径方向厚み [m]。ローカル +x = guide 方向。al_10 の magnet_thickness と同じ
+	sample_mod: int = 6,  # フィラメントの点を何点おきに掃引に使うか
+) -> Geometry:
+	filaments, points = [], []
+	for line in coils_file.read_text(encoding="utf-8").splitlines():
+		columns = line.split()
+		if len(columns) < 4:  # periods / begin filament / mirror NIL / end
+			continue
+		points.append([float(v) for v in columns[:3]])
+		if len(columns) > 4:  # 終端行は先頭と同じ点。周期 B-spline は始終点の重複を許さないので落とす
+			filaments.append(points[:-1][::sample_mod])
+			points = []
+	paths = [[e for p in spine for e in p] for spine in project_spines(surface, filaments, math.sqrt(width**2 + height**2) / 2)]
+	profile = [-height / 2, -width / 2, height / 2, -width / 2, height / 2, width / 2, -height / 2, width / 2]
+	return Geometry.sweep_geometry(True, profile, paths)
+
+
+def project_spines(  # al_08_coil_geometry.py からのコピー。wout パスではなく読み込み済みの surface を受ける点だけが違う
+	surface: SurfaceFourierRZ,
+	spines_points: list[list[tuple[float, float, float]]],  # コイル 1 本あたりの中心線点列 (x, y, z)。対称像込み
+	distance: float = -1, # 正ならガイドと線の距離、負なら射影先そのもの
+	s: float = 1.0,  # 射影先の磁束面。LCFS
+) -> list[list[tuple[float, float, float, float, float, float]]]:  # 中心線の各点に LCFS 上の最近傍点を並べて [x, y, z, projectedx, projectedy, projectedz] にする
+	ret_projected_spines = []
+	for points in spines_points:
+		point_center = np.mean(points, axis=0)
+		phi, theta = math.atan2(point_center[1], point_center[0]), 0.0
+		projected_points = []
+		for point in points:
+			phi, theta = surface.nearest(phi, theta, s, point)  # 前の点の解を次の初期値にする継続法
+			p, n = surface.point_normal(phi, theta, s, SurfaceFourierRZ.NORMAL_SURFACE)
+			projected_points.append([*point, *[point[i]-distance*n[i] if distance>0 else p[i] for i in range(3)]])  # 射影の足だけもらう
+		ret_projected_spines.append(projected_points)
+	return ret_projected_spines
 
 
 def interpolator(
