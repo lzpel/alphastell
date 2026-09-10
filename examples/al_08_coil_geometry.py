@@ -11,7 +11,7 @@ def main(
 	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent / "wout_vmec.nc",
 	out: pathlib.Path = pathlib.Path("out") / pathlib.Path(__file__).with_suffix(".md").name,
 	threshold_curve_surface_distances: list[float] = [1.5, 2.0, 2.5, 3.0],  # コイル-プラズマ最小距離の要求値 [m]。先頭を 3D 図と CSV に出す
-	width: float = 0.40,  # 導体断面のトロイダル幅 [m]。al_081 と同じ parastell 準拠の値
+	width: float = 0.40,  # 導体断面のトロイダル幅 [m]。parastell の例 (width 40 cm) に合わせた
 	height: float = 0.50,  # 導体断面の半径方向厚み [m]。同上
 	mu0: float = 4e-7 * math.pi,
 ) -> list[dict[str, Any]]:
@@ -35,10 +35,11 @@ def main(
 
 	projected_spines = project_spines(wout, spines)
 	visualize_spines(projected_spines, out.with_suffix(".spines.png"), surface)
-	# al_081 と同じ矩形断面で掃引した導体ソリッドの 4 面図
 	solids = sweep_spines(width, height, projected_spines)
-	with open(out.with_suffix(".sweep.png"), "wb") as f:
-		solids.write_png(f)
+	for path, write in ((out.with_suffix(".step"), solids.write_step), (out.with_suffix(".sweep.png"), solids.write_png)):
+		with open(path, "wb") as f:
+			write(f)
+		print(f"{path}: {len(solids)} solids, {path.stat().st_size} bytes")
 
 	figure, (left, right) = plt.subplots(1, 2, figsize=(12, 4.0))
 	mesh = left.pcolormesh(
@@ -78,6 +79,7 @@ def main(
 		),
 		"out_png": out.with_suffix(".spines.png").name,
 		"out_sweep_png": out.with_suffix(".sweep.png").name,
+		"out_step": out.with_suffix(".step").name,
 		"out_error_png": out.with_suffix(".error.png").name,
 		"out_csv": out.with_suffix(".coeffs.csv").name,
 	}
@@ -356,6 +358,8 @@ $B_0$ = {b0} T を仮定して総電流を固定した。目的関数が B·n/|B
 ![{ncoils_total} 本のモジュラーコイルと LCFS。色は独立コイルの番号で、同色の {nimages} 本は対称操作による像である。断面が三角形から楕円へ捻れる領域でコイルが強く曲がる。]({out_png})
 
 ![中心線に {height} m × {width} m の矩形断面を掃引した導体ソリッドの 4 面図。断面は常に接線と直交し、LCFS 法線の guide 曲線が捻りを制御する。]({out_sweep_png})
+
+掃引した {ncoils_total} 本の導体ソリッドは [{out_step}]({out_step}) に STEP で出してある。
 
 ## 考察
 
