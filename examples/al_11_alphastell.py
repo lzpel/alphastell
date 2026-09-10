@@ -23,7 +23,7 @@ def main(
 def torus(
 	surface: SurfaceFourierRZ,
 	make_surface: Callable[[float, float], float]|None=None,  # 磁気面法線に沿ったオフセット [m]。0 を返せば磁気面そのもの
-	make_sweep: Tuple[bool, List[float], List[List[float]]]|None=None, # 要素1はxy xはtheta方向 yはs方向 要素2はspineごとの(phi,theta)
+	make_sweep: Tuple[bool, List[float], List[List[float]]]|None=None, # 要素1はxy yはs方向 要素2はspineごとの(phi,theta)
 	div_phi: int = 96,
 	div_theta: int = 40,
 	s: float = 1.0,  # LCFS (プラズマ最外縁)
@@ -34,11 +34,8 @@ def torus(
 			return [p[i] + n[i] * make_surface(phi, theta) for i in range(3)]
 		return Geometry.bspline_geometry([[point(math.tau * i / div_phi, math.tau * j / div_theta) for j in range(div_theta)] for i in range(div_phi)])
 	if make_sweep:
-		height=0.4
-		width=0.5
 		profile = make_sweep[0]
-
-		paths = [[e for p in spine for e in guided(p)] for spine in projected_spines]
+		paths = []# spine+auxをmake_sweep[2]から作る
 		return Geometry.sweep_geometry(profile, paths)
 		
 
