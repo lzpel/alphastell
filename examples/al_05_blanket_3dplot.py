@@ -17,8 +17,7 @@ def main(
 	div_phi: int = 160,  # 背景に敷く第一壁の格子
 	div_theta: int = 48,
 	div_path: int = 300,  # 流路 1 本あたりの点数
-	# 名前, (トロイダル巻き数, ポロイダル巻き数), 本数。この 2 数だけが流路の向きを決める。
-	directions: list[tuple[str, tuple[int, int], int]] = [
+	directions: list[tuple[str, tuple[int, int], int]] = [	# 名前, (トロイダル巻き数, ポロイダル巻き数), 本数。この 2 数だけが流路の向きを決める。
 		("poloidal", (0, 1), 16),  # W2 v0: 曲がり最小・B にほぼ直交
 		("toroidal", (1, 0), 14),  # QTS 相当: B とほぼ平行
 		("helical", (1, 1), 14),  # 中間。iota に合わせれば field-aligned になる
@@ -161,7 +160,7 @@ def surface_points(surface: SurfaceFourierRZ, phi: np.ndarray, theta: np.ndarray
 	points = np.empty(np.shape(phi) + (3,))
 	normals = np.empty_like(points)
 	for index in np.ndindex(np.shape(phi)):
-		points[index], normals[index] = surface.point_normal(float(phi[index]), float(theta[index]), s, True)
+		points[index], normals[index] = surface.point_normal(float(phi[index]), float(theta[index]), s, SurfaceFourierRZ.NORMAL_SURFACE)
 	return points, normals
 
 
