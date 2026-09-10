@@ -30,6 +30,7 @@ def main(
 
 def make_stellarator(
 	surface: SurfaceFourierRZ,
+	homogenize: bool=True,
 	radial_build: List[Tuple[str, List[List[float]]]] = [  # 層名と厚さ行列 [m]。行がトロイダル 1 周期、列がポロイダル 1 周。al_10 の parastell_cad_to_dagmc_example と同じ値
 		("chamber", [[0.0]]),  # 厚さ 0 なので最内の境界そのもの。s<=wall_s の詰まったソリッドになる
 		("first_wall", [[0.05]]),
@@ -55,8 +56,8 @@ def make_stellarator(
 	thicknesses = [interpolator(matrix) for _, matrix in radial_build]  # 層ごとに 1 回だけ構築する。点ごとに作ると格子の前処理が div_phi*div_theta 回走る
 	def make_layers(phi: float, theta: float) -> List[float]:
 		return list(itertools.accumulate(f(phi * surface.frequency0, theta) for f in thicknesses))
-	names = [name for name, _ in radial_build]
-	return list(zip(names, make_on_surface(surface, make_layers=make_layers, s=s, div_phi=div_phi, div_theta=div_theta)))
+	if homogenize:
+		return list(zip([name for name, _ in radial_build], make_on_surface(surface, make_layers=make_layers, s=s, div_phi=div_phi, div_theta=div_theta)))
 
 
 def interpolator(
