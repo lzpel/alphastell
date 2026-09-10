@@ -15,7 +15,7 @@ def main(
 	s: float = 1.0,  # LCFS (プラズマ最外縁)。s>1 はスプライン外挿になる
 	div_phi: int = 240,  # トロイダル分割。nfp=4 なので 1 周期あたり 60 点
 	div_theta: int = 64,  # ポロイダル分割
-	use_surface: bool = True,  # 真の 3D 曲面法線。False で constant-φ 断面内の 2D 法線 (parastell 互換)
+	normal: int = SurfaceFourierRZ.NORMAL_SURFACE,  # 真の 3D 曲面法線。NORMAL_PLANAR で constant-φ 断面内の 2D 法線 (parastell 互換)
 ) -> None:
 	# rust 側 load は file-like を受けるので、開いて渡す。
 	with open(wout, "rb") as f:
@@ -24,7 +24,7 @@ def main(
 	points = np.empty((div_phi, div_theta, 3))
 	normals = np.empty((div_phi, div_theta, 3))
 	for i, j in np.ndindex(div_phi, div_theta):
-		points[i, j], normals[i, j] = surface.point_normal(math.tau * i / div_phi, math.tau * j / div_theta, s, use_surface)
+		points[i, j], normals[i, j] = surface.point_normal(math.tau * i / div_phi, math.tau * j / div_theta, s, normal)
 
 	out.parent.mkdir(parents=True, exist_ok=True)
 	with open(out, "w", newline="") as f:
