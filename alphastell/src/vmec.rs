@@ -437,6 +437,20 @@ impl SurfaceFourierRZ {
 		let z_at_s: Vec<f64> = (0..mnmax).map(|k| z_splines[k].eval(s)).collect();
 		self.eval_rz(&r_at_s, &z_at_s, theta, phi)
 	}
+	/// トロイダル方向の基本周波数 [1/周] を求める (VMEC の nfp)。`mode_toroidal` (xn) には
+	/// 基本波の整数倍が入っているので、非ゼロの最大公約数がそのまま基本波数になる。
+	/// 軸対称 (全て 0) なら 1。
+	pub fn frequency0(&self) -> i32 {
+		fn gcd(a: i32, b: i32) -> i32 {
+			if b == 0 { a } else { gcd(b, a % b) }
+		}
+		self.mode_toroidal
+			.iter()
+			.map(|n| n.abs().round() as i32)
+			.filter(|n| *n != 0)
+			.fold(0, gcd)
+			.max(1)
+	}
 }
 
 
