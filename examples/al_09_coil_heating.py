@@ -17,7 +17,7 @@ def main(
 	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent / "wout_vmec.nc",
 	out: pathlib.Path = pathlib.Path("out") / pathlib.Path(__file__).with_suffix(".md").name,
 	mu0: float = 4e-7 * math.pi,  # 真空の透磁率 [H/m]。al_08 の optimize_coil がコイル電流の換算に使う
-	width: float = 0.40,  # 導体断面のトロイダル幅 [m]。al_08 / al_081 と同じ parastell 準拠の値
+	width: float = 0.40,  # 導体断面のトロイダル幅 [m]。al_08 と同じ parastell 準拠の値
 	height: float = 0.50,  # 導体断面の半径方向厚み [m]。同上
 	thickness: float = 0.5,  # PbLi 殻の厚み [m]。al_06 の中央、al_07 と同じ
 	n_source: int = 5000,  # 重み付き点線源の点数。al_07 の case_2 と同じ
