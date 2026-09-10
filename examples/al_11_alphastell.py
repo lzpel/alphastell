@@ -31,7 +31,7 @@ def torus(
 ) -> Geometry|List[Geometry]:
 	if make_layers:
 		def point(layer: int, phi: float, theta: float) -> List[float]:
-			p, n = surface.point_normal(phi, theta, s, False)
+			p, n = surface.point_normal(phi, theta, s, SurfaceFourierRZ.NORMAL_PLANAR)
 			return [p[j] + n[j] * make_layers(phi, theta)[layer] for j in range(3)]
 		raw_layers = [
 			Geometry.bspline_geometry([[point(layer, math.tau * i / div_phi, math.tau * j / div_theta) for j in range(div_theta)] for i in range(div_phi)])
@@ -40,9 +40,9 @@ def torus(
 		return [raw_layers[0], *(outer.boolean_subtract(inner) for inner, outer in zip(raw_layers, raw_layers[1:]))]  # 隣り合う要素同士をくりぬいていく
 	if make_sweep:
 		periodic, profile, spine_angles = make_sweep
-		radius = max(math.hypot(profile[i], profile[i + 1]) for i in range(0, len(profile), 2))  # guide は向きにしか効かない (KeepContact なし) ので断面の外接円で足りる
+		radius = max(math.hypot(profile[i], profile[i + 1]) for i in range(0, len(profile), 2))  # guide は断面の向きを決めるだけ (KeepContact なし) なので断面の外接円で足りる
 		def path(phi: float, theta: float) -> List[float]:
-			p, n = surface.point_normal(phi, theta, s, False)
+			p, n = surface.point_normal(phi, theta, s, SurfaceFourierRZ.NORMAL_SURFACE)
 			return [*p, *(p[i] + n[i] * radius for i in range(3))]  # spine と guide を交互に並べた 6N 形式
 		paths = [[e for i in range(0, len(angles), 2) for e in path(angles[i], angles[i + 1])] for angles in spine_angles]
 		return Geometry.sweep_geometry(periodic, profile, paths)

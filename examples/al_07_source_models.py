@@ -151,7 +151,7 @@ def blanket(surface: SurfaceFourierRZ, step: pathlib.Path, h5m: pathlib.Path, th
 	inner = np.empty((div_phi, div_theta, 3))
 	outer = np.empty_like(inner)
 	for i, j in np.ndindex(div_phi, div_theta):
-		point, normal = surface.point_normal(math.tau * i / div_phi, math.tau * j / div_theta, 1.0, False)
+		point, normal = surface.point_normal(math.tau * i / div_phi, math.tau * j / div_theta, 1.0, SurfaceFourierRZ.NORMAL_PLANAR)
 		inner[i, j], outer[i, j] = point, np.add(point, np.multiply(normal, thickness))
 	shell = Geometry.bspline_geometry(outer).boolean_subtract(Geometry.bspline_geometry(inner))
 	with open(step, "wb") as f:
@@ -173,10 +173,10 @@ def reaction_rate(s: np.ndarray) -> np.ndarray:
 def jacobian(surface: SurfaceFourierRZ, phi: float, theta: float, s: float) -> float:
 	"""体積要素 √g = |∂p/∂s · (∂p/∂θ × ∂p/∂φ)|。point_normal の前進差分だけで作る。"""
 	delta = 1e-4
-	origin = np.array(surface.point_normal(phi, theta, s, False)[0])
-	d_s = np.subtract(surface.point_normal(phi, theta, s + delta, False)[0], origin)
-	d_theta = np.subtract(surface.point_normal(phi, theta + delta, s, False)[0], origin)
-	d_phi = np.subtract(surface.point_normal(phi + delta, theta, s, False)[0], origin)
+	origin = np.array(surface.point_normal(phi, theta, s, SurfaceFourierRZ.NORMAL_PLANAR)[0])
+	d_s = np.subtract(surface.point_normal(phi, theta, s + delta, SurfaceFourierRZ.NORMAL_PLANAR)[0], origin)
+	d_theta = np.subtract(surface.point_normal(phi, theta + delta, s, SurfaceFourierRZ.NORMAL_PLANAR)[0], origin)
+	d_phi = np.subtract(surface.point_normal(phi + delta, theta, s, SurfaceFourierRZ.NORMAL_PLANAR)[0], origin)
 	return abs(float(np.dot(d_s, np.cross(d_theta, d_phi)))) / delta**3
 
 
@@ -184,7 +184,7 @@ def point_sources(surface: SurfaceFourierRZ, samples: np.ndarray, weights: np.nd
 	"""(φ, θ, s) の並びを点線源の並びにする。強度の合計は 1 に規格化する。"""
 	return [
 		openmc.IndependentSource(
-			space=openmc.stats.Point(np.multiply(surface.point_normal(phi, theta, s, False)[0], 100)),
+			space=openmc.stats.Point(np.multiply(surface.point_normal(phi, theta, s, SurfaceFourierRZ.NORMAL_PLANAR)[0], 100)),
 			energy=openmc.stats.Discrete([14.07e6], [1.0]),
 			strength=weight,
 		)
@@ -203,9 +203,9 @@ def plasma_tets(surface: SurfaceFourierRZ, mesh_s: int, mesh_theta: int, mesh_ph
 	加重平均 s の離散化バイアスが 7% から 1.3% に下がる (mesh_s を増やさずに)。
 	"""
 	levels = s_max * ((np.arange(mesh_s) + 1) / mesh_s) ** 2
-	axis = np.array([surface.point_normal(math.tau * p / mesh_phi, 0.0, 0.0, False)[0] for p in range(mesh_phi)])
+	axis = np.array([surface.point_normal(math.tau * p / mesh_phi, 0.0, 0.0, SurfaceFourierRZ.NORMAL_PLANAR)[0] for p in range(mesh_phi)])
 	shell = np.array([
-		surface.point_normal(math.tau * p / mesh_phi, math.tau * t / mesh_theta, levels[k], False)[0]
+		surface.point_normal(math.tau * p / mesh_phi, math.tau * t / mesh_theta, levels[k], SurfaceFourierRZ.NORMAL_PLANAR)[0]
 		for p in range(mesh_phi)
 		for k in range(mesh_s)
 		for t in range(mesh_theta)

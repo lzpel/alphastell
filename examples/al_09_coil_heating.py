@@ -167,7 +167,7 @@ def blanket(
 	inner = np.empty((div_phi, div_theta, 3))
 	outer = np.empty_like(inner)
 	for i, j in np.ndindex(div_phi, div_theta):
-		point, normal = lcfs.point_normal(math.tau * i / div_phi, math.tau * j / div_theta, 1.0, False)
+		point, normal = lcfs.point_normal(math.tau * i / div_phi, math.tau * j / div_theta, 1.0, SurfaceFourierRZ.NORMAL_PLANAR)
 		inner[i, j], outer[i, j] = point, np.add(point, np.multiply(normal, thickness))
 	return Geometry.bspline_geometry(outer).boolean_subtract(Geometry.bspline_geometry(inner)), outer
 

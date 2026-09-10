@@ -19,8 +19,8 @@ def main(
 
 	points = np.empty((div_phi, div_theta, 3))
 	for i, j in np.ndindex(div_phi, div_theta):
-		# 法線は使わないので捨てる。use_surface は点の値に影響しない
-		points[i, j], _ = surface.point_normal(math.tau * i / div_phi, math.tau * j / div_theta, s, True)
+		# 法線は使わないので捨てる。NORMAL_* の選択は点の値に影響しない
+		points[i, j], _ = surface.point_normal(math.tau * i / div_phi, math.tau * j / div_theta, s, SurfaceFourierRZ.NORMAL_SURFACE)
 
 	out.parent.mkdir(parents=True, exist_ok=True)
 	with open(out, "wb") as f:
