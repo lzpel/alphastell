@@ -2,10 +2,12 @@
 
 - Prioritize reducing functions, structures, traits, and dependencies over increasing them
 - Prioritize requiring minimal effort over misleading the user when deciding between them
-- For implementation instructions, run tests to verify after implementation
+
+## coding
+
 - No module-level docstring, no top-level constants and codes, no shebang
 - All arguments and returns of all function must have typing annotation 
-- Only inline comments(`code() # why`), remove comments that the code already say
+- Only inline comments, remove comments that the code already say
 
 ## examples/al_(\d+).py
 
