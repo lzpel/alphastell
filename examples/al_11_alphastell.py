@@ -1,7 +1,7 @@
 import functools
 import math
 import pathlib
-from typing import Callable, List, Tuple
+from typing import Callable, List, Tuple, Union
 
 from alphastell import SurfaceFourierRZ, Geometry
 
@@ -13,15 +13,23 @@ def main(
 	with open(wout, "rb") as f:
 		surface = SurfaceFourierRZ.load(f)
 	out.parent.mkdir(parents=True, exist_ok=True)
-	step_layers=torus(surface, make_layers=lambda phi, theta: [0.0, 0.1, 0.5])
+	step_layers=make_on_surface(surface, make_layers=lambda phi, theta: [0.0, 0.1, 0.5])
 	write_step(functools.reduce(Geometry.concat, step_layers), out.with_suffix(".layers.step"))
-	step_sweep=torus(surface, make_sweep=(True, [-0.1, -0.2, 0.1, -0.2, 0.1, 0.2, -0.1, 0.2], [
+	step_sweep=make_on_surface(surface, make_sweep=(True, [-0.1, -0.2, 0.1, -0.2, 0.1, 0.2, -0.1, 0.2], [
 		[angle for i in range(96) for angle in (math.tau * i / 96, theta)] for theta in (0.0, math.pi)
 	]))
 	write_step(step_sweep, out.with_suffix(".sweep.step"))
 
+def material_mix(*args: List[Tuple[Union[str, List[Tuple[str, float]]], float]])->List[Tuple[str, float]]:
+	ret: List[Tuple[str, float]]=[("He", 1.0)]
+	# 上を書いて
+	elements: list[str] = ["He", "Fe", "Cr", "W", "Pb", "Li", "Si", "C", "H", "O", "Cu", "Nb", "Sn", "N"]
+	if all(i[0] in elements for i in ret) and abs(sum(i[1] for i in ret)-1)<0.01:
+		return ret
+	else:
+		raise ValueError("invalid material composition")
 
-def torus(
+def make_on_surface(
 	surface: SurfaceFourierRZ,
 	make_layers: Callable[[float, float], List[float]]|None=None,  # 磁気面法線に沿った層境界のオフセット [m] を内側から順に。[0.0] を返せば磁気面そのもの
 	make_sweep: Tuple[bool, List[float], List[List[float]]]|None=None, # (閉曲線か, 断面 [x0,y0,...] で +x が磁気面法線 s 方向, spine ごとの [phi0,theta0,phi1,theta1,...])
