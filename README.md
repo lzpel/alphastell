@@ -23,9 +23,6 @@ Output: feasibility verdict and design drawings for a stellarator
 |---|---|---|---|---|---|---|
 | 4 | 11.08 m | 1.70 m | 6.50 | 5.87 T | 5.1% | −1.33 (axis) → −1.06 (edge) |
 
-- the input coil filaments, in MAKEGRID format. 40 coils (5 base curves × 4 periods × stellarator symmetry) over the same equilibrium. [This repository's `examples/coils.example`](examples/coils.example)
-   - the original [ParaStell's `examples/coils.example`](https://github.com/svalinn/parastell/blob/main/examples/coils.example), MIT licensed, © 2023 UW-Madison Computational Nuclear Engineering Research Group.
-
 ### Experiment 06 `make al-06`
 
 TBR of pure PbLi shells (30/50/70 cm) extruded along the LCFS normal, computed with OpenMC. Breeder thickness and TBR are positively correlated.
