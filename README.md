@@ -68,7 +68,7 @@ Stationarity condition for simsopt: minimize the area integral of the normalized
 
 ![al_08_coil_geometry.sweep.png](https://lzpel.github.io/alphastell/al_08_coil_geometry.sweep.png)
 
-[al_08_coil_geometry.md](https://lzpel.github.io/alphastell/al_08_coil_geometry.md) / [al_08_coil_geometry.error.png](https://lzpel.github.io/alphastell/al_08_coil_geometry.error.png)
+[al_08_coil_geometry.md](https://lzpel.github.io/alphastell/al_08_coil_geometry.md) / [al_08_coil_geometry.error.png](https://lzpel.github.io/alphastell/al_08_coil_geometry.error.png) / [al_08_coil_geometry.step](https://lzpel.github.io/alphastell/al_08_coil_geometry.step)
 
 ### Experiment 09 `make al-09`
 
