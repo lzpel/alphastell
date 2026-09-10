@@ -4,25 +4,14 @@ import os
 import pathlib
 from typing import Any, Callable
 
-import h5py
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import openmc
-from cad_to_dagmc import CadToDagmc
 
 
 def main(
 	out: pathlib.Path = pathlib.Path("out") / pathlib.Path(__file__).with_suffix(".md").name,
-	colors: dict[str, str] = {  # 層名 (stem の末尾) → 色。Release previous_steps の parastell 全構造プレビューと同じ割り当て
-		"chamber": "#9ec9de",  # 真空
-		"first_wall": "#6e7176",  # タングステン
-		"breeder": "#59a869",  # 増殖材
-		"back_wall": "#c08457",  # EUROFER
-		"shield": "#4a4e69",  # 炭化タングステン
-		"vacuum_vessel": "#b0b7bd",  # SS316
-		"magnets": "#e08a2e",  # コイル
-	},
 	rotate_z: float = math.pi,  # 扇形 (第 1 象限) を回して、切断面が 4 面図のカメラに向くようにする [rad]
 	tolerance: float = 1.0,  # cad_to_dagmc の cadquery バックエンドの三角形化の許容差 [cm]。gmsh はホストでは落ちる
 	angular_tolerance: float = 0.2,  # 同 角度許容差 [rad]
@@ -30,13 +19,13 @@ def main(
 	batches: int = 30,  # 論文と同じ 30 万粒子
 	tally_xy: int = 50,  # 発熱マップの水平分割数
 	tally_z: int = 25,  # 同 鉛直分割数
-	nfp: int = 4,
 	dt_energy: float = 17.6e6,  # DT 反応 1 回あたりの発生エネルギー [eV]
 	neutron_energy: float = 14.1e6,
 	joule_per_ev: float = 1.602176634e-19,
 ) -> dict[str, Any]:  # main_parastell が書いた STEP と四面体線源をホストで読み、DAGMC にして輸送しレポートにする
 	from alphastell import Geometry  # コンテナには無いので関数内で import する
 	summary = json.loads(out.with_suffix(".json").read_text(encoding="utf-8"))  # main_parastell が書いた寸法・体積・線源の要約
+	nfp, colors = (geometry_parameters()[key] for key in ["nfp", "colors"])  # コンテナ側と同じ定数。JSON にも記録されるが、古い JSON でも読めるよう直接呼ぶ
 	rate = summary["source"]["rate"]  # 扇形 1 つ分の中性子発生率 [n/s]
 
 	layers, combined = [], None
@@ -169,8 +158,21 @@ def main_parastell(
 	print(f"{out}: {out.stat().st_size} bytes")
 
 
-def geometry_parameters() -> dict[str, Any]:  # radial build とマグネットの寸法 [cm]。parastell の examples/parastell_cad_to_dagmc_example.py と同じ値
+def geometry_parameters(
+	nfp: int = 4,  # VMEC 平衡の周期数。扇形 1 つは 360/nfp 度で、全周の量はこれを掛けて出す
+	colors: dict[str, str] = {  # 層名 (stem の末尾) → 色。Release previous_steps の parastell 全構造プレビューと同じ割り当て
+		"chamber": "#9ec9de",  # 真空
+		"first_wall": "#6e7176",  # タングステン
+		"breeder": "#59a869",  # 増殖材
+		"back_wall": "#c08457",  # EUROFER
+		"shield": "#4a4e69",  # 炭化タングステン
+		"vacuum_vessel": "#b0b7bd",  # SS316
+		"magnets": "#e08a2e",  # コイル
+	},
+) -> dict[str, Any]:  # radial build とマグネットの寸法 [cm]。parastell の examples/parastell_cad_to_dagmc_example.py と同じ値
 	return {
+		"nfp": nfp,
+		"colors": colors,
 		"wall_s": 1.08,  # 第一壁内面の規格化磁束面ラベル。LCFS の少し外
 		"first_wall": 5.0,
 		"back_wall": 5.0,
@@ -192,7 +194,7 @@ def geometry_parameters() -> dict[str, Any]:  # radial build とマグネット�
 		"sample_mod": 6,  # コイルフィラメントの点を何点おきに掃引に使うか
 		"source_cfs": 11,  # 線源メッシュの格子点数: 規格化磁束 s (0..1)
 		"source_theta": 61,  # ポロイダル角 (0..360°)
-		"source_phi": 61,  # トロイダル角 (0..90°)
+		"source_phi": 61,  # トロイダル角 (0..360/nfp°)
 	}
 
 
@@ -201,7 +203,8 @@ def build(wout: pathlib.Path, coils: pathlib.Path, out: pathlib.Path, parameters
 	import parastell.parastell as ps
 
 	stellarator = ps.Stellarator(str(wout))
-	toroidal_angles = np.linspace(0.0, 90.0, 9)
+	sector = 360.0 / parameters["nfp"]  # 扇形 1 つの角度 [deg]
+	toroidal_angles = np.linspace(0.0, sector, 9)
 	poloidal_angles = np.linspace(0.0, 360.0, 9)
 	uniform = np.ones((len(toroidal_angles), len(poloidal_angles)))
 	radial_build = {
@@ -213,7 +216,7 @@ def build(wout: pathlib.Path, coils: pathlib.Path, out: pathlib.Path, parameters
 	}
 	stellarator.construct_invessel_build(toroidal_angles, poloidal_angles, parameters["wall_s"], radial_build)
 	stellarator.construct_magnets_from_filaments(
-		str(coils), parameters["magnet_width"], parameters["magnet_thickness"], 90.0, sample_mod=parameters["sample_mod"]
+		str(coils), parameters["magnet_width"], parameters["magnet_thickness"], sector, sample_mod=parameters["sample_mod"]
 	)
 
 	volumes = {}  # 層名 → 体積 [m³/扇形]。chamber は s≤wall_s の void
@@ -227,7 +230,7 @@ def build(wout: pathlib.Path, coils: pathlib.Path, out: pathlib.Path, parameters
 	stellarator.construct_source_mesh(  # parastell 既定の n(s), T(s) で tet ごとの反応率を積分した強度 [n/s]。main は h5m と npy を読むだけ
 		np.linspace(0.0, 1.0, parameters["source_cfs"]),
 		np.linspace(0.0, 360.0, parameters["source_theta"]),
-		np.linspace(0.0, 90.0, parameters["source_phi"]),
+		np.linspace(0.0, sector, parameters["source_phi"]),
 	)
 	stellarator.export_source_mesh(filename="source_mesh", export_dir=str(out.parent))  # parastell は filename の拡張子を .h5m に差し替える
 	(out.parent / "source_mesh.h5m").replace(out.with_suffix(".source.h5m"))
@@ -276,6 +279,7 @@ def materials() -> list[openmc.Material]:  # ParaStell 論文 Table 1/2 (ARIES-C
 
 
 def source_density(source_h5m: pathlib.Path, mesh: openmc.RegularMesh) -> np.ndarray:  # 四面体線源を直交メッシュにビン分けした強度 [n/s per voxel]。tet の重心にその強度を置く
+	import h5py
 	with h5py.File(source_h5m) as f:  # MOAB の h5m を h5py で読む (ホストに pymoab は無い)
 		nodes = f["tstt/nodes/coordinates"][()]
 		tets = f["tstt/elements/Tet4/connectivity"][()] - int(f["tstt/nodes/coordinates"].attrs["start_id"])  # 連結は 1 始まりの節点 id
@@ -316,6 +320,7 @@ def plot_tally(
 
 
 def dagmc(layers: list[tuple[pathlib.Path, str, int, float]], h5m: pathlib.Path, tolerance: float, angular_tolerance: float) -> pathlib.Path:  # 層ごとの STEP を 1 つの DAGMC にする。材料タグは層名で chamber は void。STEP は cm なので scale は 1
+	from cad_to_dagmc import CadToDagmc
 	cad = CadToDagmc()
 	for step, name, n_solids, _ in layers:
 		cad.add_stp_file(str(step), material_tags=["vacuum" if name == "chamber" else name] * n_solids)
