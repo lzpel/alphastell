@@ -24,6 +24,11 @@ impl SurfaceFourierRZ {
 			.map(Self)
 			.map_err(pyo3::exceptions::PyValueError::new_err)
 	}
+	/// トロイダル方向の基本周波数 [1/周]。φ を 1/frequency0 周だけ進めると同じ形に戻る。VMEC の nfp
+	#[getter]
+	fn frequency0(&self) -> i32 {
+		self.0.frequency0()
+	}
 	fn point_normal(&self, phi: f64, theta: f64, s: f64, normal: u8) -> [[f64; 3]; 2] {
 		self.0.interpolate(phi, theta, s, match normal {
 			Self::NORMAL_SURFACE => vmec::NormalKind::Surface,
