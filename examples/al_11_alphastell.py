@@ -34,9 +34,9 @@ def torus(
 			return [p[i] + n[i] * make_surface(phi, theta) for i in range(3)]
 		return Geometry.bspline_geometry([[point(math.tau * i / div_phi, math.tau * j / div_theta) for j in range(div_theta)] for i in range(div_phi)])
 	if make_sweep:
-		profile = make_sweep[0]
+		profile = make_sweep[1]
 		paths = []# spine+auxをmake_sweep[2]から作る
-		return Geometry.sweep_geometry(profile, paths)
+		return Geometry.sweep_geometry(make_sweep[0], profile, paths)
 		
 
 def write_step(
