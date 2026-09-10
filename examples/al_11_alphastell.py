@@ -44,7 +44,6 @@ def torus(
 	raise ValueError("make_surface か make_sweep のどちらかを指定する")
 
 
-
 def write_step(
 	geometry: Geometry,
 	out: pathlib.Path,
