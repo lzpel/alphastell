@@ -6,6 +6,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 
+from alphastell import SurfaceFourierRZ, Geometry
+
 
 def main(
 	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent / "wout_vmec.nc",
@@ -33,7 +35,9 @@ def main(
 		header="row = one coil; columns = [c0, s1, c1, .. s_order, c_order] for x, then y, then z [m]",
 	)
 
-	projected_spines = project_spines(wout, spines)
+	with open(wout, "rb") as f:
+		lcfs = SurfaceFourierRZ.load(f)  # simsopt の surface とは別物。射影は alphastell 側で解く
+	projected_spines = project_spines(lcfs, spines)
 	visualize_spines(projected_spines, out.with_suffix(".spines.png"), surface)
 	solids = sweep_spines(width, height, projected_spines)
 	for path, write in ((out.with_suffix(".step"), solids.write_step), (out.with_suffix(".sweep.png"), solids.write_png)):
@@ -228,7 +232,7 @@ def optimize_coil(
 	}
 
 
-def project_spines(  # al_08_coil_geometry.py からのコピー。wout パスではなく読み込み済みの surface を受ける点だけが違う
+def project_spines(
 	surface: SurfaceFourierRZ,
 	spines_points: list[list[tuple[float, float, float]]],  # コイル 1 本あたりの中心線点列 (x, y, z)。対称像込み
 	distance: float = -1, # 正ならガイドと線の距離、負なら射影先そのもの
@@ -251,13 +255,12 @@ def sweep_spines(
 	width: float,  # 断面のトロイダル幅 [m]。断面のローカル +Y に割り当てる
 	height: float,  # 断面の半径方向厚み [m]。ローカル +X = guide 方向に割り当てる
 	projected_spines: list[list[tuple[float, float, float, float, float, float]]],  # project_spines の出力 [ncoil][npoint][x, y, z, projectedx, projectedy, projectedz]
-) -> Any:  # alphastell.Geometry
+) -> Geometry:
 	"""spine+guide の 6N 形式を sweep_geometry (Auxiliary) に渡して掃引する。
 
 	断面は常に接線と直交し、ローカル +X が guide の方を向く (cadrum 0.8.18 以降)。guide は
 	射影の足そのものではなく、そこへ向かって断面の対角半径だけ進んだ点に置き直す。
 	"""
-	from alphastell import Geometry
 	distance_between_guide_and_spine = math.sqrt(width**2 + height**2) / 2
 	def guided(p: tuple[float, float, float, float, float, float]) -> list[float]:
 		scale = distance_between_guide_and_spine / math.dist(p[0:3], p[3:6])
