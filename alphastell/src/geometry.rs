@@ -57,8 +57,15 @@ impl Geometry {
 	#[staticmethod]
 	fn loft_geometry(points: Vec<f64>) -> Result<Geometry, Error> {
 		let (u, v, point) = Self::points_to_dvec3(points);
-		let sections: std::result::Result<Vec<Vec<cadrum::Edge>>, cadrum::Error> = (0..u).map(|i| cadrum::Edge::polygon((0..v).map(|j| &point[i * v + j]))).collect();
-		Ok(Geometry(vec![cadrum::Solid::loft(&sections?, true)?]))
+		if u < 3 {
+			return Err(Self::invalid(format!("periodic loft needs >=3 sections, got {}", u)));
+		}
+		// 断面 0 を末尾にも置いて 1 周させる。ThruSections は両端に蓋を張るので、半周ずつロフトして union で蓋を消す
+		let sections = (0..=u).map(|i| cadrum::Edge::polygon((0..v).map(|j| &point[i % u * v + j]))).collect::<Result<Vec<Vec<cadrum::Edge>>, cadrum::Error>>()?;
+		let a = Geometry(vec![cadrum::Solid::loft(&sections[..=u / 2], true)?]);
+		let b = Geometry(vec![cadrum::Solid::loft(&sections[u / 2..], true)?]);
+		let uab = a.boolean_union(&b)?;
+		Ok(uab)
 	}
 	#[staticmethod]
 	fn bspline_geometry(points: Vec<f64>) -> Result<Geometry, Error> {
