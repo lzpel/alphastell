@@ -6,6 +6,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 
+from alphastell import SurfaceFourierRZ, Geometry
+
 
 def main(
 	wout: pathlib.Path = pathlib.Path(__file__).resolve().parent / "wout_vmec.nc",
@@ -33,7 +35,9 @@ def main(
 		header="row = one coil; columns = [c0, s1, c1, .. s_order, c_order] for x, then y, then z [m]",
 	)
 
-	projected_spines = project_spines(wout, spines)
+	with open(wout, "rb") as f:
+		lcfs = SurfaceFourierRZ.load(f)  # simsopt の surface とは別物。射影は alphastell 側で解く
+	projected_spines = project_spines(lcfs, spines)
 	visualize_spines(projected_spines, out.with_suffix(".spines.png"), surface)
 	solids = sweep_spines(width, height, projected_spines)
 	for path, write in ((out.with_suffix(".step"), solids.write_step), (out.with_suffix(".sweep.png"), solids.write_png)):
@@ -229,22 +233,21 @@ def optimize_coil(
 
 
 def project_spines(
-	wout: pathlib.Path,
+	surface: SurfaceFourierRZ,
 	spines_points: list[list[tuple[float, float, float]]],  # コイル 1 本あたりの中心線点列 (x, y, z)。対称像込み
-) -> list[list[tuple[float, float, float, float, float, float]]]:
-	"""中心線の各点に LCFS 上の最近傍点を並べて [x, y, z, projectedx, projectedy, projectedz] にする。"""
-	from alphastell import SurfaceFourierRZ
+	distance: float = -1, # 正ならガイドと線の距離、負なら射影先そのもの
+	s: float = 1.0,  # 射影先の磁束面。LCFS
+) -> list[list[tuple[float, float, float, float, float, float]]]:  # 中心線の各点に LCFS 上の最近傍点を並べて [x, y, z, projectedx, projectedy, projectedz] にする
 	ret_projected_spines = []
-	with open(wout, "rb") as f:
-		surface = SurfaceFourierRZ.load(f)
-		for points in spines_points:
-			point_center = np.mean(points, axis=0)
-			phi, theta, s = math.atan2(point_center[1], point_center[0]), 0.0, 1.0
-			projected_points = []
-			for point in points:
-				phi, theta = surface.nearest(phi, theta, s, point)  # 前の点の解を次の初期値にする継続法
-				projected_points.append([*point, *surface.point_normal(phi, theta, s, SurfaceFourierRZ.NORMAL_SURFACE)[0]])  # 射影の足だけもらう
-			ret_projected_spines.append(projected_points)
+	for points in spines_points:
+		point_center = np.mean(points, axis=0)
+		phi, theta = math.atan2(point_center[1], point_center[0]), 0.0
+		projected_points = []
+		for point in points:
+			phi, theta = surface.nearest(phi, theta, s, point)  # 前の点の解を次の初期値にする継続法
+			p, n = surface.point_normal(phi, theta, s, SurfaceFourierRZ.NORMAL_SURFACE)
+			projected_points.append([*point, *[point[i]-distance*n[i] if distance>0 else p[i] for i in range(3)]])  # 射影の足だけもらう
+		ret_projected_spines.append(projected_points)
 	return ret_projected_spines
 
 
@@ -252,13 +255,12 @@ def sweep_spines(
 	width: float,  # 断面のトロイダル幅 [m]。断面のローカル +Y に割り当てる
 	height: float,  # 断面の半径方向厚み [m]。ローカル +X = guide 方向に割り当てる
 	projected_spines: list[list[tuple[float, float, float, float, float, float]]],  # project_spines の出力 [ncoil][npoint][x, y, z, projectedx, projectedy, projectedz]
-) -> Any:  # alphastell.Geometry
+) -> Geometry:
 	"""spine+guide の 6N 形式を sweep_geometry (Auxiliary) に渡して掃引する。
 
 	断面は常に接線と直交し、ローカル +X が guide の方を向く (cadrum 0.8.18 以降)。guide は
 	射影の足そのものではなく、そこへ向かって断面の対角半径だけ進んだ点に置き直す。
 	"""
-	from alphastell import Geometry
 	distance_between_guide_and_spine = math.sqrt(width**2 + height**2) / 2
 	def guided(p: tuple[float, float, float, float, float, float]) -> list[float]:
 		scale = distance_between_guide_and_spine / math.dist(p[0:3], p[3:6])

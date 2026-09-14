@@ -44,7 +44,7 @@ def main(
 
 	# --- 幾何: 中心線を掃引したコイルと法線オフセットの増殖材殻 ------------------------
 	spines = [coil.curve.gamma() for coil in result["coils"]]
-	solids = sweep_spines(width, height, project_spines(wout, spines))
+	solids = sweep_spines(width, height, project_spines(lcfs, spines))
 	shell, outer = blanket(lcfs, thickness)
 	for geometry, path in ((solids, out.with_suffix(".coils.step")), (shell, out.with_suffix(".shell.step"))):
 		with open(path, "wb") as f:
