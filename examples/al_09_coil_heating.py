@@ -98,9 +98,9 @@ def main(
 	figure = plt.figure(figsize=(8.5, 7.0))
 	axes = figure.add_subplot(projection="3d")
 	image = axes.scatter(centers[0][mask], centers[1][mask], centers[2][mask], c=density_map[mask], norm=matplotlib.colors.LogNorm(), s=4)
-	figure.colorbar(image, ax=axes, label="nuclear heating [W/m^3]", shrink=0.7)
+	figure.colorbar(image, ax=axes, label="nuclear heating [W/m$^3$]", shrink=0.7, pad=0.12)  # pad で z 軸ラベルとの重なりを避ける
 	axes.set_box_aspect(np.ptp(points, axis=0))
-	axes.set(xlabel="x [m]", ylabel="y [m]", zlabel="z [m]", title=f"coil nuclear heating at {power['power'] / 1e9:.1f} GW fusion")
+	axes.set(xlabel="x [m]", ylabel="y [m]", zlabel="z [m]")
 	figure.savefig(out.with_suffix(".heating.png"), dpi=150, bbox_inches="tight")
 	plt.close(figure)
 
