@@ -278,7 +278,7 @@ def visualize_spines(
 	import os
 	colors = plt.get_cmap("tab10")
 	array = np.array(projected_spines)  # [ncoil, npoint, 6]
-	figure = plt.figure()
+	figure = plt.figure(figsize=(8, 5))  # 平たいトーラスなので横長にして上下の余白を減らす
 	axes = figure.add_subplot(111, projection="3d")
 	if surface is not None:
 		wall=surface.gamma()
@@ -295,14 +295,14 @@ def visualize_spines(
 		for a, b in zip(spine_i[::3], projected_i[::3]):  # 3 点に 1 本だけ描いて密度を抑える
 			axes.plot([a[0], b[0]], [a[1], b[1]], [a[2], b[2]], color=color, linewidth=0.6)
 
-	axes.set_box_aspect(np.ptp(array.reshape(-1, 3), axis=0))
+	axes.set_box_aspect(np.ptp(array.reshape(-1, 3), axis=0), zoom=1.25)
 	axes.set(xlabel="x [m]", ylabel="y [m]", zlabel="z [m]")
 	axes.zaxis.set_major_locator(matplotlib.ticker.MaxNLocator(3))	
 	axes.view_init(elev=38, azim=-55)
 	axes.grid(False)
 	[pane.pane.set_alpha(0.0) for pane in (axes.xaxis, axes.yaxis, axes.zaxis)]	
 	figure.tight_layout()
-	figure.savefig(out)
+	figure.savefig(out, dpi=150, bbox_inches="tight")
 	plt.close(figure)
 	np.savetxt(out.with_suffix(".csv"), array.reshape(len(array), -1), delimiter=",", fmt="%.9e", header="row = one coil; columns = x,y,z,projectedx,projectedy,projectedz repeated npoint times [m]")
 	len(os.getenv("SHOW", "")) and plt.show()
