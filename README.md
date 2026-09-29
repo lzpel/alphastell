@@ -85,6 +85,8 @@ Photon transport: the heating tally must include the secondary gamma rays, which
 
 ![al_09_coil_heating.heating.png](https://lzpel.github.io/alphastell/al_09_coil_heating.heating.png)
 
+Coil nuclear heating at 3.1 GW fusion power: voxel-averaged heating density in the coils, on a logarithmic color scale.
+
 ![al_09_coil_heating.geometry.png](https://lzpel.github.io/alphastell/al_09_coil_heating.geometry.png)
 
 [al_09_coil_heating.md](https://lzpel.github.io/alphastell/al_09_coil_heating.md) / [al_09_coil_heating.percoil.png](https://lzpel.github.io/alphastell/al_09_coil_heating.percoil.png) / [al_09_coil_heating.coils.step](https://lzpel.github.io/alphastell/al_09_coil_heating.coils.step) / [al_09_coil_heating.shell.step](https://lzpel.github.io/alphastell/al_09_coil_heating.shell.step)
